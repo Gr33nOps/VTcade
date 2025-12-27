@@ -206,10 +206,8 @@
             return emailRegex.test(email);
         }
 
+        // Password validation intentionally disabled per user request
         function validatePassword(password) {
-            if (password.length < 8) {
-                return "Password must be at least 8 characters";
-            }
             return null;
         }
 
@@ -218,12 +216,7 @@
             const fields = ["EMAIL", "PASSWORD"];
             const values = [email, password];
             
-            let output = `
-================================================================================
-USER AUTHENTICATION
-================================================================================
-
-`;
+            let output = `\n================================================================================\nUSER AUTHENTICATION\n================================================================================\n\n`;
 
             // Render input fields
             fields.forEach((field, index) => {
@@ -266,20 +259,7 @@ USER AUTHENTICATION
                 output += `<span class="success-text">SUCCESS: ${successMessage}</span>\n\n`;
             }
 
-            output += `
-================================================================================
-COMMAND REFERENCE
-================================================================================
-
-    [↑/↓]              Navigate Fields
-    [ENTER]            Execute Selected
-    [TAB]              Switch to Signup Page
-
-================================================================================
-
-READY: <span class="cursor">_</span>
-
-`;
+            output += `\n================================================================================\nCOMMAND REFERENCE\n================================================================================\n\n    [↑/↓]              Navigate Fields\n    [ENTER]            Execute Selected\n    [TAB]              Switch to Signup Page\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
 
             terminalEl.innerHTML = output;
         }
@@ -341,13 +321,7 @@ READY: <span class="cursor">_</span>
                 return;
             }
 
-            // Validate password length
-            const passwordError = validatePassword(password);
-            if (passwordError) {
-                errorMessage = passwordError;
-                render();
-                return;
-            }
+            // Password check intentionally skipped
             
             isSubmitting = true;
             render();
