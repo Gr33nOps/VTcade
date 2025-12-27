@@ -15,14 +15,16 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             text-shadow: 0 0 4px #00ff00;
             overflow: hidden;
             cursor: none;
+            padding: 20px;
         }
         .container {
             display: flex;
             gap: 20px;
+            z-index: 1;
         }
         pre {
             white-space: pre;
@@ -30,6 +32,9 @@
             line-height: 1.0;
         }
         #game {
+            position: relative;
+        }
+        #ui {
             position: relative;
         }
         /* CRT scanlines */
@@ -44,7 +49,7 @@
                 rgba(0,0,0,0) 4px
             );
             pointer-events: none;
-            z-index: 9999;
+            z-index: 100;
         }
         /* Loading overlay */
         .loading-overlay {
@@ -105,8 +110,12 @@ const WIDTH = 50;
 const HEIGHT = 25;
 const GAME_NAME = "BlockFlap";
 
+console.log("Script loaded");
+
 // ---------------- LOGIN CHECK ----------------
 const currentUser = localStorage.getItem("currentUser");
+console.log("Current user:", currentUser);
+
 if (!currentUser) {
     alert("You must be logged in to play!");
     window.location.href = "../login/login.html";
@@ -195,7 +204,7 @@ LEADERBOARD:
 `;
     
     if (leaderboard.length === 0) {
-        ui += "(No scores yet)\n";
+        ui += "(Loading...)\n";
     } else {
         leaderboard.slice(0, 8).forEach((entry, i) => {
             const username = entry.username.substring(0, 12).padEnd(12);
@@ -295,6 +304,7 @@ function checkCollision() {
 // ---------------- GAME OVER ----------------
 async function gameOver() {
     gameRunning = false;
+    console.log("Game over! Score:", score);
     
     // Save personal best FIRST
     await saveHighscoreToDB();
@@ -310,6 +320,7 @@ async function gameOver() {
 
 // ---------------- RESTART ----------------
 function restartGame() {
+    console.log("Restarting game");
     bird.y = Math.floor(HEIGHT / 2);
     bird.velocity = 0;
     pipes = [];
@@ -322,6 +333,7 @@ function restartGame() {
 
 // Start game
 function startGame() {
+    console.log("Starting game");
     gameRunning = true;
     gameStarted = true;
     gameLoop();
@@ -329,11 +341,16 @@ function startGame() {
 
 // Jump
 function jump() {
+    console.log("Jump called - gameStarted:", gameStarted, "gameRunning:", gameRunning);
+    
     if (!gameStarted) {
+        console.log("Starting new game");
         startGame();
     } else if (gameRunning) {
+        console.log("Jumping");
         bird.velocity = bird.jump;
     } else if (!gameRunning && gameStarted) {
+        console.log("Restarting after game over");
         restartGame();
         setTimeout(() => startGame(), 100);
     }
@@ -363,7 +380,6 @@ async function loadHighScore() {
 }
 
 async function saveHighscoreToDB() {
-    // Only save if score beats highScore
     if (score <= highScore) {
         console.log("Score not high enough to save:", score, "vs", highScore);
         return;
@@ -430,6 +446,7 @@ async function updateLeaderboardUI() {
         leaderboard = data || [];
         
         console.log("Leaderboard loaded:", leaderboard.length, "entries");
+        draw();
     } catch (err) {
         console.log("Leaderboard fetch error:", err);
         leaderboard = [];
@@ -437,23 +454,31 @@ async function updateLeaderboardUI() {
 }
 
 // Controls
-document.addEventListener("keydown", e => {
-    if (e.code === "Space" || e.code === "ArrowUp") {
-        jump();
+document.addEventListener("keydown", (e) => {
+    console.log("Key pressed:", e.key, e.code);
+    
+    if (e.code === "Space" || e.code === "ArrowUp" || e.key === " " || e.key === "ArrowUp") {
         e.preventDefault();
-    } else if (e.code === "Escape") {
+        jump();
+    } else if (e.code === "Escape" || e.key === "Escape") {
+        e.preventDefault();
         const overlay = document.getElementById('loadingOverlay');
         overlay.classList.add('active');
         setTimeout(() => {
             window.location.href = "../dashboard/dashboard.html";
         }, 800);
-        e.preventDefault();
     }
 });
 
 // Click to jump
-document.addEventListener("click", () => {
+document.addEventListener("click", (e) => {
+    console.log("Click detected");
     jump();
+});
+
+// Prevent context menu
+document.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
 });
 
 // ---------------- INITIAL ----------------
@@ -466,20 +491,25 @@ async function initGame() {
         restartGame();
         
         console.log("Game initialized successfully");
+        console.log("Press SPACE or UP ARROW to start");
     } catch (err) {
         console.error("Init error:", err);
-        // Still allow the game to start even if backend fails
         restartGame();
     } finally {
-        // Hide loading overlay after everything is loaded
         setTimeout(() => {
             const overlay = document.getElementById('loadingOverlay');
             overlay.classList.remove('active');
+            console.log("Loading overlay hidden, game ready");
         }, 500);
     }
 }
 
-initGame();
+// Make sure page is fully loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initGame);
+} else {
+    initGame();
+}
 </script>
 </body>
 </html>
