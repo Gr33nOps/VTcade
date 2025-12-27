@@ -10,7 +10,7 @@ async function sendVerificationEmail(email, token) {
         }
     });
 
-    const url = `http://localhost:5000/api/auth/verify-email?token=${token}`;
+    const url = `https://vtcade.onrender.com/api/auth/verify-email?token=${token}`;
 
     const mailOptions = {
         from: `"My App" <${process.env.EMAIL_USER}>`,
