@@ -1,0 +1,120 @@
+/* Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Body */
+body {
+    background: black;
+    color: white;
+    font-family: monospace;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+/* Main container */
+.game-container {
+    display: flex;
+    border: 4px solid white;
+    padding: 10px;
+    gap: 20px;
+}
+
+/* GAME BOARD */
+.game-board {
+    position: relative;
+    border: 4px solid rgb(255, 0, 0);
+    width: 400px;
+    height: 400px;
+}
+
+canvas {
+    width: 100%;
+    height: 100%;
+    background: black;
+}
+
+/* GAME OVER */
+.game-over-overlay {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 30px;
+    background: rgba(0,0,0,0.8);
+    border: 3px solid red;
+    text-align: center;
+}
+
+#gameOverText {
+    color: red;
+    font-size: 32px;
+    font-weight: bold;
+    margin-bottom: 20px;
+}
+
+/* UI PANEL */
+.ui-panel {
+    width: 200px;
+    border: 4px solid rgb(0, 255, 255);
+    background: black;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+}
+
+.ui-box {
+    border: 2px solid white;
+    padding: 10px;
+    text-align: center;
+}
+
+.score-box {
+    color: #0f0;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.leaderboard-box {
+    flex: 1;
+    overflow-y: auto;
+    text-align: left;
+}
+
+.leaderboard-box p {
+    text-align: center;
+    color: cyan;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+#leaderboard li {
+    color: #0f0;
+    margin-bottom: 5px;
+}
+
+/* Buttons */
+.btn {
+    border: 2px solid cyan;
+    background: black;
+    color: cyan;
+    padding: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    width: 100%;
+}
+
+.btn:hover {
+    background: cyan;
+    color: black;
+}
+
+.home-btn {
+    width: 100%;
+}

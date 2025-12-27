@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNAKE</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            background: black;
+            color: #00ff00;
+            font-family: "Courier New", monospace;
+            font-size: 16px;
+            line-height: 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-shadow: 0 0 4px #00ff00;
+            overflow: hidden;
+            cursor: none;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        pre {
+            white-space: pre;
+            user-select: none;
+            line-height: 1.0;
+        }
+        #game {
+            position: relative;
+        }
+        /* CRT scanlines */
+        body::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(
+                to bottom,
+                rgba(0,0,0,0) 0px,
+                rgba(0,255,0,0.04) 2px,
+                rgba(0,0,0,0) 4px
+            );
+            pointer-events: none;
+        }
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: black;
+            color: #00ff00;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            font-family: "Courier New", monospace;
+            text-align: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        .loading-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+        .loading-dots::after {
+            content: '';
+            animation: dots 1.5s infinite;
+        }
+    </style>
+</head>
+<body>
+<div class="loading-overlay active" id="loadingOverlay">
+    <pre style="font-size: 14px; line-height: 1.5;">
+SNAKE v1.0
+
+<span class="loading-dots">LOADING</span>
+    </pre>
+</div>
+<div class="container">
+    <pre id="game"></pre>
+    <pre id="ui"></pre>
+</div>
+<script>
+const gameEl = document.getElementById("game");
+const uiEl = document.getElementById("ui");
+const WIDTH = 50;
+const HEIGHT = 25;
+const GAME_NAME = "SnakeGame";
+
+// ---------------- LOGIN CHECK ----------------
+const currentUser = localStorage.getItem("currentUser");
+if (!currentUser) {
+    alert("You must be logged in to play!");
+    window.location.href = "/login.html";
+}
+
+// Game state
+let score = 0;
+let highScore = 0;
+let gameRunning = false;
+let gameStarted = false;
+let speed = 150;
+
+// Snake
+let snake = [];
+let direction = { x: 1, y: 0 };
+let nextDirection = { x: 1, y: 0 };
+
+// Food
+let food = { x: 0, y: 0 };
+
+// Leaderboard
+let leaderboard = [];
+
+// Initialize snake
+function initSnake() {
+    snake = [
+        { x: Math.floor(WIDTH / 2), y: Math.floor(HEIGHT / 2) },
+        { x: Math.floor(WIDTH / 2) - 1, y: Math.floor(HEIGHT / 2) },
+        { x: Math.floor(WIDTH / 2) - 2, y: Math.floor(HEIGHT / 2) }
+    ];
+    direction = { x: 1, y: 0 };
+    nextDirection = { x: 1, y: 0 };
+}
+
+// Spawn food
+function spawnFood() {
+    let validPosition = false;
+    while (!validPosition) {
+        food.x = Math.floor(Math.random() * (WIDTH - 2)) + 1;
+        food.y = Math.floor(Math.random() * HEIGHT);
+        
+        validPosition = !snake.some(segment => 
+            segment.x === food.x && segment.y === food.y
+        );
+    }
+}
+
+// Drawing
+function draw() {
+    let out = "";
+    
+    // Top border
+    out += "+" + "=".repeat(WIDTH - 2) + "+\n";
+    
+    // Game area
+    for (let y = 0; y < HEIGHT; y++) {
+        let line = "|";
+        for (let x = 1; x < WIDTH - 1; x++) {
+            let ch = " ";
+            
+            // Draw snake (head and body same)
+            if (snake.some(s => s.x === x && s.y === y)) {
+                ch = "█";
+            }
+            // Draw food
+            else if (food.x === x && food.y === y) {
+                ch = "█";
+            }
+            
+            line += ch;
+        }
+        line += "|\n";
+        out += line;
+    }
+    
+    // Bottom border
+    out += "+" + "=".repeat(WIDTH - 2) + "+\n";
+    
+    // Status messages
+    if (!gameStarted) {
+        out += "< PRESS ARROW KEYS TO START >\n";
+    } else if (!gameRunning && gameStarted) {
+        out += "< PROGRAM TERMINATED >\nPRESS ANY ARROW KEY TO RESTART\n";
+    }
+    
+    gameEl.textContent = out;
+    
+    // UI panel
+    let ui = `SNAKE v1.0
+━━━━━━━━━━━━━━━━━━━━
+
+SCORE: ${score}
+HIGHSCORE: ${highScore}
+LENGTH: ${snake.length}
+
+━━━━━━━━━━━━━━━━━━━━
+LEADERBOARD:
+━━━━━━━━━━━━━━━━━━━━
+`;
+    
+    leaderboard.slice(0, 8).forEach((entry, i) => {
+        const username = entry.username.substring(0, 12).padEnd(12);
+        ui += `${i + 1}. ${username} ${entry.score}\n`;
+    });
+    
+    ui += `\n━━━━━━━━━━━━━━━━━━━━
+CONTROLS:
+━━━━━━━━━━━━━━━━━━━━
+ARROW KEYS = MOVE
+EAT FOOD [█]
+AVOID WALLS & SELF
+
+━━━━━━━━━━━━━━━━━━━━
+ESC = BACK TO HOME
+`;
+    
+    uiEl.textContent = ui;
+}
+
+// Game loop
+function gameLoop() {
+    if (!gameRunning) return;
+    
+    updateSnake();
+    
+    if (checkCollision()) {
+        gameOver();
+        return;
+    }
+    
+    draw();
+    setTimeout(gameLoop, speed);
+}
+
+// Update snake
+function updateSnake() {
+    direction = nextDirection;
+    
+    const head = { 
+        x: snake[0].x + direction.x, 
+        y: snake[0].y + direction.y 
+    };
+    
+    snake.unshift(head);
+    
+    // Check if snake ate food
+    if (head.x === food.x && head.y === food.y) {
+        score += 10;
+        spawnFood();
+        
+        // Increase speed slightly
+        if (speed > 80) {
+            speed -= 2;
+        }
+    } else {
+        snake.pop();
+    }
+}
+
+// Collision detection
+function checkCollision() {
+    const head = snake[0];
+    
+    // Wall collision
+    if (head.x < 1 || head.x >= WIDTH - 1 || head.y < 0 || head.y >= HEIGHT) {
+        return true;
+    }
+    
+    // Self collision
+    for (let i = 1; i < snake.length; i++) {
+        if (head.x === snake[i].x && head.y === snake[i].y) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+// ---------------- GAME OVER ----------------
+async function gameOver() {
+    gameRunning = false;
+    
+    // Save personal best FIRST
+    await saveHighscoreToDB();
+    
+    // Then save to leaderboard (always saves current score)
+    await saveLeaderboardScoreToDB();
+    
+    // Finally update leaderboard UI
+    await updateLeaderboardUI();
+    
+    draw();
+}
+
+// ---------------- RESTART ----------------
+function restartGame() {
+    initSnake();
+    spawnFood();
+    score = 0;
+    speed = 150;
+    gameStarted = false;
+    gameRunning = false;
+    draw();
+}
+
+// Start game
+function startGame() {
+    gameRunning = true;
+    gameStarted = true;
+    gameLoop();
+}
+
+// Change direction
+function changeDirection(newDir) {
+    // Prevent reversing direction
+    if (newDir.x === -direction.x && newDir.y === -direction.y) {
+        return;
+    }
+    
+    if (!gameStarted) {
+        nextDirection = newDir;
+        startGame();
+    } else if (gameRunning) {
+        nextDirection = newDir;
+    } else if (!gameRunning && gameStarted) {
+        restartGame();
+    }
+}
+
+// ---------------- HIGH SCORE ----------------
+async function loadHighScore() {
+    try {
+        const res = await fetch(
+            `http://localhost:5000/api/highscore/${currentUser}/${GAME_NAME}`
+        );
+
+        if (!res.ok) throw new Error("Failed to load highscore");
+
+        const data = await res.json();
+        highScore = data.highscore || 0;
+        
+        console.log("Loaded highscore:", highScore);
+    } catch (err) {
+        console.error("Highscore load error:", err);
+        highScore = 0;
+    }
+}
+
+async function saveHighscoreToDB() {
+    if (score < highScore) {
+        console.log("Score not high enough to save:", score, "vs", highScore);
+        return;
+    }
+
+    try {
+        console.log("Saving highscore:", score);
+        
+        const res = await fetch("http://localhost:5000/api/highscore/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                username: currentUser,
+                game: GAME_NAME,
+                score: score
+            })
+        });
+
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
+
+        const data = await res.json();
+        highScore = data.highscore;
+        
+        console.log("Highscore saved successfully:", highScore);
+    } catch (err) {
+        console.error("Highscore save error:", err);
+    }
+}
+
+// ---------------- LEADERBOARD ----------------
+async function saveLeaderboardScoreToDB() {
+    try {
+        await fetch("http://localhost:5000/api/leaderboard/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                username: currentUser,
+                game: GAME_NAME,
+                score
+            })
+        });
+    } catch (err) {
+        console.log("Leaderboard save error:", err);
+    }
+}
+
+async function updateLeaderboardUI() {
+    try {
+        const res = await fetch(`http://localhost:5000/api/leaderboard/${GAME_NAME}`);
+        const data = await res.json();
+
+        leaderboard = data;
+        draw();
+    } catch (err) {
+        console.log("Leaderboard fetch error:", err);
+    }
+}
+
+// Controls
+document.addEventListener("keydown", e => {
+    if (e.code === "ArrowUp") {
+        changeDirection({ x: 0, y: -1 });
+        e.preventDefault();
+    } else if (e.code === "ArrowDown") {
+        changeDirection({ x: 0, y: 1 });
+        e.preventDefault();
+    } else if (e.code === "ArrowLeft") {
+        changeDirection({ x: -1, y: 0 });
+        e.preventDefault();
+    } else if (e.code === "ArrowRight") {
+        changeDirection({ x: 1, y: 0 });
+        e.preventDefault();
+    } else if (e.code === "Escape") {
+        const overlay = document.getElementById('loadingOverlay');
+        overlay.classList.add('active');
+        setTimeout(() => {
+            window.location.href = "../dashboard/dashboard.html";
+        }, 800);
+        e.preventDefault();
+    }
+});
+
+// ---------------- INITIAL ----------------
+async function initGame() {
+    await loadHighScore();
+    restartGame();
+    await updateLeaderboardUI();
+    
+    // Hide loading overlay after everything is loaded
+    setTimeout(() => {
+        const overlay = document.getElementById('loadingOverlay');
+        overlay.classList.remove('active');
+    }, 500);
+}
+
+initGame();
+</script>
+</body>
+</html>

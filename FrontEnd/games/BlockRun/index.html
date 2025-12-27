@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RUNNER</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            background: black;
+            color: #00ff00;
+            font-family: "Courier New", monospace;
+            font-size: 16px;
+            line-height: 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-shadow: 0 0 4px #00ff00;
+            overflow: hidden;
+            cursor: none;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        pre {
+            white-space: pre;
+            user-select: none;
+            line-height: 1.0;
+        }
+        /* CRT scanlines */
+        body::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(
+                to bottom,
+                rgba(0,0,0,0) 0px,
+                rgba(0,255,0,0.04) 2px,
+                rgba(0,0,0,0) 4px
+            );
+            pointer-events: none;
+        }
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: black;
+            color: #00ff00;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            font-family: "Courier New", monospace;
+            text-align: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        .loading-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+        .loading-dots::after {
+            content: '';
+            animation: dots 1.5s infinite;
+        }
+    </style>
+</head>
+<body>
+<div class="loading-overlay active" id="loadingOverlay">
+    <pre style="font-size: 14px; line-height: 1.5;">
+RUNNER v1.0
+
+<span class="loading-dots">LOADING</span>
+    </pre>
+</div>
+<div class="container">
+    <pre id="game"></pre>
+    <pre id="ui"></pre>
+</div>
+<script>
+const gameEl = document.getElementById("game");
+const uiEl = document.getElementById("ui");
+const WIDTH = 50;
+const HEIGHT = 25;
+const GAME_NAME = "BlockRun";
+
+// ---------------- LOGIN CHECK ----------------
+const currentUser = localStorage.getItem("currentUser");
+if (!currentUser) {
+    alert("You must be logged in to play!");
+    window.location.href = "/login.html";
+}
+
+// ---------------- GAME STATE ----------------
+let score = 0;
+let highScore = 0;
+let frame = 0;
+let gameRunning = false;
+let gameStarted = false;
+let gameSpeed = 1;
+
+// ---------------- PLAYER ----------------
+const player = {
+    x: 8,
+    y: HEIGHT - 3,
+    width: 2,
+    height: 2,
+    velocityY: 0,
+    gravity: 0.8,
+    jumpPower: -3.5,
+    groundY: HEIGHT - 3,
+    isJumping: false
+};
+
+// ---------------- OBSTACLES ----------------
+let obstacles = [];
+let nextObstacleFrame = 40;
+let leaderboard = [];
+
+// ---------------- DRAWING ----------------
+function draw() {
+    let out = "";
+    
+    // Top border
+    out += "+" + "=".repeat(WIDTH - 2) + "+\n";
+    
+    // Create grid
+    let grid = [];
+    for (let y = 0; y < HEIGHT; y++) {
+        grid[y] = [];
+        for (let x = 0; x < WIDTH; x++) {
+            grid[y][x] = " ";
+        }
+    }
+    
+    // Draw ground line
+    for (let x = 1; x < WIDTH - 1; x++) {
+        grid[HEIGHT - 1][x] = "─";
+    }
+    
+    // Draw player
+    for (let py = 0; py < player.height; py++) {
+        for (let px = 0; px < player.width; px++) {
+            let gy = Math.floor(player.y) + py;
+            let gx = player.x + px;
+            if (gy >= 0 && gy < HEIGHT && gx >= 1 && gx < WIDTH - 1) {
+                grid[gy][gx] = "█";
+            }
+        }
+    }
+    
+    // Draw obstacles
+    obstacles.forEach(o => {
+        for (let oy = 0; oy < o.height; oy++) {
+            for (let ox = 0; ox < o.width; ox++) {
+                let gy = o.y + oy;
+                let gx = Math.floor(o.x) + ox;
+                if (gy >= 0 && gy < HEIGHT && gx >= 1 && gx < WIDTH - 1) {
+                    grid[gy][gx] = "▓";
+                }
+            }
+        }
+    });
+    
+    // Convert grid to string
+    for (let y = 0; y < HEIGHT; y++) {
+        let line = "|";
+        for (let x = 1; x < WIDTH - 1; x++) {
+            line += grid[y][x];
+        }
+        line += "|\n";
+        out += line;
+    }
+    
+    // Bottom border
+    out += "+" + "=".repeat(WIDTH - 2) + "+\n";
+    
+    // Status messages
+    if (!gameStarted) {
+        out += "< PRESS SPACE OR UP ARROW TO START >\n";
+    } else if (!gameRunning && gameStarted) {
+        out += "< PROGRAM TERMINATED >\nPRESS SPACE OR UP ARROW TO RESTART\n";
+    }
+    
+    gameEl.textContent = out;
+    
+    // UI panel
+    let ui = `RUNNER v1.0
+━━━━━━━━━━━━━━━━━━━━
+
+SCORE: ${score}
+HIGHSCORE: ${highScore}
+SPEED: ${gameSpeed.toFixed(1)}x
+
+━━━━━━━━━━━━━━━━━━━━
+LEADERBOARD:
+━━━━━━━━━━━━━━━━━━━━
+`;
+    
+    leaderboard.slice(0, 8).forEach((entry, i) => {
+        const username = entry.username.substring(0, 12).padEnd(12);
+        ui += `${i + 1}. ${username} ${entry.score}\n`;
+    });
+    
+    ui += `\n━━━━━━━━━━━━━━━━━━━━
+CONTROLS:
+━━━━━━━━━━━━━━━━━━━━
+SPACE / UP ARROW = JUMP
+AVOID BLOCKS [▓]
+
+━━━━━━━━━━━━━━━━━━━━
+ESC = BACK TO HOME
+`;
+    
+    uiEl.textContent = ui;
+}
+
+// ---------------- UPDATES ----------------
+function updatePlayer() {
+    player.velocityY += player.gravity;
+    player.y += player.velocityY;
+
+    if (player.y >= player.groundY) {
+        player.y = player.groundY;
+        player.velocityY = 0;
+        player.isJumping = false;
+    }
+}
+
+function updateObstacles() {
+    frame++;
+
+    if (frame >= nextObstacleFrame) {
+        let height = Math.random() > 0.5 ? 2 : 3;
+        obstacles.push({
+            x: WIDTH - 2,
+            y: HEIGHT - 1 - height,
+            width: 2,
+            height: height,
+            passed: false
+        });
+
+        nextObstacleFrame = frame + Math.floor(Math.random() * 40 + 40);
+    }
+
+    obstacles.forEach(o => {
+        o.x -= gameSpeed;
+
+        if (!o.passed && o.x + o.width < player.x) {
+            o.passed = true;
+            score++;
+            if (score % 10 === 0 && gameSpeed < 2.5) gameSpeed += 0.2;
+        }
+    });
+
+    obstacles = obstacles.filter(o => o.x + o.width > 1);
+}
+
+// ---------------- COLLISION ----------------
+function checkCollision() {
+    return obstacles.some(o => {
+        let px = player.x;
+        let py = Math.floor(player.y);
+        let pw = player.width;
+        let ph = player.height;
+        
+        let ox = Math.floor(o.x);
+        let oy = o.y;
+        let ow = o.width;
+        let oh = o.height;
+        
+        return px < ox + ow &&
+               px + pw > ox &&
+               py < oy + oh &&
+               py + ph > oy;
+    });
+}
+
+// ---------------- SCORE ----------------
+function updateScore() {
+    if (score > highScore) {
+        highScore = score;
+    }
+}
+
+// ---------------- GAME LOOP ----------------
+function gameLoop() {
+    if (!gameRunning) return;
+
+    updatePlayer();
+    updateObstacles();
+
+    if (checkCollision()) {
+        gameOver();
+        return;
+    }
+
+    updateScore();
+    draw();
+    
+    setTimeout(gameLoop, 80);
+}
+
+// ---------------- GAME OVER ----------------
+async function gameOver() {
+    gameRunning = false;
+
+    // Save highscore first
+    await saveHighscore();
+    await saveLeaderboard();
+    await loadLeaderboard();
+    
+    draw();
+}
+
+// ---------------- RESTART ----------------
+function restartGame() {
+    obstacles = [];
+    score = 0;
+    frame = 0;
+    gameSpeed = 1;
+    nextObstacleFrame = 40;
+
+    player.y = player.groundY;
+    player.velocityY = 0;
+    player.isJumping = false;
+
+    gameStarted = false;
+    gameRunning = false;
+
+    draw();
+}
+
+// ---------------- JUMP ----------------
+function jump() {
+    if (!gameStarted) {
+        startGame();
+    } else if (gameRunning && !player.isJumping) {
+        player.velocityY = player.jumpPower;
+        player.isJumping = true;
+    } else if (!gameRunning) {
+        restartGame();
+    }
+}
+
+// ---------------- START GAME ----------------
+function startGame() {
+    gameStarted = true;
+    gameRunning = true;
+    gameLoop();
+}
+
+// ---------------- DB: LOAD HIGHSCORE ----------------
+async function loadHighScore() {
+    try {
+        const r = await fetch(`http://localhost:5000/api/highscore/${currentUser}/${GAME_NAME}`);
+        const data = await r.json();
+        highScore = data.highscore || 0;
+    } catch {
+        highScore = 0;
+    }
+}
+
+// ---------------- DB: SAVE HIGHSCORE ----------------
+async function saveHighscore() {
+    if (score < highScore) return;
+
+    try {
+        const r = await fetch("http://localhost:5000/api/highscore/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                username: currentUser,
+                game: GAME_NAME,
+                score
+            })
+        });
+
+        const data = await r.json();
+        highScore = data.highscore;
+    } catch (err) {
+        console.error("Highscore save error:", err);
+    }
+}
+
+// ---------------- DB: SAVE LEADERBOARD ----------------
+async function saveLeaderboard() {
+    try {
+        await fetch("http://localhost:5000/api/leaderboard/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                username: currentUser,
+                game: GAME_NAME,
+                score
+            })
+        });
+    } catch (err) {
+        console.error("Leaderboard save error:", err);
+    }
+}
+
+// ---------------- DB: LOAD LEADERBOARD ----------------
+async function loadLeaderboard() {
+    try {
+        const r = await fetch(`http://localhost:5000/api/leaderboard/${GAME_NAME}`);
+        const data = await r.json();
+
+        leaderboard = data;
+        draw();
+    } catch (err) {
+        console.error("Leaderboard fetch error:", err);
+    }
+}
+
+// ---------------- CONTROLS ----------------
+document.addEventListener("keydown", e => {
+    if (e.code === "Space" || e.code === "ArrowUp") {
+        jump();
+        e.preventDefault();
+    } else if (e.code === "Escape") {
+        const overlay = document.getElementById('loadingOverlay');
+        overlay.classList.add('active');
+        setTimeout(() => {
+            window.location.href = "../dashboard/dashboard.html";
+        }, 800);
+        e.preventDefault();
+    }
+});
+
+// ---------------- INIT ----------------
+async function init() {
+    await loadHighScore();
+    await loadLeaderboard();
+    restartGame();
+    
+    // Hide loading overlay after everything is loaded
+    setTimeout(() => {
+        const overlay = document.getElementById('loadingOverlay');
+        overlay.classList.remove('active');
+    }, 500);
+}
+
+init();
+</script>
+</body>
+</html>
