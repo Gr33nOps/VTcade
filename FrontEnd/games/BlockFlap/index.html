@@ -328,7 +328,7 @@ function jump() {
 async function loadHighScore() {
     try {
         const res = await fetch(
-            `http://localhost:5000/api/highscore/${currentUser}/${GAME_NAME}`
+            `https://vtcade.onrender.com/api/highscore/${currentUser}/${GAME_NAME}`
         );
 
         if (!res.ok) throw new Error("Failed to load highscore");
@@ -353,7 +353,7 @@ async function saveHighscoreToDB() {
     try {
         console.log("Saving highscore:", score); // Debug log
         
-        const res = await fetch("http://localhost:5000/api/highscore/save", {
+        const res = await fetch("https://vtcade.onrender.com/api/highscore/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -379,7 +379,7 @@ async function saveHighscoreToDB() {
 // ---------------- LEADERBOARD ----------------
 async function saveLeaderboardScoreToDB() {
     try {
-        await fetch("http://localhost:5000/api/leaderboard/save", {
+        await fetch("https://vtcade.onrender.com/api/leaderboard/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

@@ -361,7 +361,7 @@ function startGame() {
 // ---------------- DB: LOAD HIGHSCORE ----------------
 async function loadHighScore() {
     try {
-        const r = await fetch(`http://localhost:5000/api/highscore/${currentUser}/${GAME_NAME}`);
+        const r = await fetch(`https://vtcade.onrender.com/api/highscore/${currentUser}/${GAME_NAME}`);
         const data = await r.json();
         highScore = data.highscore || 0;
     } catch {
@@ -374,7 +374,7 @@ async function saveHighscore() {
     if (score < highScore) return;
 
     try {
-        const r = await fetch("http://localhost:5000/api/highscore/save", {
+        const r = await fetch("https://vtcade.onrender.com/api/highscore/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -394,7 +394,7 @@ async function saveHighscore() {
 // ---------------- DB: SAVE LEADERBOARD ----------------
 async function saveLeaderboard() {
     try {
-        await fetch("http://localhost:5000/api/leaderboard/save", {
+        await fetch("https://vtcade.onrender.com/api/leaderboard/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -411,7 +411,7 @@ async function saveLeaderboard() {
 // ---------------- DB: LOAD LEADERBOARD ----------------
 async function loadLeaderboard() {
     try {
-        const r = await fetch(`http://localhost:5000/api/leaderboard/${GAME_NAME}`);
+        const r = await fetch(`https://vtcade.onrender.com/api/leaderboard/${GAME_NAME}`);
         const data = await r.json();
 
         leaderboard = data;
