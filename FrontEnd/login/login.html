@@ -54,12 +54,10 @@
             margin-top: 5px;
             display: block;
         }
-        /* Hide actual inputs */
         input {
             position: absolute;
             left: -9999px;
         }
-        /* CRT Scanlines */
         body::after {
             content: "";
             position: fixed;
@@ -73,7 +71,6 @@
             pointer-events: none;
             z-index: 9999;
         }
-        /* Blinking cursor */
         @keyframes blink {
             0%, 49% { opacity: 1; }
             50%, 100% { opacity: 0; }
@@ -90,14 +87,13 @@
             color: black;
         }
         .error-text {
-            color: #00ff00;
-            text-shadow: 0 0 4px #00ff00;
+            color: #ff0000;
+            text-shadow: 0 0 4px #ff0000;
         }
         .success-text {
             color: #00ff00;
             text-shadow: 0 0 4px #00ff00;
         }
-        /* Loading overlay */
         .loading-overlay {
             position: fixed;
             inset: 0;
@@ -130,7 +126,6 @@
             content: '';
             animation: dots 1.5s infinite;
         }
-        /* Responsive */
         @media (max-width: 768px) {
             body {
                 font-size: 12px;
@@ -187,38 +182,36 @@
         <pre id="terminal" class="terminal-output"></pre>
     </div>
     
-    <!-- Hidden inputs for actual form submission -->
     <input type="email" id="email-input">
     <input type="password" id="password-input">
 
     <script>
+        // Configuration - Change this to your Render backend URL
+        const API_URL = "https://vtcade.onrender.com";
+        
         const terminalEl = document.getElementById("terminal");
-        let currentField = 0; // 0=email, 1=password, 2=submit
+        let currentField = 0;
         let email = "";
         let password = "";
         let errorMessage = "";
         let successMessage = "";
         let isSubmitting = false;
 
-        // Validation functions
         function validateEmail(email) {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             return emailRegex.test(email);
         }
 
-        // Password validation intentionally disabled per user request
         function validatePassword(password) {
             return null;
         }
 
-        // Render terminal
         function render() {
             const fields = ["EMAIL", "PASSWORD"];
             const values = [email, password];
             
             let output = `\n================================================================================\nUSER AUTHENTICATION\n================================================================================\n\n`;
 
-            // Render input fields
             fields.forEach((field, index) => {
                 const isSelected = currentField === index;
                 const prefix = isSelected ? '>>>' : '   ';
@@ -237,7 +230,6 @@
 
             output += '\n';
 
-            // Submit button
             const submitSelected = currentField === 2;
             const submitPrefix = submitSelected ? '>>>' : '   ';
             const submitText = isSubmitting ? '[ LOGGING IN... ]' : '[ LOGIN ]';
@@ -251,7 +243,6 @@
 
             output += '\n';
 
-            // Messages
             if (errorMessage) {
                 output += `<span class="error-text">ERROR: ${errorMessage}</span>\n\n`;
             }
@@ -264,11 +255,9 @@
             terminalEl.innerHTML = output;
         }
 
-        // Navigate fields
         function navigateField(direction) {
             if (isSubmitting) return;
             
-            // Clear errors when navigating
             errorMessage = "";
             successMessage = "";
             
@@ -280,10 +269,9 @@
             render();
         }
 
-        // Handle typing
         function handleTyping(key) {
             if (isSubmitting) return;
-            if (currentField === 2) return; // Can't type on submit button
+            if (currentField === 2) return;
             
             errorMessage = "";
             successMessage = "";
@@ -298,70 +286,84 @@
             render();
         }
 
-        // Submit form
         async function submitForm() {
             if (isSubmitting) return;
-            if (currentField !== 2) return; // Only submit if on submit button
+            if (currentField !== 2) return;
             
             errorMessage = "";
             successMessage = "";
             
-            // Validate all fields
             if (!email || !password) {
                 errorMessage = "All fields are required";
-                console.warn("login.js: missing email or password");
+                console.warn("Missing email or password");
                 render();
                 return;
             }
 
-            // Validate email format
             if (!validateEmail(email)) {
-                errorMessage = "Invalid email format (e.g., user@example.com)";
+                errorMessage = "Invalid email format";
                 render();
                 return;
             }
-
-            // Password check intentionally skipped
             
             isSubmitting = true;
             render();
             
             try {
-                console.log("login.js: sending login request for", email);
-                const res = await fetch("https://vtcade.onrender.com/api/auth/login", {
+                console.log("Sending login request...");
+                console.log("API URL:", API_URL);
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 60000);
+                
+                const res = await fetch(`${API_URL}/api/auth/login`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
                     body: JSON.stringify({ email, password }),
+                    signal: controller.signal
                 });
                 
-                const data = await res.json().catch(() => null);
-                console.log("login.js: response status", res.status, "body:", data);
+                clearTimeout(timeoutId);
+                
+                console.log("Response status:", res.status);
+                
+                let data;
+                try {
+                    data = await res.json();
+                    console.log("Response data:", data);
+                } catch (parseErr) {
+                    console.error("Failed to parse response:", parseErr);
+                    errorMessage = "Invalid server response";
+                    isSubmitting = false;
+                    render();
+                    return;
+                }
                 
                 if (!res.ok) {
-                    errorMessage = data?.message || "Login failed";
+                    errorMessage = data?.message || `Server error (${res.status})`;
                     isSubmitting = false;
                     render();
                     return;
                 }
                 
-                // Ensure server returned username
                 if (!data?.username) {
-                    errorMessage = "Unexpected server response (no username)";
-                    console.error("login.js: invalid server response", data);
+                    errorMessage = "Invalid server response";
+                    console.error("No username in response:", data);
                     isSubmitting = false;
                     render();
                     return;
                 }
                 
-                // Save username in localStorage
                 localStorage.setItem("currentUser", data.username);
-                console.log("login.js: saved currentUser:", localStorage.getItem("currentUser"));
+                console.log("Saved user:", data.username);
                 
                 successMessage = "Authentication successful";
                 isSubmitting = false;
                 render();
                 
-                // Show loading and redirect to dashboard
                 setTimeout(() => {
                     const overlay = document.getElementById('loadingOverlay');
                     overlay.classList.add('active');
@@ -372,14 +374,21 @@
                 }, 1000);
                 
             } catch (err) {
-                console.error("login.js: network/error", err);
-                errorMessage = "Network error, please try again";
+                console.error("Network error:", err);
+                
+                if (err.name === 'AbortError') {
+                    errorMessage = "Request timeout. Server may be waking up, please try again.";
+                } else if (err.message.includes('Failed to fetch')) {
+                    errorMessage = "Cannot connect to server. Check your internet connection.";
+                } else {
+                    errorMessage = "Network error: " + err.message;
+                }
+                
                 isSubmitting = false;
                 render();
             }
         }
 
-        // Keyboard controls
         document.addEventListener("keydown", (e) => {
             if (e.key === "Tab") {
                 e.preventDefault();
@@ -405,15 +414,12 @@
             }
         });
 
-        // Disable scroll wheel
         document.addEventListener("wheel", (e) => {
             e.preventDefault();
         }, { passive: false });
 
-        // Initialize
         render();
         
-        // Hide loading overlay after initial load
         setTimeout(() => {
             const overlay = document.getElementById('loadingOverlay');
             overlay.classList.remove('active');
