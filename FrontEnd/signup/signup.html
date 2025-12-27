@@ -1,17 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VTcade - MAINFRAME SIGNUP</title>
+    <title>VTcade - MAINFRAME REGISTRATION</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-
         body {
             background: black;
             color: #00ff00;
@@ -27,7 +25,6 @@
             justify-content: center;
             padding: 20px;
         }
-
         .container {
             width: 100%;
             max-width: 700px;
@@ -35,18 +32,15 @@
             flex-direction: column;
             align-items: center;
         }
-
         pre {
             white-space: pre;
             user-select: none;
             line-height: 1.4;
         }
-
         .terminal-output {
             font-size: 14px;
             text-align: left;
         }
-
         .logo {
             font-size: 10px;
             line-height: 1.1;
@@ -54,77 +48,52 @@
             margin-bottom: 0;
             animation: flicker 0.15s infinite alternate;
         }
-
         .subtitle {
             font-size: 14px;
             text-align: center;
             margin-top: 5px;
             display: block;
         }
-
-        /* Hide actual inputs */
         input {
             position: absolute;
             left: -9999px;
         }
-
-        /* CRT Scanlines */
         body::after {
             content: "";
             position: fixed;
             inset: 0;
-            background: repeating-linear-gradient(to bottom,
-                    rgba(0, 0, 0, 0) 0px,
-                    rgba(0, 255, 0, 0.04) 2px,
-                    rgba(0, 0, 0, 0) 4px);
+            background: repeating-linear-gradient(
+                to bottom,
+                rgba(0,0,0,0) 0px,
+                rgba(0,255,0,0.04) 2px,
+                rgba(0,0,0,0) 4px
+            );
             pointer-events: none;
             z-index: 9999;
         }
-
-        /* Blinking cursor */
         @keyframes blink {
-
-            0%,
-            49% {
-                opacity: 1;
-            }
-
-            50%,
-            100% {
-                opacity: 0;
-            }
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
         }
-
         .cursor {
             animation: blink 1s infinite;
         }
-
         @keyframes flicker {
-            0% {
-                opacity: 0.97;
-            }
-
-            100% {
-                opacity: 1;
-            }
+            0% { opacity: 0.97; }
+            100% { opacity: 1; }
         }
-
         .highlight {
             background: #00ff00;
             color: black;
         }
-
         .error-text {
-            color: #00ff00;
-            text-shadow: 0 0 4px #00ff00;
+            color: #ff0000;
+            text-shadow: 0 0 4px #ff0000;
         }
-
         .success-text {
             color: #00ff00;
             text-shadow: 0 0 4px #00ff00;
         }
-
-        /* Loading overlay */
         .loading-overlay {
             position: fixed;
             inset: 0;
@@ -140,79 +109,54 @@
             pointer-events: none;
             transition: opacity 0.3s;
         }
-
         .loading-overlay.active {
             opacity: 1;
             pointer-events: all;
         }
-
         .loading-content {
             font-size: 14px;
             line-height: 1.5;
         }
-
         @keyframes dots {
-
-            0%,
-            20% {
-                content: '.';
-            }
-
-            40% {
-                content: '..';
-            }
-
-            60%,
-            100% {
-                content: '...';
-            }
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
         }
-
         .loading-dots::after {
             content: '';
             animation: dots 1.5s infinite;
         }
-
-        /* Responsive */
         @media (max-width: 768px) {
             body {
                 font-size: 12px;
                 padding: 10px;
             }
-
             .terminal-output {
                 font-size: 11px;
             }
-
             .logo {
                 font-size: 7px;
             }
-
             .subtitle {
                 font-size: 11px;
             }
         }
-
         @media (max-width: 480px) {
             body {
                 font-size: 10px;
             }
-
             .terminal-output {
                 font-size: 9px;
             }
-
             .logo {
                 font-size: 5px;
             }
-
             .subtitle {
                 font-size: 9px;
             }
         }
     </style>
 </head>
-
 <body>
     <div class="loading-overlay active" id="loadingOverlay">
         <div class="loading-content">
@@ -225,7 +169,7 @@
             </pre>
         </div>
     </div>
-
+    
     <div class="container">
         <pre class="logo">
 ██╗   ██╗████████╗ ██████╗ █████╗ ██████╗ ███████╗
@@ -237,85 +181,53 @@
                     <span class="subtitle">Play Like It's 1980</span></pre>
         <pre id="terminal" class="terminal-output"></pre>
     </div>
-
-    <!-- Hidden inputs for actual form submission -->
+    
     <input type="text" id="username-input">
     <input type="email" id="email-input">
     <input type="password" id="password-input">
+    <input type="password" id="confirm-password-input">
 
     <script>
+        // Configuration - Change this to your Render backend URL
+        const API_URL = "https://vtcade.onrender.com";
+        
         const terminalEl = document.getElementById("terminal");
-        let currentField = 0; // 0=username, 1=email, 2=password, 3=submit
+        let currentField = 0;
         let username = "";
         let email = "";
         let password = "";
+        let confirmPassword = "";
         let errorMessage = "";
         let successMessage = "";
         let isSubmitting = false;
 
-        // Validation functions
         function validateEmail(email) {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             return emailRegex.test(email);
         }
 
         function validatePassword(password) {
-            const errors = [];
-            
-            if (password.length < 8) {
-                errors.push("at least 8 characters");
-            }
-            if (!/[A-Z]/.test(password)) {
-                errors.push("one uppercase letter");
-            }
-            if (!/[a-z]/.test(password)) {
-                errors.push("one lowercase letter");
-            }
-            if (!/[0-9]/.test(password)) {
-                errors.push("one number");
-            }
-            if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-                errors.push("one special character");
-            }
-            
-            return errors;
-        }
-
-        function validateUsername(username) {
-            if (username.length < 3) {
-                return "Username must be at least 3 characters";
-            }
-            if (username.length > 20) {
-                return "Username must be less than 20 characters";
-            }
-            if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-                return "Username can only contain letters, numbers, and underscores";
+            if (password.length < 6) {
+                return "Password must be at least 6 characters";
             }
             return null;
         }
 
-        // Render terminal
         function render() {
-            const fields = ["USERNAME", "EMAIL", "PASSWORD"];
-            const values = [username, email, password];
+            const fields = ["USERNAME", "EMAIL", "PASSWORD", "CONFIRM PASSWORD"];
+            const values = [username, email, password, confirmPassword];
+            
+            let output = `\n================================================================================\nNEW USER REGISTRATION\n================================================================================\n\n`;
 
-            let output = `
-================================================================================
-USER REGISTRATION FORM
-================================================================================
-
-`;
-
-            // Render input fields
             fields.forEach((field, index) => {
                 const isSelected = currentField === index;
                 const prefix = isSelected ? '>>>' : '   ';
                 const value = values[index];
-                const displayValue = index === 2 && value ? '*'.repeat(value.length) : value;
+                const displayValue = (index === 2 || index === 3) && value ? '*'.repeat(value.length) : value;
                 const cursor = isSelected ? '<span class="cursor">_</span>' : '';
-
+                
                 let line = `${prefix} ${field}: ${displayValue}${cursor}`;
-
+                
                 if (isSelected) {
                     output += `<span class="highlight">${line}</span>\n`;
                 } else {
@@ -325,12 +237,11 @@ USER REGISTRATION FORM
 
             output += '\n';
 
-            // Submit button
-            const submitSelected = currentField === 3;
+            const submitSelected = currentField === 4;
             const submitPrefix = submitSelected ? '>>>' : '   ';
-            const submitText = isSubmitting ? '[ PROCESSING... ]' : '[ SIGNUP ]';
+            const submitText = isSubmitting ? '[ REGISTERING... ]' : '[ REGISTER ]';
             let submitLine = `${submitPrefix} ${submitText}`;
-
+            
             if (submitSelected) {
                 output += `<span class="highlight">${submitLine}</span>\n`;
             } else {
@@ -339,7 +250,6 @@ USER REGISTRATION FORM
 
             output += '\n';
 
-            // Messages
             if (errorMessage) {
                 output += `<span class="error-text">ERROR: ${errorMessage}</span>\n\n`;
             }
@@ -347,140 +257,162 @@ USER REGISTRATION FORM
                 output += `<span class="success-text">SUCCESS: ${successMessage}</span>\n\n`;
             }
 
-            output += `
-================================================================================
-COMMAND REFERENCE
-================================================================================
-
-    [↑/↓]              Navigate Fields
-    [ENTER]            Execute Selected
-    [TAB]              Switch to Login Page
-
-================================================================================
-
-READY: <span class="cursor">_</span>
-
-`;
+            output += `\n================================================================================\nCOMMAND REFERENCE\n================================================================================\n\n    [↑/↓]              Navigate Fields\n    [ENTER]            Execute Selected\n    [TAB]              Switch to Login Page\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
 
             terminalEl.innerHTML = output;
         }
 
-        // Navigate fields
         function navigateField(direction) {
             if (isSubmitting) return;
-
-            // Clear errors when navigating
+            
             errorMessage = "";
             successMessage = "";
-
+            
             if (direction === 'next') {
-                currentField = currentField < 3 ? currentField + 1 : 0;
+                currentField = currentField < 4 ? currentField + 1 : 0;
             } else if (direction === 'prev') {
-                currentField = currentField > 0 ? currentField - 1 : 3;
+                currentField = currentField > 0 ? currentField - 1 : 4;
             }
             render();
         }
 
-        // Handle typing
         function handleTyping(key) {
             if (isSubmitting) return;
-            if (currentField === 3) return; // Can't type on submit button
-
+            if (currentField === 4) return;
+            
             errorMessage = "";
             successMessage = "";
-
+            
             if (key === 'Backspace') {
                 if (currentField === 0) username = username.slice(0, -1);
                 else if (currentField === 1) email = email.slice(0, -1);
                 else if (currentField === 2) password = password.slice(0, -1);
+                else if (currentField === 3) confirmPassword = confirmPassword.slice(0, -1);
             } else if (key.length === 1) {
                 if (currentField === 0) username += key;
                 else if (currentField === 1) email += key;
                 else if (currentField === 2) password += key;
+                else if (currentField === 3) confirmPassword += key;
             }
             render();
         }
 
-        // Submit form
         async function submitForm() {
             if (isSubmitting) return;
-            if (currentField !== 3) return; // Only submit if on submit button
-
+            if (currentField !== 4) return;
+            
             errorMessage = "";
             successMessage = "";
-
-            // Validate all fields
-            if (!username || !email || !password) {
+            
+            if (!username || !email || !password || !confirmPassword) {
                 errorMessage = "All fields are required";
+                console.warn("Missing required fields");
                 render();
                 return;
             }
 
-            // Validate username
-            const usernameError = validateUsername(username);
-            if (usernameError) {
-                errorMessage = usernameError;
-                render();
-                return;
-            }
-
-            // Validate email
             if (!validateEmail(email)) {
-                errorMessage = "Invalid email format (e.g., user@example.com)";
+                errorMessage = "Invalid email format";
                 render();
                 return;
             }
 
-            // Validate password
-            const passwordErrors = validatePassword(password);
-            if (passwordErrors.length > 0) {
-                errorMessage = `Password must contain: ${passwordErrors.join(", ")}`;
+            const passwordError = validatePassword(password);
+            if (passwordError) {
+                errorMessage = passwordError;
                 render();
                 return;
             }
 
+            if (password !== confirmPassword) {
+                errorMessage = "Passwords do not match";
+                render();
+                return;
+            }
+            
             isSubmitting = true;
             render();
-
+            
             try {
-                const res = await fetch("https://vtcade.onrender.com/api/auth/signup", {
+                console.log("Sending registration request...");
+                console.log("API URL:", API_URL);
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 60000);
+                
+                const res = await fetch(`${API_URL}/api/auth/signup`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ username, email, password })
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({ username, email, password }),
+                    signal: controller.signal
                 });
-
-                const data = await res.json();
-
-                if (!res.ok) {
-                    errorMessage = data.message || "Signup failed";
+                
+                clearTimeout(timeoutId);
+                
+                console.log("Response status:", res.status);
+                
+                let data;
+                try {
+                    data = await res.json();
+                    console.log("Response data:", data);
+                } catch (parseErr) {
+                    console.error("Failed to parse response:", parseErr);
+                    errorMessage = "Invalid server response";
                     isSubmitting = false;
                     render();
                     return;
                 }
-
-                successMessage = data.message;
+                
+                if (!res.ok) {
+                    errorMessage = data?.message || `Server error (${res.status})`;
+                    isSubmitting = false;
+                    render();
+                    return;
+                }
+                
+                if (!data?.username) {
+                    errorMessage = "Invalid server response";
+                    console.error("No username in response:", data);
+                    isSubmitting = false;
+                    render();
+                    return;
+                }
+                
+                localStorage.setItem("currentUser", data.username);
+                console.log("Saved user:", data.username);
+                
+                successMessage = "Registration successful";
                 isSubmitting = false;
                 render();
-
-                // Show loading and redirect to login after 2 seconds
+                
                 setTimeout(() => {
                     const overlay = document.getElementById('loadingOverlay');
                     overlay.classList.add('active');
-
+                    
                     setTimeout(() => {
-                        window.location.href = "../login/login.html";
+                        window.location.href = "../dashboard/dashboard.html";
                     }, 800);
-                }, 1500);
-
+                }, 1000);
+                
             } catch (err) {
-                console.error(err);
-                errorMessage = "Network error, please try again";
+                console.error("Network error:", err);
+                
+                if (err.name === 'AbortError') {
+                    errorMessage = "Request timeout. Server may be waking up, please try again.";
+                } else if (err.message.includes('Failed to fetch')) {
+                    errorMessage = "Cannot connect to server. Check your internet connection.";
+                } else {
+                    errorMessage = "Network error: " + err.message;
+                }
+                
                 isSubmitting = false;
                 render();
             }
         }
 
-        // Keyboard controls
         document.addEventListener("keydown", (e) => {
             if (e.key === "Tab") {
                 e.preventDefault();
@@ -489,10 +421,7 @@ READY: <span class="cursor">_</span>
                 setTimeout(() => {
                     window.location.href = "../login/login.html";
                 }, 800);
-                return;
-            }
-
-            if (e.key === "ArrowDown") {
+            } else if (e.key === "ArrowDown") {
                 e.preventDefault();
                 navigateField('next');
             } else if (e.key === "ArrowUp") {
@@ -500,7 +429,7 @@ READY: <span class="cursor">_</span>
                 navigateField('prev');
             } else if (e.key === "Enter") {
                 e.preventDefault();
-                if (currentField === 3) {
+                if (currentField === 4) {
                     submitForm();
                 }
             } else if (e.key === "Backspace" || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
@@ -509,20 +438,16 @@ READY: <span class="cursor">_</span>
             }
         });
 
-        // Disable scroll wheel
         document.addEventListener("wheel", (e) => {
             e.preventDefault();
         }, { passive: false });
 
-        // Initialize
         render();
-
-        // Hide loading overlay after initial load
+        
         setTimeout(() => {
             const overlay = document.getElementById('loadingOverlay');
             overlay.classList.remove('active');
         }, 500);
     </script>
 </body>
-
 </html>

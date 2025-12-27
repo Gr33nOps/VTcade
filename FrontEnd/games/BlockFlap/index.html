@@ -395,7 +395,7 @@ async function saveLeaderboardScoreToDB() {
 
 async function updateLeaderboardUI() {
     try {
-        const res = await fetch(`http://localhost:5000/api/leaderboard/${GAME_NAME}`);
+        const res = await fetch(`https://vtcade.onrender.com/api/leaderboard/${GAME_NAME}`);
         const data = await res.json();
 
         leaderboard = data;
