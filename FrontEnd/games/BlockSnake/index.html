@@ -15,14 +15,16 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             text-shadow: 0 0 4px #00ff00;
             overflow: hidden;
             cursor: none;
+            padding: 20px;
         }
         .container {
             display: flex;
             gap: 20px;
+            z-index: 1;
         }
         pre {
             white-space: pre;
@@ -44,6 +46,7 @@
                 rgba(0,0,0,0) 4px
             );
             pointer-events: none;
+            z-index: 100;
         }
         /* Loading overlay */
         .loading-overlay {
@@ -74,6 +77,15 @@
             content: '';
             animation: dots 1.5s infinite;
         }
+        @media (max-width: 768px) {
+            body {
+                font-size: 12px;
+            }
+            .container {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -95,11 +107,15 @@ const WIDTH = 50;
 const HEIGHT = 25;
 const GAME_NAME = "SnakeGame";
 
+console.log("Script loaded");
+
 // ---------------- LOGIN CHECK ----------------
 const currentUser = localStorage.getItem("currentUser");
+console.log("Current user:", currentUser);
+
 if (!currentUser) {
     alert("You must be logged in to play!");
-    window.location.href = "/login.html";
+    window.location.href = "../../login/login.html";
 }
 
 // Game state
@@ -179,7 +195,7 @@ function draw() {
     if (!gameStarted) {
         out += "< PRESS ARROW KEYS TO START >\n";
     } else if (!gameRunning && gameStarted) {
-        out += "< PROGRAM TERMINATED >\nPRESS ANY ARROW KEY TO RESTART\n";
+        out += "< GAME OVER >\nPRESS ANY ARROW KEY TO RESTART\n";
     }
     
     gameEl.textContent = out;
@@ -197,10 +213,16 @@ LEADERBOARD:
 ━━━━━━━━━━━━━━━━━━━━
 `;
     
-    leaderboard.slice(0, 8).forEach((entry, i) => {
-        const username = entry.username.substring(0, 12).padEnd(12);
-        ui += `${i + 1}. ${username} ${entry.score}\n`;
-    });
+    if (leaderboard.length === 0) {
+        ui += "(Loading...)\n";
+    } else {
+        leaderboard.slice(0, 8).forEach((entry) => {
+            // Backend returns { rank, username, score, date }
+            const username = entry.username.substring(0, 12).padEnd(12);
+            const displayScore = entry.score || 0;
+            ui += `${entry.rank}. ${username} ${displayScore}\n`;
+        });
+    }
     
     ui += `\n━━━━━━━━━━━━━━━━━━━━
 CONTROLS:
@@ -278,14 +300,11 @@ function checkCollision() {
 // ---------------- GAME OVER ----------------
 async function gameOver() {
     gameRunning = false;
+    console.log("Game over! Score:", score);
     
-    // Save personal best FIRST
+    // Save personal best and leaderboard
     await saveHighscoreToDB();
-    
-    // Then save to leaderboard (always saves current score)
     await saveLeaderboardScoreToDB();
-    
-    // Finally update leaderboard UI
     await updateLeaderboardUI();
     
     draw();
@@ -293,6 +312,7 @@ async function gameOver() {
 
 // ---------------- RESTART ----------------
 function restartGame() {
+    console.log("Restarting game");
     initSnake();
     spawnFood();
     score = 0;
@@ -304,6 +324,7 @@ function restartGame() {
 
 // Start game
 function startGame() {
+    console.log("Starting game");
     gameRunning = true;
     gameStarted = true;
     gameLoop();
@@ -311,34 +332,53 @@ function startGame() {
 
 // Change direction
 function changeDirection(newDir) {
+    console.log("Direction change attempt:", newDir, "gameStarted:", gameStarted, "gameRunning:", gameRunning);
+    
     // Prevent reversing direction
     if (newDir.x === -direction.x && newDir.y === -direction.y) {
+        console.log("Cannot reverse direction");
         return;
     }
     
     if (!gameStarted) {
+        console.log("Starting new game");
         nextDirection = newDir;
         startGame();
     } else if (gameRunning) {
+        console.log("Changing direction during game");
         nextDirection = newDir;
     } else if (!gameRunning && gameStarted) {
+        console.log("Restarting after game over");
         restartGame();
+        setTimeout(() => {
+            nextDirection = newDir;
+            startGame();
+        }, 100);
     }
 }
 
 // ---------------- HIGH SCORE ----------------
 async function loadHighScore() {
     try {
+        console.log("Loading highscore for:", currentUser, GAME_NAME);
+        
         const res = await fetch(
             `https://vtcade.onrender.com/api/highscore/${currentUser}/${GAME_NAME}`
         );
 
-        if (!res.ok) throw new Error("Failed to load highscore");
+        if (!res.ok) {
+            if (res.status === 404) {
+                console.log("No highscore found (404), starting fresh");
+                highScore = 0;
+                return;
+            }
+            throw new Error(`HTTP ${res.status}`);
+        }
 
         const data = await res.json();
         highScore = data.highscore || 0;
         
-        console.log("Loaded highscore:", highScore);
+        console.log("✓ Loaded highscore:", highScore);
     } catch (err) {
         console.error("Highscore load error:", err);
         highScore = 0;
@@ -346,13 +386,9 @@ async function loadHighScore() {
 }
 
 async function saveHighscoreToDB() {
-    if (score < highScore) {
-        console.log("Score not high enough to save:", score, "vs", highScore);
-        return;
-    }
-
+    // Always send to backend - let backend decide with $max operator
     try {
-        console.log("Saving highscore:", score);
+        console.log("Sending score to backend:", score);
         
         const res = await fetch("https://vtcade.onrender.com/api/highscore/save", {
             method: "POST",
@@ -365,13 +401,19 @@ async function saveHighscoreToDB() {
         });
 
         if (!res.ok) {
+            const errorData = await res.json();
+            console.error("Highscore save failed:", errorData);
             throw new Error(`HTTP error! status: ${res.status}`);
         }
 
         const data = await res.json();
         highScore = data.highscore;
         
-        console.log("Highscore saved successfully:", highScore);
+        if (data.isNewRecord) {
+            console.log("🎉 NEW HIGHSCORE:", highScore);
+        } else {
+            console.log("Score saved, current highscore remains:", highScore);
+        }
     } catch (err) {
         console.error("Highscore save error:", err);
     }
@@ -380,7 +422,7 @@ async function saveHighscoreToDB() {
 // ---------------- LEADERBOARD ----------------
 async function saveLeaderboardScoreToDB() {
     try {
-        await fetch("https://vtcade.onrender.com/api/leaderboard/save", {
+        const res = await fetch("https://vtcade.onrender.com/api/leaderboard/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -389,6 +431,10 @@ async function saveLeaderboardScoreToDB() {
                 score
             })
         });
+        
+        if (!res.ok) {
+            console.log("Leaderboard save failed:", res.status);
+        }
     } catch (err) {
         console.log("Leaderboard save error:", err);
     }
@@ -397,17 +443,31 @@ async function saveLeaderboardScoreToDB() {
 async function updateLeaderboardUI() {
     try {
         const res = await fetch(`https://vtcade.onrender.com/api/leaderboard/${GAME_NAME}`);
+        
+        if (!res.ok) {
+            console.log("No leaderboard data available");
+            leaderboard = [];
+            return;
+        }
+        
         const data = await res.json();
-
-        leaderboard = data;
+        
+        // Backend returns { game, leaderboard: [...], total }
+        // We need the leaderboard array
+        leaderboard = data.leaderboard || [];
+        
+        console.log("Leaderboard loaded:", leaderboard.length, "entries");
         draw();
     } catch (err) {
         console.log("Leaderboard fetch error:", err);
+        leaderboard = [];
     }
 }
 
 // Controls
-document.addEventListener("keydown", e => {
+document.addEventListener("keydown", (e) => {
+    console.log("Key pressed:", e.key, e.code);
+    
     if (e.code === "ArrowUp") {
         changeDirection({ x: 0, y: -1 });
         e.preventDefault();
@@ -420,30 +480,50 @@ document.addEventListener("keydown", e => {
     } else if (e.code === "ArrowRight") {
         changeDirection({ x: 1, y: 0 });
         e.preventDefault();
-    } else if (e.code === "Escape") {
+    } else if (e.code === "Escape" || e.key === "Escape") {
+        e.preventDefault();
         const overlay = document.getElementById('loadingOverlay');
         overlay.classList.add('active');
         setTimeout(() => {
-            window.location.href = "../dashboard/dashboard.html";
+            window.location.href = "../../dashboard/dashboard.html";
         }, 800);
-        e.preventDefault();
     }
+});
+
+// Prevent context menu
+document.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
 });
 
 // ---------------- INITIAL ----------------
 async function initGame() {
-    await loadHighScore();
-    restartGame();
-    await updateLeaderboardUI();
-    
-    // Hide loading overlay after everything is loaded
-    setTimeout(() => {
-        const overlay = document.getElementById('loadingOverlay');
-        overlay.classList.remove('active');
-    }, 500);
+    try {
+        console.log("Initializing game for user:", currentUser);
+        
+        await loadHighScore();
+        await updateLeaderboardUI();
+        restartGame();
+        
+        console.log("Game initialized successfully");
+        console.log("Press ARROW KEYS to start");
+    } catch (err) {
+        console.error("Init error:", err);
+        restartGame();
+    } finally {
+        setTimeout(() => {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.classList.remove('active');
+            console.log("Loading overlay hidden, game ready");
+        }, 500);
+    }
 }
 
-initGame();
+// Make sure page is fully loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initGame);
+} else {
+    initGame();
+}
 </script>
 </body>
 </html>
