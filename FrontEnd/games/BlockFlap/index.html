@@ -361,20 +361,25 @@ function jump() {
 // ---------------- HIGH SCORE ----------------
 async function loadHighScore() {
     try {
+        console.log("Loading highscore for:", currentUser, GAME_NAME);
+        
         const res = await fetch(
             `https://vtcade.onrender.com/api/highscore/${currentUser}/${GAME_NAME}`
         );
 
         if (!res.ok) {
-            console.log("No highscore found, starting fresh");
-            highScore = 0;
-            return;
+            if (res.status === 404) {
+                console.log("No highscore found (404), starting fresh");
+                highScore = 0;
+                return;
+            }
+            throw new Error(`HTTP ${res.status}`);
         }
 
         const data = await res.json();
         highScore = data.highscore || 0;
         
-        console.log("Loaded highscore:", highScore);
+        console.log("✓ Loaded highscore:", highScore);
     } catch (err) {
         console.error("Highscore load error:", err);
         highScore = 0;
@@ -382,13 +387,9 @@ async function loadHighScore() {
 }
 
 async function saveHighscoreToDB() {
-    if (score <= highScore) {
-        console.log("Score not high enough to save:", score, "vs", highScore);
-        return;
-    }
-
+    // Always send to backend - let backend decide with $max operator
     try {
-        console.log("Saving highscore:", score);
+        console.log("Sending score to backend:", score);
         
         const res = await fetch("https://vtcade.onrender.com/api/highscore/save", {
             method: "POST",
@@ -401,13 +402,19 @@ async function saveHighscoreToDB() {
         });
 
         if (!res.ok) {
+            const errorData = await res.json();
+            console.error("Highscore save failed:", errorData);
             throw new Error(`HTTP error! status: ${res.status}`);
         }
 
         const data = await res.json();
         highScore = data.highscore;
         
-        console.log("Highscore saved successfully:", highScore);
+        if (data.isNewRecord) {
+            console.log("🎉 NEW HIGHSCORE:", highScore);
+        } else {
+            console.log("Score saved, current highscore remains:", highScore);
+        }
     } catch (err) {
         console.error("Highscore save error:", err);
     }
