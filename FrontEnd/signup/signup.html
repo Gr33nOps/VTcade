@@ -341,10 +341,10 @@
                 else if (currentField === 3) confirmPassword = confirmPassword.slice(0, -1);
             } else if (key.length === 1) {
                 if (currentField === 0) {
-                    if (username.length < 10) {  // <-- max 10 characters
+                    if (username.length < 10) {
                         username += key;
                     } else {
-                        errorMessage = "Username cannot exceed 10 characters"; // optional
+                        errorMessage = "Username cannot exceed 10 characters";
                     }
                 } else if (currentField === 1) email += key;
                 else if (currentField === 2) password += key;
@@ -392,6 +392,7 @@
             try {
                 console.log("Sending registration request...");
                 console.log("API URL:", API_URL);
+                console.log("Username:", username);
 
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 60000);
@@ -429,18 +430,23 @@
                     return;
                 }
 
-                if (!data?.username) {
-                    errorMessage = "Invalid server response";
-                    console.error("No username in response:", data);
-                    isSubmitting = false;
-                    render();
-                    return;
+                // Handle different response formats
+                // Backend might return: { username }, { user: { username } }, or { message, username }
+                const userUsername = data.username || data.user?.username || username;
+                
+                console.log("Extracted username:", userUsername);
+
+                // Save username to localStorage
+                localStorage.setItem("currentUser", userUsername);
+                console.log("Saved user to localStorage:", userUsername);
+
+                // Check for email verification message
+                if (data.message && data.message.includes('verification')) {
+                    successMessage = "Check your email to verify account";
+                } else {
+                    successMessage = "Registration successful";
                 }
-
-                localStorage.setItem("currentUser", data.username);
-                console.log("Saved user:", data.username);
-
-                successMessage = "Registration successful";
+                
                 isSubmitting = false;
                 render();
 
@@ -451,7 +457,7 @@
                     setTimeout(() => {
                         window.location.href = "../dashboard/dashboard.html";
                     }, 800);
-                }, 1000);
+                }, 2000); // Increased delay so user can read the verification message
 
             } catch (err) {
                 console.error("Network error:", err);
