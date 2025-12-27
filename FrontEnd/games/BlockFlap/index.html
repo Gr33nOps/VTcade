@@ -206,9 +206,11 @@ LEADERBOARD:
     if (leaderboard.length === 0) {
         ui += "(Loading...)\n";
     } else {
-        leaderboard.slice(0, 8).forEach((entry, i) => {
+        leaderboard.slice(0, 8).forEach((entry) => {
+            // Backend returns { rank, username, score, date }
             const username = entry.username.substring(0, 12).padEnd(12);
-            ui += `${i + 1}. ${username} ${entry.score}\n`;
+            const displayScore = entry.score || 0;
+            ui += `${entry.rank}. ${username} ${displayScore}\n`;
         });
     }
     
@@ -443,7 +445,10 @@ async function updateLeaderboardUI() {
         }
         
         const data = await res.json();
-        leaderboard = data || [];
+        
+        // Backend returns { game, leaderboard: [...], total }
+        // We need the leaderboard array
+        leaderboard = data.leaderboard || [];
         
         console.log("Leaderboard loaded:", leaderboard.length, "entries");
         draw();
@@ -465,7 +470,7 @@ document.addEventListener("keydown", (e) => {
         const overlay = document.getElementById('loadingOverlay');
         overlay.classList.add('active');
         setTimeout(() => {
-            window.location.href = "../dashboard/dashboard.html";
+            window.location.href = "../../dashboard/dashboard.html";
         }, 800);
     }
 });
