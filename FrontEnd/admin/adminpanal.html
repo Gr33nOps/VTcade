@@ -431,7 +431,7 @@ LOADING ADMIN PANEL...
         function checkAuth() {
             const authData = localStorage.getItem("adminAuth");
             if (!authData) {
-                window.location.href = "admin-login.html";
+                window.location.href = "adminlogin.html";
                 return null;
             }
             return JSON.parse(authData);
@@ -468,7 +468,7 @@ LOADING ADMIN PANEL...
             localStorage.removeItem("adminAuth");
             document.getElementById('loadingOverlay').classList.add('active');
             setTimeout(() => {
-                window.location.href = "admin-login.html";
+                window.location.href = "adminlogin.html";
             }, 500);
         }
 
