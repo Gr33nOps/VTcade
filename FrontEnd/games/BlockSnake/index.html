@@ -100,7 +100,7 @@ const gameEl = document.getElementById("game");
 const uiEl = document.getElementById("ui");
 const WIDTH = 50;
 const HEIGHT = 25;
-const GAME_NAME = "SNAKE";
+const GAME_NAME = "SNAKE";  // ✅ CHANGED FROM "SnakeGame" TO "SNAKE"
 
 const currentUser = localStorage.getItem("currentUser");
 
@@ -325,6 +325,12 @@ async function loadHighScore() {
 
 async function saveHighscore() {
     try {
+        console.log('Saving highscore with data:', {
+            username: currentUser,
+            game: GAME_NAME,
+            score: score
+        });
+        
         const res = await fetch("https://vtcade.onrender.com/api/highscore/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -335,11 +341,18 @@ async function saveHighscore() {
             })
         });
 
+        console.log('Save response status:', res.status);
+        
         if (res.ok) {
             const data = await res.json();
+            console.log('Save response data:', data);
             highScore = data.highscore;
+        } else {
+            const errorText = await res.text();
+            console.error('Save error response:', errorText);
         }
     } catch (err) {
+        console.error('Error saving highscore:', err);
     }
 }
 
@@ -355,6 +368,7 @@ async function saveLeaderboard() {
             })
         });
     } catch (err) {
+        console.error('Error saving leaderboard:', err);
     }
 }
 
@@ -370,6 +384,7 @@ async function loadLeaderboard() {
             leaderboard = [];
         }
     } catch (err) {
+        console.error('Error loading leaderboard:', err);
         leaderboard = [];
     }
 }
@@ -406,6 +421,7 @@ async function initGame() {
         await loadLeaderboard();
         restartGame();
     } catch (err) {
+        console.error('Error initializing game:', err);
         restartGame();
     } finally {
         setTimeout(() => {

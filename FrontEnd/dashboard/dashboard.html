@@ -193,21 +193,31 @@
         async function fetchUserHighscores() {
             try {
                 errorMessage = "";
+                console.log('Fetching highscores for username:', username);
+                console.log('API URL:', `${API_BASE_URL}/highscore/user/${username}`);
+                
                 const response = await fetch(`${API_BASE_URL}/highscore/user/${username}`);
                 
+                console.log('Response status:', response.status);
+                
                 if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Response error:', errorText);
                     throw new Error(`HTTP ${response.status}`);
                 }
                 
                 const data = await response.json();
                 console.log('Highscores fetched:', data);
+                console.log('Number of scores:', data.scores?.length);
                 
                 if (data.scores) {
                     userHighscores = {};
                     data.scores.forEach(score => {
+                        console.log(`Adding highscore: ${score.game} = ${score.highscore}`);
                         userHighscores[score.game] = score.highscore;
                     });
                     totalGamesPlayed = data.total;
+                    console.log('Final userHighscores object:', userHighscores);
                 }
             } catch (error) {
                 console.error('Error fetching highscores:', error);
