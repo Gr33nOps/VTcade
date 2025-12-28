@@ -240,7 +240,7 @@
                 output += `<span class="success-text">SUCCESS: ${successMessage}</span>\n\n`;
             }
 
-            output += `\n================================================================================\nCOMMAND REFERENCE\n================================================================================\n\n    [↑/↓]              Navigate Fields\n    [ENTER]            Execute Selected\n    [TAB]              Switch to Signup Page\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
+            output += `\n================================================================================\nCOMMAND REFERENCE\n================================================================================\n\n    [↑/↓]              Navigate Fields\n    [ENTER]            Execute Selected\n    [TAB]              Switch to Signup Page\n    [F1]               Admin Access\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
 
             terminalEl.innerHTML = output;
         }
@@ -340,7 +340,7 @@
                 e.preventDefault();
                 document.getElementById('loadingOverlay').classList.add('active');
                 setTimeout(() => {
-                    window.location.href = "../admin/admin login.html";
+                    window.location.href = "../admin/adminlogin.html";
                 }, 800);  
             }
             else if (e.key === "ArrowDown") {
