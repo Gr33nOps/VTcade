@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VTcade - ADMIN PANEL</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: black;
+            color: #00ff00;
+            font-family: "Courier New", monospace;
+            font-size: 14px;
+            line-height: 1.4;
+            text-shadow: 0 0 4px #00ff00;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        pre {
+            white-space: pre;
+            user-select: none;
+            line-height: 1.2;
+        }
+        .logo {
+            font-size: 8px;
+            line-height: 1.1;
+            text-align: center;
+            margin-bottom: 10px;
+            animation: flicker 0.15s infinite alternate;
+        }
+        .subtitle {
+            font-size: 12px;
+            text-align: center;
+            margin-top: 5px;
+            display: block;
+            color: #ff0000;
+        }
+        h1, h2 { 
+            margin-bottom: 15px;
+            font-weight: normal;
+        }
+        .section-divider {
+            border-top: 1px solid #00ff00;
+            margin: 20px 0;
+        }
+        .nav-bar {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            padding: 10px 0;
+            border-top: 2px solid #00ff00;
+            border-bottom: 2px solid #00ff00;
+            flex-wrap: wrap;
+        }
+        .nav-btn {
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            cursor: pointer;
+            font-family: "Courier New", monospace;
+            font-size: 12px;
+            transition: all 0.1s;
+        }
+        .nav-btn.active, .nav-btn:hover {
+            background: #00ff00;
+            color: black;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 12px;
+        }
+        th, td {
+            border: 1px solid #00ff00;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background: #00ff00;
+            color: black;
+            font-weight: normal;
+        }
+        tr:hover td {
+            background: rgba(0, 255, 0, 0.1);
+        }
+        button {
+            background: transparent;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            padding: 4px 12px;
+            cursor: pointer;
+            font-family: "Courier New", monospace;
+            font-size: 11px;
+            margin: 2px;
+            transition: all 0.1s;
+        }
+        button:hover {
+            background: #00ff00;
+            color: black;
+        }
+        button.danger:hover {
+            background: #ff0000;
+            border-color: #ff0000;
+            color: black;
+        }
+        input, select, textarea {
+            background: black;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            padding: 8px;
+            font-family: "Courier New", monospace;
+            font-size: 12px;
+            width: 100%;
+            margin: 5px 0;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #00ff00;
+            box-shadow: 0 0 5px #00ff00;
+        }
+        .form-group {
+            margin: 12px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            border: 2px solid #00ff00;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+        .stat-card::before {
+            content: "█";
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            font-size: 8px;
+        }
+        .stat-number {
+            font-size: 42px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .stat-label {
+            font-size: 11px;
+        }
+        .logout-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            border-color: #ff0000;
+            color: #ff0000;
+        }
+        .logout-btn:hover {
+            background: #ff0000;
+            color: black;
+        }
+        body::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(
+                to bottom,
+                rgba(0,0,0,0) 0px,
+                rgba(0,255,0,0.04) 2px,
+                rgba(0,0,0,0) 4px
+            );
+            pointer-events: none;
+            z-index: 9999;
+        }
+        .form-modal {
+            display: none;
+            margin: 20px 0;
+            border: 2px solid #00ff00;
+            padding: 20px;
+            background: black;
+            position: relative;
+        }
+        .form-modal.active {
+            display: block;
+        }
+        .form-modal::before {
+            content: "█ DATA ENTRY █";
+            position: absolute;
+            top: -12px;
+            left: 20px;
+            background: black;
+            padding: 0 10px;
+            font-size: 10px;
+        }
+        .error-text {
+            color: #ff0000;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        .success-text {
+            color: #00ff00;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        @keyframes flicker {
+            0% { opacity: 0.97; }
+            100% { opacity: 1; }
+        }
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+        .cursor {
+            animation: blink 1s infinite;
+        }
+        .terminal-header {
+            border: 1px solid #00ff00;
+            padding: 10px;
+            margin-bottom: 15px;
+            font-size: 11px;
+        }
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: black;
+            color: #00ff00;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            font-family: "Courier New", monospace;
+            text-align: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        .loading-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        
+        @media (max-width: 768px) {
+            body { font-size: 11px; }
+            .logo { font-size: 6px; }
+            table { font-size: 10px; }
+            th, td { padding: 6px; }
+            .stat-number { font-size: 28px; }
+            .nav-btn { padding: 6px 12px; font-size: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay active" id="loadingOverlay">
+        <div>
+            <pre>
+================================================================================
+
+LOADING ADMIN PANEL...
+
+================================================================================
+            </pre>
+        </div>
+    </div>
+
+    <div id="adminPanel" style="display: none;">
+        <button class="logout-btn" onclick="logout()">[ LOGOUT ]</button>
+        
+        <div class="container">
+            <pre class="logo">
+██╗   ██╗████████╗ ██████╗ █████╗ ██████╗ ███████╗
+██║   ██║╚══██╔══╝██╔════╝██╔══██╗██╔══██╗██╔════╝
+██║   ██║   ██║   ██║     ███████║██║  ██║█████╗  
+╚██╗ ██╔╝   ██║   ██║     ██╔══██║██║  ██║██╔══╝  
+ ╚████╔╝    ██║   ╚██████╗██║  ██║██████╔╝███████╗
+  ╚═══╝     ╚═╝    ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝
+            <span class="subtitle">ADMIN CONTROL PANEL</span></pre>
+            
+            <div class="terminal-header">
+                <div>SYSTEM STATUS: <span style="color: #00ff00;">ONLINE</span> | ADMIN: <span id="adminUser">UNKNOWN</span> | TIME: <span id="currentTime"></span></div>
+            </div>
+
+            <div class="nav-bar">
+                <button class="nav-btn active" onclick="showTab('dashboard')">[ DASHBOARD ]</button>
+                <button class="nav-btn" onclick="showTab('users')">[ USERS ]</button>
+                <button class="nav-btn" onclick="showTab('games')">[ GAMES ]</button>
+                <button class="nav-btn" onclick="showTab('leaderboards')">[ LEADERBOARDS ]</button>
+            </div>
+
+            <!-- DASHBOARD TAB -->
+            <div id="dashboard" class="tab-content active">
+                <h2>═══ SYSTEM STATISTICS ═══</h2>
+                <div class="stats-grid" id="statsGrid">
+                    <div class="stat-card">
+                        <div class="stat-label">LOADING</div>
+                        <div class="stat-number">...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- USERS TAB -->
+            <div id="users" class="tab-content">
+                <h2>═══ USER MANAGEMENT ═══</h2>
+                <button onclick="loadUsers()">[ REFRESH ]</button>
+                <table id="usersTable">
+                    <thead>
+                        <tr>
+                            <th>USERNAME</th>
+                            <th>EMAIL</th>
+                            <th>VERIFIED</th>
+                            <th>JOINED</th>
+                            <th>ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="5" style="text-align: center;">Loading data<span class="cursor">_</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- GAMES TAB -->
+            <div id="games" class="tab-content">
+                <h2>═══ GAME MANAGEMENT ═══</h2>
+                <button onclick="showAddGame()">[ ADD NEW GAME ]</button>
+                <button onclick="loadGames()">[ REFRESH ]</button>
+                
+                <div id="addGameForm" class="form-modal">
+                    <h3>GAME DATA ENTRY</h3>
+                    <input type="hidden" id="gameId">
+                    <div class="form-group">
+                        <label>TITLE:</label>
+                        <input type="text" id="gameTitle" placeholder="Enter game title">
+                    </div>
+                    <div class="form-group">
+                        <label>GENRE:</label>
+                        <select id="gameGenre">
+                            <option>action</option>
+                            <option>puzzle</option>
+                            <option>arcade</option>
+                            <option>adventure</option>
+                            <option>strategy</option>
+                            <option>sports</option>
+                            <option>racing</option>
+                            <option>other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>DESCRIPTION:</label>
+                        <textarea id="gameDescription" rows="3" placeholder="Enter description"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>DIFFICULTY:</label>
+                        <select id="gameDifficulty">
+                            <option>easy</option>
+                            <option>medium</option>
+                            <option>hard</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>ACTIVE:</label>
+                        <select id="gameActive">
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
+                    <button onclick="saveGame()">[ SAVE ]</button>
+                    <button onclick="cancelGame()">[ CANCEL ]</button>
+                </div>
+
+                <table id="gamesTable">
+                    <thead>
+                        <tr>
+                            <th>TITLE</th>
+                            <th>GENRE</th>
+                            <th>DIFFICULTY</th>
+                            <th>ACTIVE</th>
+                            <th>ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="5" style="text-align: center;">Loading data<span class="cursor">_</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- LEADERBOARDS TAB -->
+            <div id="leaderboards" class="tab-content">
+                <h2>═══ LEADERBOARD MANAGEMENT ═══</h2>
+                <button onclick="loadLeaderboards()">[ REFRESH ]</button>
+                <table id="leaderboardsTable">
+                    <thead>
+                        <tr>
+                            <th>USERNAME</th>
+                            <th>GAME</th>
+                            <th>SCORE</th>
+                            <th>DATE</th>
+                            <th>ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="5" style="text-align: center;">Loading data<span class="cursor">_</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "https://vtcade.onrender.com";
+        let adminAuth = null;
+
+        // Check authentication
+        function checkAuth() {
+            const authData = localStorage.getItem("adminAuth");
+            if (!authData) {
+                window.location.href = "admin-login.html";
+                return null;
+            }
+            return JSON.parse(authData);
+        }
+
+        // Initialize
+        adminAuth = checkAuth();
+        if (adminAuth) {
+            document.getElementById('adminUser').textContent = adminAuth.username.toUpperCase();
+            document.getElementById('adminPanel').style.display = 'block';
+            
+            setTimeout(() => {
+                document.getElementById('loadingOverlay').classList.remove('active');
+                updateTime();
+                loadStats();
+            }, 800);
+        }
+
+        // Update time
+        function updateTime() {
+            const now = new Date();
+            const time = now.toLocaleTimeString('en-US', { 
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            const timeEl = document.getElementById('currentTime');
+            if (timeEl) timeEl.textContent = time;
+        }
+        setInterval(updateTime, 1000);
+
+        function logout() {
+            localStorage.removeItem("adminAuth");
+            document.getElementById('loadingOverlay').classList.add('active');
+            setTimeout(() => {
+                window.location.href = "admin-login.html";
+            }, 500);
+        }
+
+        function showTab(tabName) {
+            document.querySelectorAll('.nav-btn').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+
+            if (tabName === 'dashboard') loadStats();
+            if (tabName === 'users') loadUsers();
+            if (tabName === 'games') loadGames();
+            if (tabName === 'leaderboards') loadLeaderboards();
+        }
+
+        function loadStats() {
+            fetch(`${API_URL}/api/admin/stats`, {
+                headers: { 
+                    username: adminAuth.username, 
+                    password: adminAuth.password 
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('statsGrid').innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-label">TOTAL USERS</div>
+                        <div class="stat-number">${data.users}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">TOTAL GAMES</div>
+                        <div class="stat-number">${data.games}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">LEADERBOARD ENTRIES</div>
+                        <div class="stat-number">${data.leaderboardEntries}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">TOTAL SCORES</div>
+                        <div class="stat-number">${data.totalScores}</div>
+                    </div>
+                `;
+            })
+            .catch(err => {
+                document.getElementById('statsGrid').innerHTML = '<div class="error-text">[ ERROR ] Failed to load statistics</div>';
+            });
+        }
+
+        function loadUsers() {
+            fetch(`${API_URL}/api/admin/users`, {
+                headers: { 
+                    username: adminAuth.username, 
+                    password: adminAuth.password 
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.querySelector('#usersTable tbody');
+                if (data.users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No users found</td></tr>';
+                } else {
+                    tbody.innerHTML = data.users.map(user => `
+                        <tr>
+                            <td>${user.username}</td>
+                            <td>${user.email}</td>
+                            <td>${user.isVerified ? 'YES' : 'NO'}</td>
+                            <td>${new Date(user.createdAt).toLocaleDateString()}</td>
+                            <td>
+                                <button class="danger" onclick="deleteUser('${user._id}')">[ DELETE ]</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            });
+        }
+
+        function deleteUser(id) {
+            if (!confirm('Delete this user? This action cannot be undone.')) return;
+            
+            fetch(`${API_URL}/api/admin/users/${id}`, {
+                method: 'DELETE',
+                headers: { 
+                    username: adminAuth.username, 
+                    password: adminAuth.password 
+                }
+            })
+            .then(() => loadUsers());
+        }
+
+        function loadGames() {
+            fetch(`${API_URL}/api/admin/games`, {
+                headers: { 
+                    username: adminAuth.username, 
+                    password: adminAuth.password 
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.querySelector('#gamesTable tbody');
+                if (data.games.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No games found</td></tr>';
+                } else {
+                    tbody.innerHTML = data.games.map(game => `
+                        <tr>
+                            <td>${game.title}</td>
+                            <td>${game.genre}</td>
+                            <td>${game.difficulty}</td>
+                            <td>${game.isActive ? 'YES' : 'NO'}</td>
+                            <td>
+                                <button onclick="editGame('${game._id}')">[ EDIT ]</button>
+                                <button class="danger" onclick="deleteGame('${game._id}')">[ DELETE ]</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            });
+        }
+
+        function showAddGame() {
+            document.getElementById('addGameForm').classList.add('active');
+            document.getElementById('gameId').value = '';
+            document.getElementById('gameTitle').value = '';
+            document.getElementById('gameDescription').value = '';
+        }
+
+        function cancelGame() {
+            document.getElementById('addGameForm').classList.remove('active');
+        }
+
+        function editGame(id) {
+            fetch(`${API_URL}/api/admin/games`, {
+                headers: { 
+                    username: adminAuth.username, 
+                    password: adminAuth.password 
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                const game = data.games.find(g => g._id === id);
+                document.getElementById('gameId').value = game._id;
+                document.getElementById('gameTitle').value = game.title;
+                document.getElementById('gameGenre').value = game.genre;
+                document.getElementById('gameDescription').value = game.description || '';
+                document.getElementById('gameDifficulty').value = game.difficulty;
+                document.getElementById('gameActive').value = game.isActive;
+                document.getElementById('addGameForm').classList.add('active');
+            });
+        }
+
+        function saveGame() {
+            const id = document.getElementById('gameId').value;
+            const gameData = {
+                title: document.getElementById('gameTitle').value,
+                genre: document.getElementById('gameGenre').value,
+                description: document.getElementById('gameDescription').value,
+                difficulty: document.getElementById('gameDifficulty').value,
+                isActive: document.getElementById('gameActive').value === 'true'
+            };
+
+            const url = id ? `${API_URL}/api/admin/games/${id}` : `${API_URL}/api/admin/games`;
+            const method = id ? 'PUT' : 'POST';
+
+            fetch(url, {
+                method: method,
+                headers: { 
+                    'Content-Type': 'application/json',
+                    username: adminAuth.username, 
+                    password: adminAuth.password 
+                },
+                body: JSON.stringify(gameData)
+            })
+            .then(() => {
+                cancelGame();
+                loadGames();
+            });
+        }
+
+        function deleteGame(id) {
+            if (!confirm('Delete this game? This action cannot be undone.')) return;
+            
+            fetch(`${API_URL}/api/admin/games/${id}`, {
+                method: 'DELETE',
+                headers: { 
+                    username: adminAuth.username, 
+                    password: adminAuth.password 
+                }
+            })
+            .then(() => loadGames());
+        }
+
+        function loadLeaderboards() {
+            fetch(`${API_URL}/api/admin/leaderboards`, {
+                headers: { 
+                    username: adminAuth.username, 
+                    password: adminAuth.password 
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.querySelector('#leaderboardsTable tbody');
+                if (data.leaderboards.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No leaderboard entries found</td></tr>';
+                } else {
+                    tbody.innerHTML = data.leaderboards.map(entry => `
+                        <tr>
+                            <td>${entry.username}</td>
+                            <td>${entry.game}</td>
+                            <td>${entry.score}</td>
+                            <td>${new Date(entry.createdAt).toLocaleDateString()}</td>
+                            <td>
+                                <button class="danger" onclick="deleteLeaderboard('${entry._id}')">[ DELETE ]</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            });
+        }
+
+        function deleteLeaderboard(id) {
+            if (!confirm('Delete this entry? This action cannot be undone.')) return;
+            
+            fetch(`${API_URL}/api/admin/leaderboards/${id}`, {
+                method: 'DELETE',
+                headers: { 
+                    username: adminAuth.username, 
+                    password: adminAuth.password 
+                }
+            })
+            .then(() => loadLeaderboards());
+        }
+    </script>
+</body>
+</html>
