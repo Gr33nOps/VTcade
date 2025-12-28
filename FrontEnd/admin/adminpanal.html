@@ -23,7 +23,7 @@
         }
         .container {
             width: 100%;
-            max-width: 900px;
+            max-width: 1000px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -54,6 +54,12 @@
         .highlight {
             background: #00ff00;
             color: black;
+        }
+        .red {
+            color: #ff0000;
+        }
+        .yellow {
+            color: #ffff00;
         }
         .dim {
             color: #006600;
@@ -101,10 +107,6 @@
             opacity: 1;
             pointer-events: all;
         }
-        .loading-content {
-            font-size: 14px;
-            line-height: 1.5;
-        }
         @keyframes dots {
             0%, 20% { content: '.'; }
             40% { content: '..'; }
@@ -116,34 +118,10 @@
         }
         
         @media (max-width: 768px) {
-            body {
-                font-size: 12px;
-                padding: 10px;
-            }
-            .terminal-output {
-                font-size: 11px;
-            }
-            .logo {
-                font-size: 7px;
-            }
-            .subtitle {
-                font-size: 11px;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            body {
-                font-size: 10px;
-            }
-            .terminal-output {
-                font-size: 9px;
-            }
-            .logo {
-                font-size: 5px;
-            }
-            .subtitle {
-                font-size: 9px;
-            }
+            body { font-size: 12px; padding: 10px; }
+            .terminal-output { font-size: 11px; }
+            .logo { font-size: 7px; }
+            .subtitle { font-size: 11px; }
         }
     </style>
 </head>
@@ -176,21 +154,14 @@
         const API_URL = "https://vtcade.onrender.com";
         const terminalEl = document.getElementById("terminal");
         let selectedIndex = 0;
-        let currentView = "menu";
+        let currentView = "home";
         let adminAuth = null;
         let adminUsername = "UNKNOWN";
         let stats = {};
         let users = [];
         let games = [];
         let leaderboards = [];
-
-        const menuItems = [
-            { id: 1, name: "DASHBOARD", view: "dashboard" },
-            { id: 2, name: "USER MANAGEMENT", view: "users" },
-            { id: 3, name: "GAME MANAGEMENT", view: "games" },
-            { id: 4, name: "LEADERBOARDS", view: "leaderboards" },
-            { id: 5, name: "LOGOUT", view: "logout" }
-        ];
+        let selectedGame = null;
 
         function checkAuth() {
             const authData = localStorage.getItem("adminAuth");
@@ -217,31 +188,62 @@
             return { date, time };
         }
 
-        function renderMenu() {
+        function apiCall(endpoint, options = {}) {
+            return fetch(`${API_URL}/api/admin${endpoint}`, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    username: adminAuth.username,
+                    password: adminAuth.password,
+                    ...options.headers
+                }
+            });
+        }
+
+        // ==================== RENDER HOME ====================
+        function renderHome() {
             const { date, time } = getDateTime();
+            const statusColor = stats.status === "OK" ? "" : '<span class="red">';
+            const statusEnd = stats.status === "OK" ? "" : '</span>';
             
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ONLINE
+SYSTEM STATUS: ${statusColor}${stats.status || "UNKNOWN"}${statusEnd}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-ADMIN CONTROL PANEL
+ADMIN HOME
+================================================================================
+
+    TOTAL USERS:              ${stats.users || 0}
+    TOTAL GAMES:              ${stats.games || 0}
+    SCORES TODAY:             ${stats.scoresToday || 0}
+    SYSTEM STATUS:            ${statusColor}${stats.status || "UNKNOWN"}${statusEnd}
+
+================================================================================
+MAIN MENU
 ================================================================================
 
 `;
 
+            const menuItems = [
+                { id: 1, name: "USER CONTROL" },
+                { id: 2, name: "GAME CONTROL" },
+                { id: 3, name: "SCOREBOARD CONTROL" },
+                { id: 4, name: "MAINTENANCE MODE" },
+                { id: 5, name: "LOGOUT" }
+            ];
+
             menuItems.forEach((item, index) => {
                 const isSelected = index === selectedIndex;
                 const prefix = isSelected ? '>>>' : '   ';
-                
-                let line = `${prefix} [${item.id}] ${item.name.padEnd(25)}`;
+                const line = `${prefix} [${item.id}] ${item.name}`;
                 
                 if (isSelected) {
-                    output += `\x1b[7m${line}\x1b[0m\n`;
+                    output += `<span class="highlight">${line}</span>\n`;
                 } else {
                     output += line + '\n';
                 }
@@ -249,181 +251,459 @@ ADMIN CONTROL PANEL
 
             output += `
 ================================================================================
-COMMAND REFERENCE
-================================================================================
-
-    [↑/↓]     Navigate Menu              [ENTER]     Select Option
-    [1-5]     Direct Access              [ESC]       Back to Menu
-
+NAVIGATION: [↑/↓] Navigate  [ENTER] Select  [1-5] Quick Access
 ================================================================================
 
 READY: <span class="cursor">_</span>
-
 `;
 
-            const lines = output.split('\n');
-            const rendered = lines.map(line => {
-                if (line.includes('>>>')) {
-                    return `<span class="highlight">${line}</span>`;
-                }
-                return line;
-            }).join('\n');
-
-            terminalEl.innerHTML = rendered;
-        }
-
-        function renderDashboard() {
-            const { date, time } = getDateTime();
-            
-            let output = `
-================================================================================
-
-SYSTEM STATUS: ONLINE
-ADMIN: ${adminUsername}
-DATE: ${date}
-TIME: ${time}
-
-================================================================================
-SYSTEM STATISTICS
-================================================================================
-
-    TOTAL USERS:              ${stats.users || 0}
-    TOTAL GAMES:              ${stats.games || 0}
-    LEADERBOARD ENTRIES:      ${stats.leaderboardEntries || 0}
-    TOTAL SCORES:             ${stats.totalScores || 0}
-
-================================================================================
-
-Press [ESC] to return to menu
-
-READY: <span class="cursor">_</span>
-
-`;
             terminalEl.innerHTML = output;
         }
 
+        // ==================== RENDER USERS ====================
         function renderUsers() {
             const { date, time } = getDateTime();
             
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ONLINE
+SYSTEM STATUS: ${stats.status || "UNKNOWN"}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-USER MANAGEMENT
+USER CONTROL - ${users.length} USERS
 ================================================================================
 
 `;
 
             if (users.length === 0) {
-                output += `    NO USERS FOUND\n`;
+                output += `    <span class="dim">NO USERS FOUND</span>\n`;
             } else {
                 users.forEach((user, index) => {
-                    const verified = user.isVerified ? 'YES' : 'NO';
-                    const joinDate = new Date(user.createdAt).toLocaleDateString();
-                    output += `    [${index + 1}] ${user.username.padEnd(15)} ${user.email.padEnd(25)}\n`;
-                    output += `        VERIFIED: ${verified.padEnd(10)} JOINED: ${joinDate}\n\n`;
+                    const isSelected = index === selectedIndex;
+                    const prefix = isSelected ? '>>>' : '   ';
+                    const bannedTag = user.isBanned ? '<span class="red">[BANNED]</span>' : '';
+                    const verifiedTag = user.isVerified ? '[VERIFIED]' : '';
+                    
+                    const line = `${prefix} [${index + 1}] ${user.username.padEnd(15)} ${user.email.padEnd(30)}`;
+                    
+                    if (isSelected) {
+                        output += `<span class="highlight">${line}</span>\n`;
+                        output += `        ${verifiedTag} ${bannedTag}\n\n`;
+                    } else {
+                        output += line + '\n';
+                        output += `        ${verifiedTag} ${bannedTag}\n\n`;
+                    }
                 });
             }
 
             output += `
 ================================================================================
-
-Press [R] to refresh | Press [ESC] to return to menu
+COMMANDS: [↑/↓] Navigate  [B] Ban  [U] Unban  [D] Delete  [R] Refresh  [ESC] Back
+================================================================================
 
 READY: <span class="cursor">_</span>
-
 `;
+
             terminalEl.innerHTML = output;
         }
 
+        // ==================== RENDER GAMES ====================
         function renderGames() {
             const { date, time } = getDateTime();
             
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ONLINE
+SYSTEM STATUS: ${stats.status || "UNKNOWN"}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-GAME MANAGEMENT
+GAME CONTROL - ${games.length} GAMES
 ================================================================================
 
 `;
 
             if (games.length === 0) {
-                output += `    NO GAMES FOUND\n`;
+                output += `    <span class="dim">NO GAMES FOUND</span>\n`;
             } else {
                 games.forEach((game, index) => {
-                    const active = game.isActive ? 'ACTIVE' : 'INACTIVE';
-                    output += `    [${index + 1}] ${game.title.padEnd(20)} ${game.genre.toUpperCase().padEnd(12)}\n`;
-                    output += `        DIFFICULTY: ${game.difficulty.toUpperCase().padEnd(10)} STATUS: ${active}\n\n`;
+                    const isSelected = index === selectedIndex;
+                    const prefix = isSelected ? '>>>' : '   ';
+                    const statusTag = game.isActive ? '[ENABLED]' : '<span class="red">[DISABLED]</span>';
+                    
+                    const line = `${prefix} [${index + 1}] ${game.title.padEnd(25)} ${game.genre.padEnd(15)}`;
+                    
+                    if (isSelected) {
+                        output += `<span class="highlight">${line}</span>\n`;
+                        output += `        STATUS: ${statusTag}\n\n`;
+                    } else {
+                        output += line + '\n';
+                        output += `        STATUS: ${statusTag}\n\n`;
+                    }
                 });
             }
 
             output += `
 ================================================================================
-
-Press [R] to refresh | Press [ESC] to return to menu
+COMMANDS: [↑/↓] Navigate  [E] Enable  [X] Disable  [R] Refresh  [ESC] Back
+================================================================================
 
 READY: <span class="cursor">_</span>
-
 `;
+
             terminalEl.innerHTML = output;
         }
 
+        // ==================== RENDER LEADERBOARDS ====================
         function renderLeaderboards() {
             const { date, time } = getDateTime();
             
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ONLINE
+SYSTEM STATUS: ${stats.status || "UNKNOWN"}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-LEADERBOARD MANAGEMENT
+SCOREBOARD CONTROL
 ================================================================================
 
 `;
 
-            if (leaderboards.length === 0) {
-                output += `    NO LEADERBOARD ENTRIES FOUND\n`;
-            } else {
-                leaderboards.forEach((entry, index) => {
-                    const dateStr = new Date(entry.createdAt).toLocaleDateString();
-                    output += `    [${index + 1}] ${entry.username.padEnd(15)} ${entry.game.padEnd(20)}\n`;
-                    output += `        SCORE: ${String(entry.score).padEnd(10)} DATE: ${dateStr}\n\n`;
+            if (!selectedGame) {
+                output += `SELECT A GAME TO VIEW LEADERBOARD:\n\n`;
+                
+                games.forEach((game, index) => {
+                    const isSelected = index === selectedIndex;
+                    const prefix = isSelected ? '>>>' : '   ';
+                    const line = `${prefix} [${index + 1}] ${game.title}`;
+                    
+                    if (isSelected) {
+                        output += `<span class="highlight">${line}</span>\n`;
+                    } else {
+                        output += line + '\n';
+                    }
                 });
+
+                output += `
+================================================================================
+COMMANDS: [↑/↓] Navigate  [ENTER] Select Game  [ESC] Back
+================================================================================
+`;
+            } else {
+                output += `GAME: ${selectedGame.toUpperCase()}\n`;
+                output += `SHOWING TOP ${Math.min(leaderboards.length, 100)} SCORES\n\n`;
+
+                if (leaderboards.length === 0) {
+                    output += `    <span class="dim">NO SCORES FOUND</span>\n`;
+                } else {
+                    leaderboards.forEach((entry, index) => {
+                        const isSelected = index === selectedIndex;
+                        const prefix = isSelected ? '>>>' : '   ';
+                        const flagTag = entry.isFlagged ? '<span class="yellow">[FLAGGED]</span>' : '';
+                        const username = entry.userId?.username || entry.username || 'UNKNOWN';
+                        
+                        const line = `${prefix} [${index + 1}] ${username.padEnd(15)} SCORE: ${String(entry.score).padStart(8)}`;
+                        
+                        if (isSelected) {
+                            output += `<span class="highlight">${line}</span> ${flagTag}\n`;
+                        } else {
+                            output += line + ` ${flagTag}\n`;
+                        }
+                    });
+                }
+
+                output += `
+================================================================================
+COMMANDS: [↑/↓] Navigate  [F] Flag  [D] Delete  [Z] Reset All  [ESC] Back
+================================================================================
+`;
             }
 
             output += `
-================================================================================
-
-Press [R] to refresh | Press [ESC] to return to menu
-
 READY: <span class="cursor">_</span>
-
 `;
+
             terminalEl.innerHTML = output;
         }
 
+        // ==================== RENDER MAINTENANCE ====================
+        function renderMaintenance() {
+            const { date, time } = getDateTime();
+            const modeStatus = stats.maintenanceMode ? '<span class="red">ENABLED</span>' : 'DISABLED';
+            
+            let output = `
+================================================================================
+
+SYSTEM STATUS: ${stats.status || "UNKNOWN"}
+ADMIN: ${adminUsername}
+DATE: ${date}
+TIME: ${time}
+
+================================================================================
+MAINTENANCE MODE
+================================================================================
+
+    CURRENT STATUS:           ${modeStatus}
+
+    WHEN ENABLED:
+    - User logins blocked
+    - Score submissions blocked
+    - System locked message displayed
+
+================================================================================
+ACTIONS
+================================================================================
+
+`;
+
+            const actions = [
+                { id: 1, name: "ENABLE MAINTENANCE MODE", enabled: !stats.maintenanceMode },
+                { id: 2, name: "DISABLE MAINTENANCE MODE", enabled: stats.maintenanceMode },
+                { id: 3, name: "BACK TO MENU", enabled: true }
+            ];
+
+            actions.forEach((action, index) => {
+                if (!action.enabled) return;
+                
+                const isSelected = index === selectedIndex;
+                const prefix = isSelected ? '>>>' : '   ';
+                const line = `${prefix} [${action.id}] ${action.name}`;
+                
+                if (isSelected) {
+                    output += `<span class="highlight">${line}</span>\n`;
+                } else {
+                    output += line + '\n';
+                }
+            });
+
+            output += `
+================================================================================
+COMMANDS: [↑/↓] Navigate  [ENTER] Select  [ESC] Back
+================================================================================
+
+READY: <span class="cursor">_</span>
+`;
+
+            terminalEl.innerHTML = output;
+        }
+
+        // ==================== DATA LOADERS ====================
+        function loadStats() {
+            apiCall('/stats')
+                .then(res => res.json())
+                .then(data => {
+                    stats = data;
+                    render();
+                })
+                .catch(err => console.error(err));
+        }
+
+        function loadUsers() {
+            apiCall('/users')
+                .then(res => res.json())
+                .then(data => {
+                    users = data.users;
+                    render();
+                })
+                .catch(err => console.error(err));
+        }
+
+        function loadGames() {
+            apiCall('/games')
+                .then(res => res.json())
+                .then(data => {
+                    games = data.games;
+                    render();
+                })
+                .catch(err => console.error(err));
+        }
+
+        function loadLeaderboards(game) {
+            const query = game ? `?game=${encodeURIComponent(game)}` : '';
+            apiCall(`/leaderboards${query}`)
+                .then(res => res.json())
+                .then(data => {
+                    leaderboards = data.leaderboards;
+                    render();
+                })
+                .catch(err => console.error(err));
+        }
+
+        // ==================== ACTIONS ====================
+        function banUser(userId) {
+            if (!confirm("BAN THIS USER? Press OK to confirm.")) return;
+            
+            showLoading();
+            apiCall(`/users/${userId}/ban`, { method: 'PUT' })
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    loadUsers();
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to ban user");
+                });
+        }
+
+        function unbanUser(userId) {
+            showLoading();
+            apiCall(`/users/${userId}/unban`, { method: 'PUT' })
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    loadUsers();
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to unban user");
+                });
+        }
+
+        function deleteUser(userId) {
+            if (!confirm("DELETE USER? ALL DATA WILL BE REMOVED. Press OK to confirm.")) return;
+            
+            showLoading();
+            apiCall(`/users/${userId}`, { method: 'DELETE' })
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    selectedIndex = 0;
+                    loadUsers();
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to delete user");
+                });
+        }
+
+        function enableGame(gameId) {
+            showLoading();
+            apiCall(`/games/${gameId}/enable`, { method: 'PUT' })
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    loadGames();
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to enable game");
+                });
+        }
+
+        function disableGame(gameId) {
+            showLoading();
+            apiCall(`/games/${gameId}/disable`, { method: 'PUT' })
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    loadGames();
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to disable game");
+                });
+        }
+
+        function flagScore(entryId) {
+            showLoading();
+            apiCall(`/leaderboards/${entryId}/flag`, { method: 'PUT' })
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    loadLeaderboards(selectedGame);
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to flag score");
+                });
+        }
+
+        function deleteScore(entryId) {
+            if (!confirm("DELETE THIS SCORE? Press OK to confirm.")) return;
+            
+            showLoading();
+            apiCall(`/leaderboards/${entryId}`, { method: 'DELETE' })
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    selectedIndex = 0;
+                    loadLeaderboards(selectedGame);
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to delete score");
+                });
+        }
+
+        function resetLeaderboard(game) {
+            if (!confirm(`RESET ALL SCORES FOR ${game.toUpperCase()}? THIS CANNOT BE UNDONE. Press OK to confirm.`)) return;
+            
+            showLoading();
+            apiCall(`/leaderboards/reset/${encodeURIComponent(game)}`, { method: 'DELETE' })
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    selectedIndex = 0;
+                    loadLeaderboards(selectedGame);
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to reset leaderboard");
+                });
+        }
+
+        function enableMaintenance() {
+            if (!confirm("ENABLE MAINTENANCE MODE? Users will be unable to login or submit scores. Press OK to confirm.")) return;
+            
+            showLoading();
+            apiCall('/maintenance/enable', { method: 'PUT' })
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    loadStats();
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to enable maintenance mode");
+                });
+        }
+
+        function disableMaintenance() {
+            showLoading();
+            apiCall('/maintenance/disable', { method: 'PUT' })
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    loadStats();
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to disable maintenance mode");
+                });
+        }
+
+        function logout() {
+            showLoading();
+            setTimeout(() => {
+                localStorage.removeItem("adminAuth");
+                window.location.href = "adminlogin.html";
+            }, 800);
+        }
+
+        // ==================== RENDER & NAVIGATION ====================
         function render() {
             switch(currentView) {
-                case "menu":
-                    renderMenu();
-                    break;
-                case "dashboard":
-                    renderDashboard();
+                case "home":
+                    renderHome();
                     break;
                 case "users":
                     renderUsers();
@@ -434,169 +714,166 @@ READY: <span class="cursor">_</span>
                 case "leaderboards":
                     renderLeaderboards();
                     break;
+                case "maintenance":
+                    renderMaintenance();
+                    break;
             }
         }
 
         function navigate(direction) {
-            if (currentView !== "menu") return;
+            let maxIndex = 0;
+            
+            if (currentView === "home") maxIndex = 4;
+            else if (currentView === "users") maxIndex = users.length - 1;
+            else if (currentView === "games") maxIndex = games.length - 1;
+            else if (currentView === "leaderboards" && !selectedGame) maxIndex = games.length - 1;
+            else if (currentView === "leaderboards" && selectedGame) maxIndex = leaderboards.length - 1;
+            else if (currentView === "maintenance") maxIndex = 2;
             
             if (direction === 'up') {
-                selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : menuItems.length - 1;
+                selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : maxIndex;
             } else if (direction === 'down') {
-                selectedIndex = selectedIndex < menuItems.length - 1 ? selectedIndex + 1 : 0;
+                selectedIndex = selectedIndex < maxIndex ? selectedIndex + 1 : 0;
             }
             render();
         }
 
-        function selectOption(index) {
-            if (currentView !== "menu") return;
-            
-            const item = menuItems[index];
-            if (!item) return;
-
-            if (item.view === "logout") {
-                logout();
-                return;
-            }
-
-            currentView = item.view;
-            
-            switch(item.view) {
-                case "dashboard":
-                    loadStats();
-                    break;
-                case "users":
-                    loadUsers();
-                    break;
-                case "games":
-                    loadGames();
-                    break;
-                case "leaderboards":
-                    loadLeaderboards();
-                    break;
-            }
-        }
-
-        function loadStats() {
-            fetch(`${API_URL}/api/admin/stats`, {
-                headers: { 
-                    username: adminAuth.username, 
-                    password: adminAuth.password 
-                }
-            })
-            .then(res => res.json())
-            .then(data => {
-                stats = data;
-                render();
-            })
-            .catch(err => {
-                stats = { users: 0, games: 0, leaderboardEntries: 0, totalScores: 0 };
-                render();
-            });
-        }
-
-        function loadUsers() {
-            fetch(`${API_URL}/api/admin/users`, {
-                headers: { 
-                    username: adminAuth.username, 
-                    password: adminAuth.password 
-                }
-            })
-            .then(res => res.json())
-            .then(data => {
-                users = data.users;
-                render();
-            })
-            .catch(err => {
-                users = [];
-                render();
-            });
-        }
-
-        function loadGames() {
-            fetch(`${API_URL}/api/admin/games`, {
-                headers: { 
-                    username: adminAuth.username, 
-                    password: adminAuth.password 
-                }
-            })
-            .then(res => res.json())
-            .then(data => {
-                games = data.games;
-                render();
-            })
-            .catch(err => {
-                games = [];
-                render();
-            });
-        }
-
-        function loadLeaderboards() {
-            fetch(`${API_URL}/api/admin/leaderboards`, {
-                headers: { 
-                    username: adminAuth.username, 
-                    password: adminAuth.password 
-                }
-            })
-            .then(res => res.json())
-            .then(data => {
-                leaderboards = data.leaderboards;
-                render();
-            })
-            .catch(err => {
-                leaderboards = [];
-                render();
-            });
-        }
-
-        function logout() {
+        function showLoading() {
             document.getElementById('loadingOverlay').classList.add('active');
-            
-            setTimeout(() => {
-                localStorage.removeItem("adminAuth");
-                window.location.href = "adminlogin.html";
-            }, 800);
         }
 
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+
+        // ==================== KEYBOARD HANDLER ====================
         document.addEventListener("keydown", (e) => {
             switch(e.key) {
                 case "ArrowUp":
                     navigate('up');
                     e.preventDefault();
                     break;
+                    
                 case "ArrowDown":
                     navigate('down');
                     e.preventDefault();
                     break;
+                    
                 case "Enter":
-                    if (currentView === "menu") {
-                        selectOption(selectedIndex);
-                    }
-                    e.preventDefault();
-                    break;
-                case "Escape":
-                    if (currentView !== "menu") {
-                        currentView = "menu";
+                    if (currentView === "home") {
+                        if (selectedIndex === 0) { currentView = "users"; loadUsers(); }
+                        else if (selectedIndex === 1) { currentView = "games"; loadGames(); }
+                        else if (selectedIndex === 2) { currentView = "leaderboards"; loadGames(); selectedGame = null; }
+                        else if (selectedIndex === 3) { currentView = "maintenance"; }
+                        else if (selectedIndex === 4) { logout(); }
                         selectedIndex = 0;
                         render();
+                    } else if (currentView === "leaderboards" && !selectedGame && games.length > 0) {
+                        selectedGame = games[selectedIndex].title;
+                        selectedIndex = 0;
+                        loadLeaderboards(selectedGame);
+                    } else if (currentView === "maintenance") {
+                        if (selectedIndex === 0 && !stats.maintenanceMode) enableMaintenance();
+                        else if (selectedIndex === 1 && stats.maintenanceMode) disableMaintenance();
+                        else if (selectedIndex === 2) { currentView = "home"; loadStats(); }
                     }
                     e.preventDefault();
                     break;
+                    
+                case "Escape":
+                    if (currentView === "leaderboards" && selectedGame) {
+                        selectedGame = null;
+                        selectedIndex = 0;
+                        render();
+                    } else if (currentView !== "home") {
+                        currentView = "home";
+                        selectedIndex = 0;
+                        loadStats();
+                    }
+                    e.preventDefault();
+                    break;
+                    
                 case "1":
                 case "2":
                 case "3":
                 case "4":
                 case "5":
-                    if (currentView === "menu") {
-                        selectOption(parseInt(e.key) - 1);
+                    if (currentView === "home") {
+                        const index = parseInt(e.key) - 1;
+                        if (index === 0) { currentView = "users"; loadUsers(); }
+                        else if (index === 1) { currentView = "games"; loadGames(); }
+                        else if (index === 2) { currentView = "leaderboards"; loadGames(); selectedGame = null; }
+                        else if (index === 3) { currentView = "maintenance"; }
+                        else if (index === 4) { logout(); }
+                        selectedIndex = 0;
+                        render();
                     }
                     e.preventDefault();
                     break;
+                    
+                case "b":
+                case "B":
+                    if (currentView === "users" && users.length > 0) {
+                        banUser(users[selectedIndex]._id);
+                    }
+                    e.preventDefault();
+                    break;
+                    
+                case "u":
+                case "U":
+                    if (currentView === "users" && users.length > 0) {
+                        unbanUser(users[selectedIndex]._id);
+                    }
+                    e.preventDefault();
+                    break;
+                    
+                case "d":
+                case "D":
+                    if (currentView === "users" && users.length > 0) {
+                        deleteUser(users[selectedIndex]._id);
+                    } else if (currentView === "leaderboards" && selectedGame && leaderboards.length > 0) {
+                        deleteScore(leaderboards[selectedIndex]._id);
+                    }
+                    e.preventDefault();
+                    break;
+                    
+                case "e":
+                case "E":
+                    if (currentView === "games" && games.length > 0) {
+                        enableGame(games[selectedIndex]._id);
+                    }
+                    e.preventDefault();
+                    break;
+                    
+                case "x":
+                case "X":
+                    if (currentView === "games" && games.length > 0) {
+                        disableGame(games[selectedIndex]._id);
+                    }
+                    e.preventDefault();
+                    break;
+                    
+                case "f":
+                case "F":
+                    if (currentView === "leaderboards" && selectedGame && leaderboards.length > 0) {
+                        flagScore(leaderboards[selectedIndex]._id);
+                    }
+                    e.preventDefault();
+                    break;
+                    
+                case "z":
+                case "Z":
+                    if (currentView === "leaderboards" && selectedGame) {
+                        resetLeaderboard(selectedGame);
+                    }
+                    e.preventDefault();
+                    break;
+                    
                 case "r":
                 case "R":
                     if (currentView === "users") loadUsers();
                     else if (currentView === "games") loadGames();
-                    else if (currentView === "leaderboards") loadLeaderboards();
+                    else if (currentView === "leaderboards" && selectedGame) loadLeaderboards(selectedGame);
                     e.preventDefault();
                     break;
             }
@@ -606,18 +883,20 @@ READY: <span class="cursor">_</span>
             e.preventDefault();
         }, { passive: false });
 
+        // ==================== INITIALIZATION ====================
         adminAuth = checkAuth();
         if (adminAuth) {
             adminUsername = adminAuth.username.toUpperCase();
-            render();
+            loadStats();
+            
             setInterval(() => {
-                if (currentView === "menu" || currentView === "dashboard") {
-                    render();
+                if (currentView === "home") {
+                    loadStats();
                 }
-            }, 1000);
+            }, 5000);
             
             setTimeout(() => {
-                document.getElementById('loadingOverlay').classList.remove('active');
+                hideLoading();
             }, 500);
         }
     </script>

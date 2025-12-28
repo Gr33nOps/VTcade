@@ -3,8 +3,8 @@ const router = express.Router();
 const User = require("../models/User");
 const Game = require("../models/Game");
 const Leaderboard = require("../models/leaderboard");
-const Highscore = require("../models/Highscore");
 const Score = require("../models/Score");
+const SystemSettings = require("../models/SystemSetting");
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
@@ -19,6 +19,7 @@ function checkAdmin(req, res, next) {
     }
 }
 
+// Login
 router.post("/login", async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -36,22 +37,80 @@ router.post("/login", async (req, res) => {
     }
 });
 
+// ==================== ADMIN HOME ====================
+
+router.get("/stats", checkAdmin, async (req, res) => {
+    try {
+        const userCount = await User.countDocuments();
+        const gameCount = await Game.countDocuments();
+        
+        // Scores submitted today
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const scoresToday = await Score.countDocuments({ 
+            createdAt: { $gte: today } 
+        });
+        
+        // Get maintenance mode status
+        let settings = await SystemSettings.findOne();
+        if (!settings) {
+            settings = await SystemSettings.create({ maintenanceMode: false });
+        }
+        
+        res.json({
+            users: userCount,
+            games: gameCount,
+            scoresToday: scoresToday,
+            maintenanceMode: settings.maintenanceMode,
+            status: settings.maintenanceMode ? "MAINTENANCE" : "OK"
+        });
+    } catch (err) {
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// ==================== USER CONTROL ====================
+
 router.get("/users", checkAdmin, async (req, res) => {
     try {
-        const users = await User.find().select('-password').sort({ createdAt: -1 });
+        const users = await User.find()
+            .select('-password')
+            .sort({ createdAt: -1 });
         res.json({ users, total: users.length });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
     }
 });
 
-router.get("/users/:id", checkAdmin, async (req, res) => {
+router.put("/users/:id/ban", checkAdmin, async (req, res) => {
     try {
-        const user = await User.findById(req.params.id).select('-password');
+        const user = await User.findByIdAndUpdate(
+            req.params.id,
+            { isBanned: true },
+            { new: true }
+        ).select('-password');
+        
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
-        res.json(user);
+        res.json({ message: "User banned", user });
+    } catch (err) {
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+router.put("/users/:id/unban", checkAdmin, async (req, res) => {
+    try {
+        const user = await User.findByIdAndUpdate(
+            req.params.id,
+            { isBanned: false },
+            { new: true }
+        ).select('-password');
+        
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        res.json({ message: "User unbanned", user });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
     }
@@ -63,11 +122,18 @@ router.delete("/users/:id", checkAdmin, async (req, res) => {
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
+        
+        // Also delete user's scores
+        await Score.deleteMany({ userId: req.params.id });
+        await Leaderboard.deleteMany({ userId: req.params.id });
+        
         res.json({ message: "User deleted successfully" });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
     }
 });
+
+// ==================== GAME CONTROL ====================
 
 router.get("/games", checkAdmin, async (req, res) => {
     try {
@@ -78,42 +144,52 @@ router.get("/games", checkAdmin, async (req, res) => {
     }
 });
 
-router.post("/games", checkAdmin, async (req, res) => {
+router.put("/games/:id/enable", checkAdmin, async (req, res) => {
     try {
-        const game = await Game.create(req.body);
-        res.json({ message: "Game created", game });
+        const game = await Game.findByIdAndUpdate(
+            req.params.id,
+            { isActive: true },
+            { new: true }
+        );
+        
+        if (!game) {
+            return res.status(404).json({ message: "Game not found" });
+        }
+        res.json({ message: "Game enabled", game });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
     }
 });
 
-router.put("/games/:id", checkAdmin, async (req, res) => {
+router.put("/games/:id/disable", checkAdmin, async (req, res) => {
     try {
-        const game = await Game.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const game = await Game.findByIdAndUpdate(
+            req.params.id,
+            { isActive: false },
+            { new: true }
+        );
+        
         if (!game) {
             return res.status(404).json({ message: "Game not found" });
         }
-        res.json({ message: "Game updated", game });
+        res.json({ message: "Game disabled", game });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
     }
 });
 
-router.delete("/games/:id", checkAdmin, async (req, res) => {
-    try {
-        const game = await Game.findByIdAndDelete(req.params.id);
-        if (!game) {
-            return res.status(404).json({ message: "Game not found" });
-        }
-        res.json({ message: "Game deleted" });
-    } catch (err) {
-        res.status(500).json({ message: "Server error" });
-    }
-});
+// ==================== SCOREBOARD CONTROL ====================
 
 router.get("/leaderboards", checkAdmin, async (req, res) => {
     try {
-        const leaderboards = await Leaderboard.find().sort({ score: -1 });
+        const { game } = req.query;
+        const filter = game ? { game } : {};
+        
+        const leaderboards = await Leaderboard.find(filter)
+            .populate('userId', 'username')
+            .sort({ score: -1 })
+            .limit(100);
+            
         res.json({ leaderboards, total: leaderboards.length });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
@@ -126,34 +202,82 @@ router.delete("/leaderboards/:id", checkAdmin, async (req, res) => {
         if (!entry) {
             return res.status(404).json({ message: "Entry not found" });
         }
-        res.json({ message: "Leaderboard entry deleted" });
+        res.json({ message: "Score removed" });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
     }
 });
 
-router.get("/highscores", checkAdmin, async (req, res) => {
+router.delete("/leaderboards/reset/:game", checkAdmin, async (req, res) => {
     try {
-        const highscores = await Highscore.find().sort({ highscore: -1 });
-        res.json({ highscores, total: highscores.length });
-    } catch (err) {
-        res.status(500).json({ message: "Server error" });
-    }
-});
-
-router.get("/stats", checkAdmin, async (req, res) => {
-    try {
-        const userCount = await User.countDocuments();
-        const gameCount = await Game.countDocuments();
-        const leaderboardCount = await Leaderboard.countDocuments();
-        const scoreCount = await Score.countDocuments();
-        
-        res.json({
-            users: userCount,
-            games: gameCount,
-            leaderboardEntries: leaderboardCount,
-            totalScores: scoreCount
+        const result = await Leaderboard.deleteMany({ 
+            game: req.params.game 
         });
+        res.json({ 
+            message: "Leaderboard reset", 
+            deletedCount: result.deletedCount 
+        });
+    } catch (err) {
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+router.put("/leaderboards/:id/flag", checkAdmin, async (req, res) => {
+    try {
+        const entry = await Leaderboard.findByIdAndUpdate(
+            req.params.id,
+            { isFlagged: true },
+            { new: true }
+        );
+        
+        if (!entry) {
+            return res.status(404).json({ message: "Entry not found" });
+        }
+        res.json({ message: "Score flagged", entry });
+    } catch (err) {
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// ==================== MAINTENANCE MODE ====================
+
+router.get("/maintenance", checkAdmin, async (req, res) => {
+    try {
+        let settings = await SystemSettings.findOne();
+        if (!settings) {
+            settings = await SystemSettings.create({ maintenanceMode: false });
+        }
+        res.json({ maintenanceMode: settings.maintenanceMode });
+    } catch (err) {
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+router.put("/maintenance/enable", checkAdmin, async (req, res) => {
+    try {
+        let settings = await SystemSettings.findOne();
+        if (!settings) {
+            settings = await SystemSettings.create({ maintenanceMode: true });
+        } else {
+            settings.maintenanceMode = true;
+            await settings.save();
+        }
+        res.json({ message: "Maintenance mode enabled", maintenanceMode: true });
+    } catch (err) {
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+router.put("/maintenance/disable", checkAdmin, async (req, res) => {
+    try {
+        let settings = await SystemSettings.findOne();
+        if (!settings) {
+            settings = await SystemSettings.create({ maintenanceMode: false });
+        } else {
+            settings.maintenanceMode = false;
+            await settings.save();
+        }
+        res.json({ message: "Maintenance mode disabled", maintenanceMode: false });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
     }
