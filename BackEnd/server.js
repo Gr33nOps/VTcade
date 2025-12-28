@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const connectDB = require("./config/db");
-const checkMaintenance = require("./middlewares/checkMaintenance"); // Add this
+const checkMaintenance = require("./routes/maintenance"); // ✅ FIXED: Points to routes/maintenance.js
 
 const app = express();
 
