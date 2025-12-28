@@ -71,7 +71,7 @@ router.post("/signup", async (req, res) => {
         user.verificationToken = verificationToken;
         user.verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
 
-        // TRY TO SEND EMAIL FIRST
+        // SEND EMAIL FIRST - MUST SUCCEED FOR SIGNUP TO COMPLETE
         console.log("Attempting to send verification email...");
         try {
             await sendVerificationEmail(email, verificationToken);
@@ -79,32 +79,22 @@ router.post("/signup", async (req, res) => {
         } catch (emailErr) {
             console.error("✗ Email sending failed:", emailErr.message);
             
-            // OPTION 1: Fail the signup if email fails (STRICT)
-            // Uncomment this if you want email verification to be mandatory
-            /*
+            // STRICT MODE: Fail the signup if email fails
             return res.status(500).json({ 
                 message: "Failed to send verification email. Please try again later.",
-                detail: process.env.NODE_ENV === 'production' ? 'Email service unavailable' : emailErr.message 
+                detail: process.env.NODE_ENV === 'development' ? emailErr.message : 'Email service unavailable'
             });
-            */
-            
-            // OPTION 2: Allow signup but warn about email (LENIENT)
-            // This allows users to play immediately even if email fails
-            console.log("⚠ Email failed but continuing with signup");
-            user.isVerified = true; // Auto-verify since email failed
         }
 
-        // Save user to database
+        // Save user to database ONLY after email is sent
         await user.save();
         console.log("✓ User created successfully:", username);
 
         // Return success response
         res.status(201).json({
-            message: user.isVerified 
-                ? "Registration successful! You can now login." 
-                : "Registration successful! Please check your email to verify your account.",
+            message: "Registration successful! Please check your email to verify your account.",
             username: user.username,
-            requiresVerification: !user.isVerified
+            requiresVerification: true
         });
 
     } catch (err) {
@@ -112,7 +102,7 @@ router.post("/signup", async (req, res) => {
         console.error("Full error:", err);
         res.status(500).json({ 
             message: "Server error during signup",
-            detail: process.env.NODE_ENV === 'production' ? 'An error occurred' : err.message 
+            detail: process.env.NODE_ENV === 'development' ? err.message : 'An error occurred'
         });
     }
 });
@@ -168,7 +158,7 @@ router.post("/login", async (req, res) => {
         console.error("Full error:", err);
         res.status(500).json({ 
             message: "Server error during login",
-            detail: process.env.NODE_ENV === 'production' ? 'An error occurred' : err.message 
+            detail: process.env.NODE_ENV === 'development' ? err.message : 'An error occurred'
         });
     }
 });

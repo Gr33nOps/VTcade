@@ -8,11 +8,10 @@ async function sendVerificationEmail(email, token) {
     throw new Error("RESEND_API_KEY not configured in environment variables");
   }
 
-  // Check if sender email is configured
-  if (!process.env.RESEND_FROM_EMAIL) {
-    console.error("❌ Resend sender email missing");
-    throw new Error("RESEND_FROM_EMAIL not configured in environment variables");
-  }
+  // Set default sender email if not configured
+  const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+  
+  console.log("📧 Using FROM email:", fromEmail);
 
   try {
     console.log("📧 Configuring Resend...");
@@ -29,8 +28,8 @@ async function sendVerificationEmail(email, token) {
     // Send email using Resend
     console.log("📤 Sending verification email to:", email);
     
-    const data = await resend.emails.send({
-      from: `VTcade <${process.env.RESEND_FROM_EMAIL}>`,
+    const { data, error } = await resend.emails.send({
+      from: `VTcade <${fromEmail}>`,
       to: [email],
       subject: "Verify Your Email - VTcade",
       html: `
@@ -128,8 +127,21 @@ VTcade - Play Like It's 1980
       `.trim()
     });
     
+    // Check if there was an error
+    if (error) {
+      console.error("✗ Resend returned an error:", error);
+      throw new Error(error.message || 'Failed to send email');
+    }
+    
+    // Check if we got data back
+    if (!data) {
+      console.error("✗ Resend returned no data");
+      throw new Error('No response from Resend');
+    }
+    
     console.log("✓ Verification email sent successfully");
-    console.log("  Email ID:", data.id);
+    console.log("  Email ID:", data.id || 'N/A');
+    console.log("  Full response:", JSON.stringify(data, null, 2));
     
     return data;
     
