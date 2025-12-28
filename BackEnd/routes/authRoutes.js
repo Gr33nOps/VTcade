@@ -1,11 +1,16 @@
-// routes/authRoutes.js
+// routes/authRoutes.js - Hybrid Approach
+// Uses Supabase for auth/emails + MongoDB for game data
 const express = require("express");
-const bcrypt = require("bcryptjs");
-const crypto = require("crypto");
+const { createClient } = require('@supabase/supabase-js');
 const User = require("../models/User");
-const sendVerificationEmail = require("../utils/email");
 
 const router = express.Router();
+
+// Initialize Supabase client (for auth only)
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
 
 // ==================== SIGNUP ====================
 router.post("/signup", async (req, res) => {
@@ -39,7 +44,7 @@ router.post("/signup", async (req, res) => {
             return res.status(400).json({ message: "Password must be at least 6 characters" });
         }
 
-        // Check if user already exists
+        // Check if username already exists in MongoDB
         const existingUser = await User.findOne({ 
             $or: [{ email: email.toLowerCase() }, { username }] 
         });
@@ -55,51 +60,50 @@ router.post("/signup", async (req, res) => {
             }
         }
 
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Create user object (but don't save yet)
-        const user = new User({
-            username,
+        // Sign up with Supabase Auth (handles email verification)
+        const { data: authData, error: authError } = await supabase.auth.signUp({
             email: email.toLowerCase(),
-            password: hashedPassword,
-            isVerified: false
+            password: password,
+            options: {
+                data: {
+                    username: username
+                },
+                emailRedirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login/login.html`
+            }
         });
 
-        // Generate verification token
-        const verificationToken = crypto.randomBytes(32).toString("hex");
-        user.verificationToken = verificationToken;
-        user.verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-
-        // SEND EMAIL FIRST - MUST SUCCEED FOR SIGNUP TO COMPLETE
-        console.log("Attempting to send verification email...");
-        try {
-            await sendVerificationEmail(email, verificationToken);
-            console.log("✓ Verification email sent successfully to:", email);
-        } catch (emailErr) {
-            console.error("✗ Email sending failed:", emailErr.message);
+        if (authError) {
+            console.error("Supabase signup error:", authError.message);
             
-            // STRICT MODE: Fail the signup if email fails
-            return res.status(500).json({ 
-                message: "Failed to send verification email. Please try again later.",
-                detail: process.env.NODE_ENV === 'development' ? emailErr.message : 'Email service unavailable'
-            });
+            if (authError.message.includes('already registered')) {
+                return res.status(400).json({ message: "Email already registered" });
+            }
+            
+            return res.status(400).json({ message: authError.message });
         }
 
-        // Save user to database ONLY after email is sent
-        await user.save();
-        console.log("✓ User created successfully:", username);
+        // Create user in MongoDB (for game data)
+        const mongoUser = new User({
+            username,
+            email: email.toLowerCase(),
+            password: "SUPABASE_AUTH", // Not used - auth handled by Supabase
+            isVerified: false, // Will be updated when Supabase confirms
+            supabaseId: authData.user.id // Link to Supabase user
+        });
+
+        await mongoUser.save();
+        console.log("✓ User created in MongoDB:", username);
+        console.log("✓ Supabase verification email sent to:", email);
 
         // Return success response
         res.status(201).json({
             message: "Registration successful! Please check your email to verify your account.",
-            username: user.username,
+            username: username,
             requiresVerification: true
         });
 
     } catch (err) {
         console.error("Signup error:", err.message);
-        console.error("Full error:", err);
         res.status(500).json({ 
             message: "Server error during signup",
             detail: process.env.NODE_ENV === 'development' ? err.message : 'An error occurred'
@@ -120,119 +124,55 @@ router.post("/login", async (req, res) => {
             return res.status(400).json({ message: "Email and password are required" });
         }
 
-        // Find user by email
-        const user = await User.findOne({ email: email.toLowerCase() });
-        
-        if (!user) {
-            console.log("Login failed: User not found");
+        // Authenticate with Supabase
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            email: email.toLowerCase(),
+            password: password
+        });
+
+        if (authError) {
+            console.log("Login failed:", authError.message);
+            
+            if (authError.message.includes('Email not confirmed')) {
+                return res.status(403).json({ 
+                    message: "Please verify your email before logging in. Check your inbox for the verification link.",
+                    requiresVerification: true
+                });
+            }
+            
             return res.status(401).json({ message: "Invalid email or password" });
         }
 
-        // Check password
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+        // Get user from MongoDB
+        const mongoUser = await User.findOne({ email: email.toLowerCase() });
         
-        if (!isPasswordValid) {
-            console.log("Login failed: Invalid password");
-            return res.status(401).json({ message: "Invalid email or password" });
+        if (!mongoUser) {
+            console.log("Login failed: User not found in MongoDB");
+            return res.status(401).json({ message: "User not found" });
         }
 
-        // Check if email is verified
-        if (!user.isVerified) {
-            console.log("Login failed: Email not verified");
-            return res.status(403).json({ 
-                message: "Please verify your email before logging in. Check your inbox for the verification link.",
-                requiresVerification: true
-            });
+        // Update verification status in MongoDB if needed
+        if (!mongoUser.isVerified && authData.user.email_confirmed_at) {
+            mongoUser.isVerified = true;
+            await mongoUser.save();
+            console.log("✓ Updated verification status in MongoDB");
         }
 
-        console.log("✓ Login successful for:", user.username);
+        console.log("✓ Login successful for:", mongoUser.username);
 
         res.json({
             message: "Login successful",
-            username: user.username,
-            email: user.email
+            username: mongoUser.username,
+            email: mongoUser.email,
+            session: authData.session // Include Supabase session for frontend
         });
 
     } catch (err) {
         console.error("Login error:", err.message);
-        console.error("Full error:", err);
         res.status(500).json({ 
             message: "Server error during login",
             detail: process.env.NODE_ENV === 'development' ? err.message : 'An error occurred'
         });
-    }
-});
-
-// ==================== EMAIL VERIFICATION ====================
-router.get("/verify-email", async (req, res) => {
-    try {
-        const { token } = req.query;
-
-        console.log("Email verification request received");
-
-        if (!token) {
-            console.log("Verification failed: No token provided");
-            return res.status(400).send(`
-                <html>
-                <head><title>Verification Failed</title></head>
-                <body style="background: black; color: #00ff00; font-family: 'Courier New', monospace; text-align: center; padding: 50px;">
-                    <h1>Verification Failed</h1>
-                    <p>Invalid verification link.</p>
-                </body>
-                </html>
-            `);
-        }
-
-        // Find user with this token
-        const user = await User.findOne({
-            verificationToken: token,
-            verificationTokenExpires: { $gt: Date.now() }
-        });
-
-        if (!user) {
-            console.log("Verification failed: Invalid or expired token");
-            return res.status(400).send(`
-                <html>
-                <head><title>Verification Failed</title></head>
-                <body style="background: black; color: #ff0000; font-family: 'Courier New', monospace; text-align: center; padding: 50px;">
-                    <h1>Verification Failed</h1>
-                    <p>This verification link is invalid or has expired.</p>
-                    <p>Please request a new verification email.</p>
-                </body>
-                </html>
-            `);
-        }
-
-        // Mark user as verified
-        user.isVerified = true;
-        user.verificationToken = undefined;
-        user.verificationTokenExpires = undefined;
-        await user.save();
-
-        console.log("✓ Email verified successfully for:", user.username);
-
-        res.send(`
-            <html>
-            <head><title>Email Verified</title></head>
-            <body style="background: black; color: #00ff00; font-family: 'Courier New', monospace; text-align: center; padding: 50px;">
-                <h1>✓ Email Verified Successfully!</h1>
-                <p>Your account has been verified. You can now log in.</p>
-                <p><a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/login/login.html" style="color: #00ff00;">Click here to login</a></p>
-            </body>
-            </html>
-        `);
-
-    } catch (err) {
-        console.error("Verification error:", err.message);
-        res.status(500).send(`
-            <html>
-            <head><title>Verification Error</title></head>
-            <body style="background: black; color: #ff0000; font-family: 'Courier New', monospace; text-align: center; padding: 50px;">
-                <h1>Verification Error</h1>
-                <p>An error occurred during verification. Please try again later.</p>
-            </body>
-            </html>
-        `);
     }
 });
 
@@ -247,40 +187,65 @@ router.post("/resend-verification", async (req, res) => {
             return res.status(400).json({ message: "Email is required" });
         }
 
-        const user = await User.findOne({ email: email.toLowerCase() });
+        // Resend via Supabase
+        const { error } = await supabase.auth.resend({
+            type: 'signup',
+            email: email.toLowerCase()
+        });
 
-        if (!user) {
-            console.log("Resend failed: User not found");
-            return res.status(404).json({ message: "User not found" });
-        }
-
-        if (user.isVerified) {
-            console.log("Resend failed: User already verified");
-            return res.status(400).json({ message: "Email is already verified" });
-        }
-
-        // Generate new token
-        const verificationToken = crypto.randomBytes(32).toString("hex");
-        user.verificationToken = verificationToken;
-        user.verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
-        await user.save();
-
-        // Send email
-        try {
-            await sendVerificationEmail(email, verificationToken);
-            console.log("✓ Verification email resent to:", email);
-            
-            res.json({ message: "Verification email sent. Please check your inbox." });
-        } catch (emailErr) {
-            console.error("✗ Failed to resend verification email:", emailErr.message);
-            res.status(500).json({ 
-                message: "Failed to send verification email. Please try again later." 
+        if (error) {
+            console.error("✗ Failed to resend verification email:", error.message);
+            return res.status(500).json({ 
+                message: error.message
             });
         }
+
+        console.log("✓ Verification email resent to:", email);
+        
+        res.json({ message: "Verification email sent. Please check your inbox." });
 
     } catch (err) {
         console.error("Resend verification error:", err.message);
         res.status(500).json({ message: "Server error" });
+    }
+});
+
+// ==================== LOGOUT ====================
+router.post("/logout", async (req, res) => {
+    try {
+        const { error } = await supabase.auth.signOut();
+        
+        if (error) {
+            return res.status(500).json({ message: error.message });
+        }
+        
+        res.json({ message: "Logged out successfully" });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// ==================== VERIFY EMAIL WEBHOOK (Optional) ====================
+// This endpoint can be called by Supabase webhook when email is verified
+router.post("/webhook/email-verified", async (req, res) => {
+    try {
+        const { email } = req.body;
+        
+        // Update MongoDB user verification status
+        const user = await User.findOneAndUpdate(
+            { email: email.toLowerCase() },
+            { isVerified: true },
+            { new: true }
+        );
+        
+        if (user) {
+            console.log("✓ Email verified for:", user.username);
+        }
+        
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Webhook error:", err);
+        res.status(500).json({ error: err.message });
     }
 });
 

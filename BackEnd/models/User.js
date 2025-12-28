@@ -23,52 +23,38 @@ const UserSchema = new mongoose.Schema({
     },
     password: { 
         type: String,
-        required: function() {
-            // Password required only if user is not using OAuth
-            return !this.oauthProvider;
-        },
-        minlength: [6, "Password must be at least 6 characters"]
+        required: false, // Not required when using Supabase auth
+        default: "SUPABASE_AUTH"
     },
-    verified: { 
+    isVerified: { 
         type: Boolean, 
         default: false,
         index: true
     },
-    verifyToken: { 
+    // Link to Supabase user
+    supabaseId: {
         type: String,
+        unique: true,
+        sparse: true,
         index: true
     },
-    // Optional: Add these for future features
-    oauthProvider: {
-        type: String,
-        enum: ['google', 'github', null],
-        default: null
+    // Game-related data (add your game fields here)
+    highScore: {
+        type: Number,
+        default: 0
     },
-    oauthId: {
-        type: String,
-        sparse: true
+    gamesPlayed: {
+        type: Number,
+        default: 0
     },
-    resetPasswordToken: {
-        type: String
-    },
-    resetPasswordExpires: {
-        type: Date
-    },
-    lastLogin: {
-        type: Date
-    }
+    // Add any other game data you need
+    
 }, { 
     timestamps: true 
 });
 
 // Compound index for email verification
-UserSchema.index({ email: 1, verified: 1 });
-
-// Method to check if token is expired (useful for verification/reset tokens)
-UserSchema.methods.isTokenExpired = function(expiresField) {
-    if (!this[expiresField]) return false;
-    return Date.now() > this[expiresField];
-};
+UserSchema.index({ email: 1, isVerified: 1 });
 
 // Prevent OverwriteModelError
 module.exports = mongoose.models.User || mongoose.model("User", UserSchema);
