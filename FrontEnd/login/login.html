@@ -340,7 +340,8 @@
                 e.preventDefault();
                 document.getElementById('loadingOverlay').classList.add('active');
                 setTimeout(() => {
-                    window.location.href = "../admin/adminlogin.html";
+                    // Use absolute path for Vercel deployment
+                    window.location.href = "/admin/adminlogin.html";
                 }, 800);  
             }
             else if (e.key === "ArrowDown") {
