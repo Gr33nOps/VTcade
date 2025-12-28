@@ -121,6 +121,11 @@
             text-shadow: 0 0 4px #00ff00;
         }
 
+        .warning-text {
+            color: #ffff00;
+            text-shadow: 0 0 4px #ffff00;
+        }
+
         .loading-overlay {
             position: fixed;
             inset: 0;
@@ -251,6 +256,7 @@
         let errorMessage = "";
         let successMessage = "";
         let isSubmitting = false;
+        let registrationComplete = false;
 
         function validateEmail(email) {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -269,6 +275,19 @@
             const values = [username, email, password, confirmPassword];
 
             let output = `\n================================================================================\nNEW USER REGISTRATION\n================================================================================\n\n`;
+
+            // If registration is complete, show different message
+            if (registrationComplete) {
+                output = `\n================================================================================\nREGISTRATION COMPLETE\n================================================================================\n\n`;
+                output += `<span class="success-text">✓ Account created successfully!</span>\n\n`;
+                output += `<span class="warning-text">⚠ EMAIL VERIFICATION REQUIRED</span>\n\n`;
+                output += `Please check your inbox for a verification email.\n`;
+                output += `You must verify your email before you can login.\n\n`;
+                output += `Once verified, press [TAB] to go to login page.\n\n`;
+                output += `================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
+                terminalEl.innerHTML = output;
+                return;
+            }
 
             fields.forEach((field, index) => {
                 const isSelected = currentField === index;
@@ -314,7 +333,7 @@
         }
 
         function navigateField(direction) {
-            if (isSubmitting) return;
+            if (isSubmitting || registrationComplete) return;
 
             errorMessage = "";
             successMessage = "";
@@ -328,7 +347,7 @@
         }
 
         function handleTyping(key) {
-            if (isSubmitting) return;
+            if (isSubmitting || registrationComplete) return;
             if (currentField === 4) return;
 
             errorMessage = "";
@@ -354,7 +373,7 @@
         }
 
         async function submitForm() {
-            if (isSubmitting) return;
+            if (isSubmitting || registrationComplete) return;
             if (currentField !== 4) return;
 
             errorMessage = "";
@@ -362,7 +381,6 @@
 
             if (!username || !email || !password || !confirmPassword) {
                 errorMessage = "All fields are required";
-                console.warn("Missing required fields");
                 render();
                 return;
             }
@@ -391,8 +409,6 @@
 
             try {
                 console.log("Sending registration request...");
-                console.log("API URL:", API_URL);
-                console.log("Username:", username);
 
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 60000);
@@ -408,8 +424,6 @@
                 });
 
                 clearTimeout(timeoutId);
-
-                console.log("Response status:", res.status);
 
                 let data;
                 try {
@@ -430,34 +444,33 @@
                     return;
                 }
 
-                // Handle different response formats
-                // Backend might return: { username }, { user: { username } }, or { message, username }
-                const userUsername = data.username || data.user?.username || username;
-                
-                console.log("Extracted username:", userUsername);
-
-                // Save username to localStorage
-                localStorage.setItem("currentUser", userUsername);
-                console.log("Saved user to localStorage:", userUsername);
-
-                // Check for email verification message
-                if (data.message && data.message.includes('verification')) {
-                    successMessage = "Check your email to verify account";
+                // Check if verification is required
+                if (data.requiresVerification) {
+                    // DO NOT save to localStorage
+                    // DO NOT redirect to dashboard
+                    // Show verification required message
+                    console.log("Email verification required");
+                    registrationComplete = true;
+                    isSubmitting = false;
+                    render();
                 } else {
-                    successMessage = "Registration successful";
-                }
-                
-                isSubmitting = false;
-                render();
-
-                setTimeout(() => {
-                    const overlay = document.getElementById('loadingOverlay');
-                    overlay.classList.add('active');
+                    // Only if no verification needed (shouldn't happen with Supabase)
+                    const userUsername = data.username || username;
+                    localStorage.setItem("currentUser", userUsername);
+                    
+                    successMessage = "Registration successful! Redirecting...";
+                    isSubmitting = false;
+                    render();
 
                     setTimeout(() => {
-                        window.location.href = "../dashboard/dashboard.html";
-                    }, 800);
-                }, 2000); // Increased delay so user can read the verification message
+                        const overlay = document.getElementById('loadingOverlay');
+                        overlay.classList.add('active');
+
+                        setTimeout(() => {
+                            window.location.href = "../dashboard/dashboard.html";
+                        }, 800);
+                    }, 1500);
+                }
 
             } catch (err) {
                 console.error("Network error:", err);
@@ -491,7 +504,7 @@
                 navigateField('prev');
             } else if (e.key === "Enter") {
                 e.preventDefault();
-                if (currentField === 4) {
+                if (currentField === 4 && !registrationComplete) {
                     submitForm();
                 }
             } else if (e.key === "Backspace" || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
