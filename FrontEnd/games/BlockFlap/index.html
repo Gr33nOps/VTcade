@@ -128,7 +128,7 @@ const pipeWidth = 3;
 const pipeGap = 8;
 const pipeSpeed = 1;
 
-let leaderboard = [];
+let leaderboard = null; // null = loading, [] = no data
 
 function draw() {
     let out = "";
@@ -179,8 +179,10 @@ LEADERBOARD:
 ━━━━━━━━━━━━━━━━━━━━
 `;
     
-    if (leaderboard.length === 0) {
+    if (leaderboard === null) {
         ui += "(Loading...)\n";
+    } else if (leaderboard.length === 0) {
+        ui += "(No scores yet)\n(Be the first!)\n";
     } else {
         leaderboard.slice(0, 8).forEach((entry) => {
             const username = entry.username.substring(0, 12).padEnd(12);
@@ -342,6 +344,7 @@ async function saveHighscore() {
             highScore = data.highscore;
         }
     } catch (err) {
+        console.error('Error saving highscore:', err);
     }
 }
 
@@ -357,6 +360,7 @@ async function saveLeaderboard() {
             })
         });
     } catch (err) {
+        console.error('Error saving leaderboard:', err);
     }
 }
 
@@ -372,6 +376,7 @@ async function loadLeaderboard() {
             leaderboard = [];
         }
     } catch (err) {
+        console.error('Error loading leaderboard:', err);
         leaderboard = [];
     }
 }

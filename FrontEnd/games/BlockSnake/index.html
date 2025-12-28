@@ -118,7 +118,7 @@ let snake = [];
 let direction = { x: 1, y: 0 };
 let nextDirection = { x: 1, y: 0 };
 let food = { x: 0, y: 0 };
-let leaderboard = [];
+let leaderboard = null; // null = loading, [] = no data
 
 function initSnake() {
     snake = [
@@ -186,8 +186,10 @@ LEADERBOARD:
 ━━━━━━━━━━━━━━━━━━━━
 `;
     
-    if (leaderboard.length === 0) {
+    if (leaderboard === null) {
         ui += "(Loading...)\n";
+    } else if (leaderboard.length === 0) {
+        ui += "(No scores yet)\n(Be the first!)\n";
     } else {
         leaderboard.slice(0, 8).forEach((entry) => {
             const username = entry.username.substring(0, 12).padEnd(12);
