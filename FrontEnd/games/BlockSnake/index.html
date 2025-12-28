@@ -31,10 +31,6 @@
             user-select: none;
             line-height: 1.0;
         }
-        #game {
-            position: relative;
-        }
-        /* CRT scanlines */
         body::after {
             content: "";
             position: fixed;
@@ -48,7 +44,6 @@
             pointer-events: none;
             z-index: 100;
         }
-        /* Loading overlay */
         .loading-overlay {
             position: fixed;
             inset: 0;
@@ -107,36 +102,24 @@ const WIDTH = 50;
 const HEIGHT = 25;
 const GAME_NAME = "SnakeGame";
 
-console.log("Script loaded");
-
-// ---------------- LOGIN CHECK ----------------
 const currentUser = localStorage.getItem("currentUser");
-console.log("Current user:", currentUser);
 
 if (!currentUser) {
     alert("You must be logged in to play!");
     window.location.href = "../../login/login.html";
 }
 
-// Game state
 let score = 0;
 let highScore = 0;
 let gameRunning = false;
 let gameStarted = false;
 let speed = 150;
-
-// Snake
 let snake = [];
 let direction = { x: 1, y: 0 };
 let nextDirection = { x: 1, y: 0 };
-
-// Food
 let food = { x: 0, y: 0 };
-
-// Leaderboard
 let leaderboard = [];
 
-// Initialize snake
 function initSnake() {
     snake = [
         { x: Math.floor(WIDTH / 2), y: Math.floor(HEIGHT / 2) },
@@ -147,7 +130,6 @@ function initSnake() {
     nextDirection = { x: 1, y: 0 };
 }
 
-// Spawn food
 function spawnFood() {
     let validPosition = false;
     while (!validPosition) {
@@ -160,25 +142,19 @@ function spawnFood() {
     }
 }
 
-// Drawing
 function draw() {
     let out = "";
     
-    // Top border
     out += "+" + "=".repeat(WIDTH - 2) + "+\n";
     
-    // Game area
     for (let y = 0; y < HEIGHT; y++) {
         let line = "|";
         for (let x = 1; x < WIDTH - 1; x++) {
             let ch = " ";
             
-            // Draw snake (head and body same)
             if (snake.some(s => s.x === x && s.y === y)) {
                 ch = "█";
-            }
-            // Draw food
-            else if (food.x === x && food.y === y) {
+            } else if (food.x === x && food.y === y) {
                 ch = "█";
             }
             
@@ -188,10 +164,8 @@ function draw() {
         out += line;
     }
     
-    // Bottom border
     out += "+" + "=".repeat(WIDTH - 2) + "+\n";
     
-    // Status messages
     if (!gameStarted) {
         out += "< PRESS ARROW KEYS TO START >\n";
     } else if (!gameRunning && gameStarted) {
@@ -200,7 +174,6 @@ function draw() {
     
     gameEl.textContent = out;
     
-    // UI panel
     let ui = `SNAKE v1.0
 ━━━━━━━━━━━━━━━━━━━━
 
@@ -217,7 +190,6 @@ LEADERBOARD:
         ui += "(Loading...)\n";
     } else {
         leaderboard.slice(0, 8).forEach((entry) => {
-            // Backend returns { rank, username, score, date }
             const username = entry.username.substring(0, 12).padEnd(12);
             const displayScore = entry.score || 0;
             ui += `${entry.rank}. ${username} ${displayScore}\n`;
@@ -238,7 +210,6 @@ ESC = BACK TO HOME
     uiEl.textContent = ui;
 }
 
-// Game loop
 function gameLoop() {
     if (!gameRunning) return;
     
@@ -253,7 +224,6 @@ function gameLoop() {
     setTimeout(gameLoop, speed);
 }
 
-// Update snake
 function updateSnake() {
     direction = nextDirection;
     
@@ -264,12 +234,9 @@ function updateSnake() {
     
     snake.unshift(head);
     
-    // Check if snake ate food
     if (head.x === food.x && head.y === food.y) {
         score += 10;
         spawnFood();
-        
-        // Increase speed slightly
         if (speed > 80) {
             speed -= 2;
         }
@@ -278,16 +245,13 @@ function updateSnake() {
     }
 }
 
-// Collision detection
 function checkCollision() {
     const head = snake[0];
     
-    // Wall collision
     if (head.x < 1 || head.x >= WIDTH - 1 || head.y < 0 || head.y >= HEIGHT) {
         return true;
     }
     
-    // Self collision
     for (let i = 1; i < snake.length; i++) {
         if (head.x === snake[i].x && head.y === snake[i].y) {
             return true;
@@ -297,22 +261,17 @@ function checkCollision() {
     return false;
 }
 
-// ---------------- GAME OVER ----------------
 async function gameOver() {
     gameRunning = false;
-    console.log("Game over! Score:", score);
     
-    // Save personal best and leaderboard
-    await saveHighscoreToDB();
-    await saveLeaderboardScoreToDB();
-    await updateLeaderboardUI();
+    await saveHighscore();
+    await saveLeaderboard();
+    await loadLeaderboard();
     
     draw();
 }
 
-// ---------------- RESTART ----------------
 function restartGame() {
-    console.log("Restarting game");
     initSnake();
     spawnFood();
     score = 0;
@@ -322,33 +281,23 @@ function restartGame() {
     draw();
 }
 
-// Start game
 function startGame() {
-    console.log("Starting game");
     gameRunning = true;
     gameStarted = true;
     gameLoop();
 }
 
-// Change direction
 function changeDirection(newDir) {
-    console.log("Direction change attempt:", newDir, "gameStarted:", gameStarted, "gameRunning:", gameRunning);
-    
-    // Prevent reversing direction
     if (newDir.x === -direction.x && newDir.y === -direction.y) {
-        console.log("Cannot reverse direction");
         return;
     }
     
     if (!gameStarted) {
-        console.log("Starting new game");
         nextDirection = newDir;
         startGame();
     } else if (gameRunning) {
-        console.log("Changing direction during game");
         nextDirection = newDir;
     } else if (!gameRunning && gameStarted) {
-        console.log("Restarting after game over");
         restartGame();
         setTimeout(() => {
             nextDirection = newDir;
@@ -357,39 +306,25 @@ function changeDirection(newDir) {
     }
 }
 
-// ---------------- HIGH SCORE ----------------
 async function loadHighScore() {
     try {
-        console.log("Loading highscore for:", currentUser, GAME_NAME);
-        
         const res = await fetch(
             `https://vtcade.onrender.com/api/highscore/${currentUser}/${GAME_NAME}`
         );
 
-        if (!res.ok) {
-            if (res.status === 404) {
-                console.log("No highscore found (404), starting fresh");
-                highScore = 0;
-                return;
-            }
-            throw new Error(`HTTP ${res.status}`);
+        if (res.ok) {
+            const data = await res.json();
+            highScore = data.highscore || 0;
+        } else {
+            highScore = 0;
         }
-
-        const data = await res.json();
-        highScore = data.highscore || 0;
-        
-        console.log("✓ Loaded highscore:", highScore);
     } catch (err) {
-        console.error("Highscore load error:", err);
         highScore = 0;
     }
 }
 
-async function saveHighscoreToDB() {
-    // Always send to backend - let backend decide with $max operator
+async function saveHighscore() {
     try {
-        console.log("Sending score to backend:", score);
-        
         const res = await fetch("https://vtcade.onrender.com/api/highscore/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -400,29 +335,17 @@ async function saveHighscoreToDB() {
             })
         });
 
-        if (!res.ok) {
-            const errorData = await res.json();
-            console.error("Highscore save failed:", errorData);
-            throw new Error(`HTTP error! status: ${res.status}`);
-        }
-
-        const data = await res.json();
-        highScore = data.highscore;
-        
-        if (data.isNewRecord) {
-            console.log("🎉 NEW HIGHSCORE:", highScore);
-        } else {
-            console.log("Score saved, current highscore remains:", highScore);
+        if (res.ok) {
+            const data = await res.json();
+            highScore = data.highscore;
         }
     } catch (err) {
-        console.error("Highscore save error:", err);
     }
 }
 
-// ---------------- LEADERBOARD ----------------
-async function saveLeaderboardScoreToDB() {
+async function saveLeaderboard() {
     try {
-        const res = await fetch("https://vtcade.onrender.com/api/leaderboard/save", {
+        await fetch("https://vtcade.onrender.com/api/leaderboard/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -431,43 +354,27 @@ async function saveLeaderboardScoreToDB() {
                 score
             })
         });
-        
-        if (!res.ok) {
-            console.log("Leaderboard save failed:", res.status);
-        }
     } catch (err) {
-        console.log("Leaderboard save error:", err);
     }
 }
 
-async function updateLeaderboardUI() {
+async function loadLeaderboard() {
     try {
         const res = await fetch(`https://vtcade.onrender.com/api/leaderboard/${GAME_NAME}`);
         
-        if (!res.ok) {
-            console.log("No leaderboard data available");
+        if (res.ok) {
+            const data = await res.json();
+            leaderboard = data.leaderboard || [];
+            draw();
+        } else {
             leaderboard = [];
-            return;
         }
-        
-        const data = await res.json();
-        
-        // Backend returns { game, leaderboard: [...], total }
-        // We need the leaderboard array
-        leaderboard = data.leaderboard || [];
-        
-        console.log("Leaderboard loaded:", leaderboard.length, "entries");
-        draw();
     } catch (err) {
-        console.log("Leaderboard fetch error:", err);
         leaderboard = [];
     }
 }
 
-// Controls
 document.addEventListener("keydown", (e) => {
-    console.log("Key pressed:", e.key, e.code);
-    
     if (e.code === "ArrowUp") {
         changeDirection({ x: 0, y: -1 });
         e.preventDefault();
@@ -480,45 +387,33 @@ document.addEventListener("keydown", (e) => {
     } else if (e.code === "ArrowRight") {
         changeDirection({ x: 1, y: 0 });
         e.preventDefault();
-    } else if (e.code === "Escape" || e.key === "Escape") {
+    } else if (e.code === "Escape") {
         e.preventDefault();
-        const overlay = document.getElementById('loadingOverlay');
-        overlay.classList.add('active');
+        document.getElementById('loadingOverlay').classList.add('active');
         setTimeout(() => {
             window.location.href = "../../dashboard/dashboard.html";
         }, 800);
     }
 });
 
-// Prevent context menu
 document.addEventListener("contextmenu", (e) => {
     e.preventDefault();
 });
 
-// ---------------- INITIAL ----------------
 async function initGame() {
     try {
-        console.log("Initializing game for user:", currentUser);
-        
         await loadHighScore();
-        await updateLeaderboardUI();
+        await loadLeaderboard();
         restartGame();
-        
-        console.log("Game initialized successfully");
-        console.log("Press ARROW KEYS to start");
     } catch (err) {
-        console.error("Init error:", err);
         restartGame();
     } finally {
         setTimeout(() => {
-            const overlay = document.getElementById('loadingOverlay');
-            overlay.classList.remove('active');
-            console.log("Loading overlay hidden, game ready");
+            document.getElementById('loadingOverlay').classList.remove('active');
         }, 500);
     }
 }
 
-// Make sure page is fully loaded
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initGame);
 } else {

@@ -31,7 +31,6 @@
             user-select: none;
             line-height: 1.0;
         }
-        /* CRT scanlines */
         body::after {
             content: "";
             position: fixed;
@@ -45,7 +44,6 @@
             pointer-events: none;
             z-index: 100;
         }
-        /* Loading overlay */
         .loading-overlay {
             position: fixed;
             inset: 0;
@@ -104,18 +102,13 @@ const WIDTH = 50;
 const HEIGHT = 25;
 const GAME_NAME = "BlockRun";
 
-console.log("Script loaded");
-
-// ---------------- LOGIN CHECK ----------------
 const currentUser = localStorage.getItem("currentUser");
-console.log("Current user:", currentUser);
 
 if (!currentUser) {
     alert("You must be logged in to play!");
     window.location.href = "../../login/login.html";
 }
 
-// ---------------- GAME STATE ----------------
 let score = 0;
 let highScore = 0;
 let frame = 0;
@@ -123,7 +116,6 @@ let gameRunning = false;
 let gameStarted = false;
 let gameSpeed = 1;
 
-// ---------------- PLAYER ----------------
 const player = {
     x: 8,
     y: HEIGHT - 3,
@@ -136,19 +128,15 @@ const player = {
     isJumping: false
 };
 
-// ---------------- OBSTACLES ----------------
 let obstacles = [];
 let nextObstacleFrame = 40;
 let leaderboard = [];
 
-// ---------------- DRAWING ----------------
 function draw() {
     let out = "";
     
-    // Top border
     out += "+" + "=".repeat(WIDTH - 2) + "+\n";
     
-    // Create grid
     let grid = [];
     for (let y = 0; y < HEIGHT; y++) {
         grid[y] = [];
@@ -157,12 +145,10 @@ function draw() {
         }
     }
     
-    // Draw ground line
     for (let x = 1; x < WIDTH - 1; x++) {
         grid[HEIGHT - 1][x] = "─";
     }
     
-    // Draw player
     for (let py = 0; py < player.height; py++) {
         for (let px = 0; px < player.width; px++) {
             let gy = Math.floor(player.y) + py;
@@ -173,7 +159,6 @@ function draw() {
         }
     }
     
-    // Draw obstacles
     obstacles.forEach(o => {
         for (let oy = 0; oy < o.height; oy++) {
             for (let ox = 0; ox < o.width; ox++) {
@@ -186,7 +171,6 @@ function draw() {
         }
     });
     
-    // Convert grid to string
     for (let y = 0; y < HEIGHT; y++) {
         let line = "|";
         for (let x = 1; x < WIDTH - 1; x++) {
@@ -196,10 +180,8 @@ function draw() {
         out += line;
     }
     
-    // Bottom border
     out += "+" + "=".repeat(WIDTH - 2) + "+\n";
     
-    // Status messages
     if (!gameStarted) {
         out += "< PRESS SPACE OR UP ARROW TO START >\n";
     } else if (!gameRunning && gameStarted) {
@@ -208,7 +190,6 @@ function draw() {
     
     gameEl.textContent = out;
     
-    // UI panel
     let ui = `RUNNER v1.0
 ━━━━━━━━━━━━━━━━━━━━
 
@@ -225,7 +206,6 @@ LEADERBOARD:
         ui += "(Loading...)\n";
     } else {
         leaderboard.slice(0, 8).forEach((entry) => {
-            // Backend returns { rank, username, score, date }
             const username = entry.username.substring(0, 12).padEnd(12);
             const displayScore = entry.score || 0;
             ui += `${entry.rank}. ${username} ${displayScore}\n`;
@@ -245,7 +225,6 @@ ESC = BACK TO HOME
     uiEl.textContent = ui;
 }
 
-// ---------------- UPDATES ----------------
 function updatePlayer() {
     player.velocityY += player.gravity;
     player.y += player.velocityY;
@@ -286,7 +265,6 @@ function updateObstacles() {
     obstacles = obstacles.filter(o => o.x + o.width > 1);
 }
 
-// ---------------- COLLISION ----------------
 function checkCollision() {
     return obstacles.some(o => {
         let px = player.x;
@@ -306,14 +284,6 @@ function checkCollision() {
     });
 }
 
-// ---------------- SCORE ----------------
-function updateScore() {
-    if (score > highScore) {
-        highScore = score;
-    }
-}
-
-// ---------------- GAME LOOP ----------------
 function gameLoop() {
     if (!gameRunning) return;
 
@@ -325,18 +295,18 @@ function gameLoop() {
         return;
     }
 
-    updateScore();
+    if (score > highScore) {
+        highScore = score;
+    }
+
     draw();
     
     setTimeout(gameLoop, 80);
 }
 
-// ---------------- GAME OVER ----------------
 async function gameOver() {
     gameRunning = false;
-    console.log("Game over! Score:", score);
 
-    // Save highscore and leaderboard
     await saveHighscore();
     await saveLeaderboard();
     await loadLeaderboard();
@@ -344,9 +314,7 @@ async function gameOver() {
     draw();
 }
 
-// ---------------- RESTART ----------------
 function restartGame() {
-    console.log("Restarting game");
     obstacles = [];
     score = 0;
     frame = 0;
@@ -363,66 +331,43 @@ function restartGame() {
     draw();
 }
 
-// ---------------- JUMP ----------------
 function jump() {
-    console.log("Jump called - gameStarted:", gameStarted, "gameRunning:", gameRunning);
-    
     if (!gameStarted) {
-        console.log("Starting new game");
         startGame();
     } else if (gameRunning && !player.isJumping) {
-        console.log("Jumping");
         player.velocityY = player.jumpPower;
         player.isJumping = true;
     } else if (!gameRunning && gameStarted) {
-        console.log("Restarting after game over");
         restartGame();
         setTimeout(() => startGame(), 100);
     }
 }
 
-// ---------------- START GAME ----------------
 function startGame() {
-    console.log("Starting game");
     gameStarted = true;
     gameRunning = true;
     gameLoop();
 }
 
-// ---------------- DB: LOAD HIGHSCORE ----------------
 async function loadHighScore() {
     try {
-        console.log("Loading highscore for:", currentUser, GAME_NAME);
-        
         const res = await fetch(
             `https://vtcade.onrender.com/api/highscore/${currentUser}/${GAME_NAME}`
         );
 
-        if (!res.ok) {
-            if (res.status === 404) {
-                console.log("No highscore found (404), starting fresh");
-                highScore = 0;
-                return;
-            }
-            throw new Error(`HTTP ${res.status}`);
+        if (res.ok) {
+            const data = await res.json();
+            highScore = data.highscore || 0;
+        } else {
+            highScore = 0;
         }
-
-        const data = await res.json();
-        highScore = data.highscore || 0;
-        
-        console.log("✓ Loaded highscore:", highScore);
     } catch (err) {
-        console.error("Highscore load error:", err);
         highScore = 0;
     }
 }
 
-// ---------------- DB: SAVE HIGHSCORE ----------------
 async function saveHighscore() {
-    // Always send to backend - let backend decide with $max operator
     try {
-        console.log("Sending score to backend:", score);
-        
         const res = await fetch("https://vtcade.onrender.com/api/highscore/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -433,29 +378,17 @@ async function saveHighscore() {
             })
         });
 
-        if (!res.ok) {
-            const errorData = await res.json();
-            console.error("Highscore save failed:", errorData);
-            throw new Error(`HTTP error! status: ${res.status}`);
-        }
-
-        const data = await res.json();
-        highScore = data.highscore;
-        
-        if (data.isNewRecord) {
-            console.log("🎉 NEW HIGHSCORE:", highScore);
-        } else {
-            console.log("Score saved, current highscore remains:", highScore);
+        if (res.ok) {
+            const data = await res.json();
+            highScore = data.highscore;
         }
     } catch (err) {
-        console.error("Highscore save error:", err);
     }
 }
 
-// ---------------- DB: SAVE LEADERBOARD ----------------
 async function saveLeaderboard() {
     try {
-        const res = await fetch("https://vtcade.onrender.com/api/leaderboard/save", {
+        await fetch("https://vtcade.onrender.com/api/leaderboard/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -464,92 +397,61 @@ async function saveLeaderboard() {
                 score
             })
         });
-        
-        if (!res.ok) {
-            console.log("Leaderboard save failed:", res.status);
-        }
     } catch (err) {
-        console.error("Leaderboard save error:", err);
     }
 }
 
-// ---------------- DB: LOAD LEADERBOARD ----------------
 async function loadLeaderboard() {
     try {
         const res = await fetch(`https://vtcade.onrender.com/api/leaderboard/${GAME_NAME}`);
         
-        if (!res.ok) {
-            console.log("No leaderboard data available");
+        if (res.ok) {
+            const data = await res.json();
+            leaderboard = data.leaderboard || [];
+            draw();
+        } else {
             leaderboard = [];
-            return;
         }
-        
-        const data = await res.json();
-        
-        // Backend returns { game, leaderboard: [...], total }
-        // We need the leaderboard array
-        leaderboard = data.leaderboard || [];
-        
-        console.log("Leaderboard loaded:", leaderboard.length, "entries");
-        draw();
     } catch (err) {
-        console.error("Leaderboard fetch error:", err);
         leaderboard = [];
     }
 }
 
-// ---------------- CONTROLS ----------------
 document.addEventListener("keydown", (e) => {
-    console.log("Key pressed:", e.key, e.code);
-    
-    if (e.code === "Space" || e.code === "ArrowUp" || e.key === " " || e.key === "ArrowUp") {
+    if (e.code === "Space" || e.code === "ArrowUp") {
         e.preventDefault();
         jump();
-    } else if (e.code === "Escape" || e.key === "Escape") {
+    } else if (e.code === "Escape") {
         e.preventDefault();
-        const overlay = document.getElementById('loadingOverlay');
-        overlay.classList.add('active');
+        document.getElementById('loadingOverlay').classList.add('active');
         setTimeout(() => {
             window.location.href = "../../dashboard/dashboard.html";
         }, 800);
     }
 });
 
-// Click to jump
 document.addEventListener("click", (e) => {
-    console.log("Click detected");
     jump();
 });
 
-// Prevent context menu
 document.addEventListener("contextmenu", (e) => {
     e.preventDefault();
 });
 
-// ---------------- INIT ----------------
 async function init() {
     try {
-        console.log("Initializing game for user:", currentUser);
-        
         await loadHighScore();
         await loadLeaderboard();
         restartGame();
-        
-        console.log("Game initialized successfully");
-        console.log("Press SPACE or UP ARROW to start");
     } catch (err) {
-        console.error("Init error:", err);
         restartGame();
     } finally {
         setTimeout(() => {
-            const overlay = document.getElementById('loadingOverlay');
-            overlay.classList.remove('active');
-            console.log("Loading overlay hidden, game ready");
+            document.getElementById('loadingOverlay').classList.remove('active');
         }, 500);
     }
 }
 
-// Make sure page is fully loaded
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {

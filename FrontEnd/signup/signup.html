@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,7 +10,6 @@
             padding: 0;
             box-sizing: border-box;
         }
-
         body {
             background: black;
             color: #00ff00;
@@ -27,7 +25,6 @@
             justify-content: center;
             padding: 20px;
         }
-
         .container {
             width: 100%;
             max-width: 700px;
@@ -35,18 +32,15 @@
             flex-direction: column;
             align-items: center;
         }
-
         pre {
             white-space: pre;
             user-select: none;
             line-height: 1.4;
         }
-
         .terminal-output {
             font-size: 14px;
             text-align: left;
         }
-
         .logo {
             font-size: 10px;
             line-height: 1.1;
@@ -54,19 +48,16 @@
             margin-bottom: 0;
             animation: flicker 0.15s infinite alternate;
         }
-
         .subtitle {
             font-size: 14px;
             text-align: center;
             margin-top: 5px;
             display: block;
         }
-
         input {
             position: absolute;
             left: -9999px;
         }
-
         body::after {
             content: "";
             position: fixed;
@@ -78,54 +69,33 @@
             pointer-events: none;
             z-index: 9999;
         }
-
         @keyframes blink {
-
-            0%,
-            49% {
-                opacity: 1;
-            }
-
-            50%,
-            100% {
-                opacity: 0;
-            }
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
         }
-
         .cursor {
             animation: blink 1s infinite;
         }
-
         @keyframes flicker {
-            0% {
-                opacity: 0.97;
-            }
-
-            100% {
-                opacity: 1;
-            }
+            0% { opacity: 0.97; }
+            100% { opacity: 1; }
         }
-
         .highlight {
             background: #00ff00;
             color: black;
         }
-
         .error-text {
-            color: #ff0000;
-            text-shadow: 0 0 4px #ff0000;
+            color: #00ff00;
+            text-shadow: 0 0 4px #00ff00;
         }
-
         .success-text {
             color: #00ff00;
             text-shadow: 0 0 4px #00ff00;
         }
-
         .warning-text {
-            color: #ffff00;
-            text-shadow: 0 0 4px #ffff00;
+            color: #00ff00;
+            text-shadow: 0 0 4px #00ff00;
         }
-
         .loading-overlay {
             position: fixed;
             inset: 0;
@@ -141,78 +111,54 @@
             pointer-events: none;
             transition: opacity 0.3s;
         }
-
         .loading-overlay.active {
             opacity: 1;
             pointer-events: all;
         }
-
         .loading-content {
             font-size: 14px;
             line-height: 1.5;
         }
-
         @keyframes dots {
-
-            0%,
-            20% {
-                content: '.';
-            }
-
-            40% {
-                content: '..';
-            }
-
-            60%,
-            100% {
-                content: '...';
-            }
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
         }
-
         .loading-dots::after {
             content: '';
             animation: dots 1.5s infinite;
         }
-
         @media (max-width: 768px) {
             body {
                 font-size: 12px;
                 padding: 10px;
             }
-
             .terminal-output {
                 font-size: 11px;
             }
-
             .logo {
                 font-size: 7px;
             }
-
             .subtitle {
                 font-size: 11px;
             }
         }
-
         @media (max-width: 480px) {
             body {
                 font-size: 10px;
             }
-
             .terminal-output {
                 font-size: 9px;
             }
-
             .logo {
                 font-size: 5px;
             }
-
             .subtitle {
                 font-size: 9px;
             }
         }
     </style>
 </head>
-
 <body>
     <div class="loading-overlay active" id="loadingOverlay">
         <div class="loading-content">
@@ -234,7 +180,7 @@
 ╚██╗ ██╔╝   ██║   ██║     ██╔══██║██║  ██║██╔══╝  
  ╚████╔╝    ██║   ╚██████╗██║  ██║██████╔╝███████╗
   ╚═══╝     ╚═╝    ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝
-                    <span class="subtitle">Play Like It's 1980</span></pre>
+                    <span class="subtitle">Play Like It's 1985</span></pre>
         <pre id="terminal" class="terminal-output"></pre>
     </div>
 
@@ -244,7 +190,6 @@
     <input type="password" id="confirm-password-input">
 
     <script>
-        // Configuration - Change this to your Render backend URL
         const API_URL = "https://vtcade.onrender.com";
 
         const terminalEl = document.getElementById("terminal");
@@ -258,25 +203,12 @@
         let isSubmitting = false;
         let registrationComplete = false;
 
-        function validateEmail(email) {
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            return emailRegex.test(email);
-        }
-
-        function validatePassword(password) {
-            if (password.length < 6) {
-                return "Password must be at least 6 characters";
-            }
-            return null;
-        }
-
         function render() {
             const fields = ["USERNAME", "EMAIL", "PASSWORD", "CONFIRM PASSWORD"];
             const values = [username, email, password, confirmPassword];
 
             let output = `\n================================================================================\nNEW USER REGISTRATION\n================================================================================\n\n`;
 
-            // If registration is complete, show different message
             if (registrationComplete) {
                 output = `\n================================================================================\nREGISTRATION COMPLETE\n================================================================================\n\n`;
                 output += `<span class="success-text">✓ Account created successfully!</span>\n\n`;
@@ -385,15 +317,8 @@
                 return;
             }
 
-            if (!validateEmail(email)) {
-                errorMessage = "Invalid email format";
-                render();
-                return;
-            }
-
-            const passwordError = validatePassword(password);
-            if (passwordError) {
-                errorMessage = passwordError;
+            if (password.length < 6) {
+                errorMessage = "Password must be at least 6 characters";
                 render();
                 return;
             }
@@ -408,64 +333,34 @@
             render();
 
             try {
-                console.log("Sending registration request...");
-
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 60000);
-
                 const res = await fetch(`${API_URL}/api/auth/signup`, {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Accept": "application/json"
-                    },
-                    body: JSON.stringify({ username, email, password }),
-                    signal: controller.signal
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username, email, password })
                 });
 
-                clearTimeout(timeoutId);
-
-                let data;
-                try {
-                    data = await res.json();
-                    console.log("Response data:", data);
-                } catch (parseErr) {
-                    console.error("Failed to parse response:", parseErr);
-                    errorMessage = "Invalid server response";
-                    isSubmitting = false;
-                    render();
-                    return;
-                }
+                const data = await res.json();
 
                 if (!res.ok) {
-                    errorMessage = data?.message || `Server error (${res.status})`;
+                    errorMessage = data?.message || "Registration failed";
                     isSubmitting = false;
                     render();
                     return;
                 }
 
-                // Check if verification is required
                 if (data.requiresVerification) {
-                    // DO NOT save to localStorage
-                    // DO NOT redirect to dashboard
-                    // Show verification required message
-                    console.log("Email verification required");
                     registrationComplete = true;
                     isSubmitting = false;
                     render();
                 } else {
-                    // Only if no verification needed (shouldn't happen with Supabase)
-                    const userUsername = data.username || username;
-                    localStorage.setItem("currentUser", userUsername);
+                    localStorage.setItem("currentUser", data.username || username);
                     
                     successMessage = "Registration successful! Redirecting...";
                     isSubmitting = false;
                     render();
 
                     setTimeout(() => {
-                        const overlay = document.getElementById('loadingOverlay');
-                        overlay.classList.add('active');
-
+                        document.getElementById('loadingOverlay').classList.add('active');
                         setTimeout(() => {
                             window.location.href = "../dashboard/dashboard.html";
                         }, 800);
@@ -473,16 +368,7 @@
                 }
 
             } catch (err) {
-                console.error("Network error:", err);
-
-                if (err.name === 'AbortError') {
-                    errorMessage = "Request timeout. Server may be waking up, please try again.";
-                } else if (err.message.includes('Failed to fetch')) {
-                    errorMessage = "Cannot connect to server. Check your internet connection.";
-                } else {
-                    errorMessage = "Network error: " + err.message;
-                }
-
+                errorMessage = "Network error";
                 isSubmitting = false;
                 render();
             }
@@ -491,8 +377,7 @@
         document.addEventListener("keydown", (e) => {
             if (e.key === "Tab") {
                 e.preventDefault();
-                const overlay = document.getElementById('loadingOverlay');
-                overlay.classList.add('active');
+                document.getElementById('loadingOverlay').classList.add('active');
                 setTimeout(() => {
                     window.location.href = "../login/login.html";
                 }, 800);
@@ -520,10 +405,8 @@
         render();
 
         setTimeout(() => {
-            const overlay = document.getElementById('loadingOverlay');
-            overlay.classList.remove('active');
+            document.getElementById('loadingOverlay').classList.remove('active');
         }, 500);
     </script>
 </body>
-
 </html>

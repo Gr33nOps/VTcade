@@ -57,7 +57,6 @@
         .dim {
             color: #006600;
         }
-        /* CRT Scanlines */
         body::after {
             content: "";
             position: fixed;
@@ -71,7 +70,6 @@
             pointer-events: none;
             z-index: 9999;
         }
-        /* Blinking cursor */
         @keyframes blink {
             0%, 49% { opacity: 1; }
             50%, 100% { opacity: 0; }
@@ -83,7 +81,6 @@
             0% { opacity: 0.97; }
             100% { opacity: 1; }
         }
-        /* Loading overlay */
         .loading-overlay {
             position: fixed;
             inset: 0;
@@ -117,7 +114,6 @@
             animation: dots 1.5s infinite;
         }
         
-        /* Responsive */
         @media (max-width: 768px) {
             body {
                 font-size: 12px;
@@ -171,7 +167,7 @@
 ╚██╗ ██╔╝   ██║   ██║     ██╔══██║██║  ██║██╔══╝  
  ╚████╔╝    ██║   ╚██████╗██║  ██║██████╔╝███████╗
   ╚═══╝     ╚═╝    ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝
-                    <span class="subtitle">Play Like It's 1980</span></pre>
+                    <span class="subtitle">Play Like It's 1985</span></pre>
         <pre id="terminal" class="terminal-output"></pre>
     </div>
 
@@ -180,7 +176,6 @@
         let selectedIndex = 0;
         let username = "UNKNOWN";
 
-        // Game data
         const games = [
             { id: 1, name: "FLAPPY BIRD", url: "../games/BlockFlap/index.html", available: true },
             { id: 2, name: "RUNNER", url: "../games/BlockRun/index.html", available: true },
@@ -189,39 +184,17 @@
             { id: 5, name: "PROGRAM 05", url: "../games/game5/game.html", available: false }
         ];
 
-        // Helper function to safely parse JSON
-        function safeParseJSON(str) {
-            try {
-                return JSON.parse(str);
-            } catch (e) {
-                return null;
-            }
-        }
-
-        // Check login
         function checkLogin() {
-            const raw = localStorage.getItem("currentUser");
-            let user = safeParseJSON(raw);
+            const user = localStorage.getItem("currentUser");
             
             if (!user) {
-                if (raw && raw !== "undefined" && raw !== "null") {
-                    const trimmed = raw.replace(/^"(.*)"$/, "$1");
-                    user = { username: trimmed };
-                } else {
-                    user = null;
-                }
-            }
-
-            if (!user || !user.username || user.username === "undefined") {
-                localStorage.removeItem("currentUser");
                 window.location.href = "../login/login.html";
                 return null;
             }
 
-            return user.username.toUpperCase();
+            return user.toUpperCase();
         }
 
-        // Get formatted date and time
         function getDateTime() {
             const now = new Date();
             const date = now.toLocaleDateString('en-US', { 
@@ -238,7 +211,6 @@
             return { date, time };
         }
 
-        // Render terminal
         function render() {
             const { date, time } = getDateTime();
             
@@ -285,7 +257,6 @@ READY: <span class="cursor">_</span>
 
 `;
 
-            // Simple highlight for selected line
             const lines = output.split('\n');
             const rendered = lines.map((line, i) => {
                 if (line.includes('>>>')) {
@@ -299,7 +270,6 @@ READY: <span class="cursor">_</span>
             terminalEl.innerHTML = rendered;
         }
 
-        // Navigate
         function navigate(direction) {
             if (direction === 'up') {
                 selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : games.length - 1;
@@ -309,7 +279,6 @@ READY: <span class="cursor">_</span>
             render();
         }
 
-        // Launch game
         function launchGame(index) {
             if (games[index] && games[index].available) {
                 const game = games[index];
@@ -318,9 +287,7 @@ READY: <span class="cursor">_</span>
                     JSON.stringify({ name: game.name, selectedAt: Date.now() })
                 );
                 
-                // Show loading overlay
-                const overlay = document.getElementById('loadingOverlay');
-                overlay.classList.add('active');
+                document.getElementById('loadingOverlay').classList.add('active');
                 
                 setTimeout(() => {
                     window.location.href = game.url;
@@ -328,10 +295,8 @@ READY: <span class="cursor">_</span>
             }
         }
 
-        // Logout
         function logout() {
-            const overlay = document.getElementById('loadingOverlay');
-            overlay.classList.add('active');
+            document.getElementById('loadingOverlay').classList.add('active');
             
             setTimeout(() => {
                 localStorage.removeItem("currentUser");
@@ -339,7 +304,6 @@ READY: <span class="cursor">_</span>
             }, 800);
         }
 
-        // Keyboard controls
         document.addEventListener("keydown", (e) => {
             switch(e.key) {
                 case "ArrowUp":
@@ -370,22 +334,17 @@ READY: <span class="cursor">_</span>
             }
         });
 
-        // Disable scroll wheel
         document.addEventListener("wheel", (e) => {
             e.preventDefault();
         }, { passive: false });
 
-        // Initialize and update time every second
         username = checkLogin();
         if (username) {
             render();
-            // Update time every second
             setInterval(render, 1000);
             
-            // Hide loading overlay after initial load
             setTimeout(() => {
-                const overlay = document.getElementById('loadingOverlay');
-                overlay.classList.remove('active');
+                document.getElementById('loadingOverlay').classList.remove('active');
             }, 500);
         }
     </script>

@@ -87,8 +87,8 @@
             color: black;
         }
         .error-text {
-            color: #ff0000;
-            text-shadow: 0 0 4px #ff0000;
+            color: #00ff00;
+            text-shadow: 0 0 4px #00ff00;
         }
         .success-text {
             color: #00ff00;
@@ -178,7 +178,7 @@
 ╚██╗ ██╔╝   ██║   ██║     ██╔══██║██║  ██║██╔══╝  
  ╚████╔╝    ██║   ╚██████╗██║  ██║██████╔╝███████╗
   ╚═══╝     ╚═╝    ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝
-                    <span class="subtitle">Play Like It's 1980</span></pre>
+                    <span class="subtitle">Play Like It's 1985</span></pre>
         <pre id="terminal" class="terminal-output"></pre>
     </div>
     
@@ -186,7 +186,6 @@
     <input type="password" id="password-input">
 
     <script>
-        // Configuration - Change this to your Render backend URL
         const API_URL = "https://vtcade.onrender.com";
         
         const terminalEl = document.getElementById("terminal");
@@ -196,15 +195,6 @@
         let errorMessage = "";
         let successMessage = "";
         let isSubmitting = false;
-
-        function validateEmail(email) {
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            return emailRegex.test(email);
-        }
-
-        function validatePassword(password) {
-            return null;
-        }
 
         function render() {
             const fields = ["EMAIL", "PASSWORD"];
@@ -295,13 +285,6 @@
             
             if (!email || !password) {
                 errorMessage = "All fields are required";
-                console.warn("Missing email or password");
-                render();
-                return;
-            }
-
-            if (!validateEmail(email)) {
-                errorMessage = "Invalid email format";
                 render();
                 return;
             }
@@ -310,80 +293,36 @@
             render();
             
             try {
-                console.log("Sending login request...");
-                console.log("API URL:", API_URL);
-                
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 60000);
-                
                 const res = await fetch(`${API_URL}/api/auth/login`, {
                     method: "POST",
-                    headers: { 
-                        "Content-Type": "application/json",
-                        "Accept": "application/json"
-                    },
-                    body: JSON.stringify({ email, password }),
-                    signal: controller.signal
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, password })
                 });
                 
-                clearTimeout(timeoutId);
-                
-                console.log("Response status:", res.status);
-                
-                let data;
-                try {
-                    data = await res.json();
-                    console.log("Response data:", data);
-                } catch (parseErr) {
-                    console.error("Failed to parse response:", parseErr);
-                    errorMessage = "Invalid server response";
-                    isSubmitting = false;
-                    render();
-                    return;
-                }
+                const data = await res.json();
                 
                 if (!res.ok) {
-                    errorMessage = data?.message || `Server error (${res.status})`;
-                    isSubmitting = false;
-                    render();
-                    return;
-                }
-                
-                if (!data?.username) {
-                    errorMessage = "Invalid server response";
-                    console.error("No username in response:", data);
+                    errorMessage = data?.message || "Login failed";
                     isSubmitting = false;
                     render();
                     return;
                 }
                 
                 localStorage.setItem("currentUser", data.username);
-                console.log("Saved user:", data.username);
                 
                 successMessage = "Authentication successful";
                 isSubmitting = false;
                 render();
                 
                 setTimeout(() => {
-                    const overlay = document.getElementById('loadingOverlay');
-                    overlay.classList.add('active');
-                    
+                    document.getElementById('loadingOverlay').classList.add('active');
                     setTimeout(() => {
                         window.location.href = "../dashboard/dashboard.html";
                     }, 800);
                 }, 1000);
                 
             } catch (err) {
-                console.error("Network error:", err);
-                
-                if (err.name === 'AbortError') {
-                    errorMessage = "Request timeout. Server may be waking up, please try again.";
-                } else if (err.message.includes('Failed to fetch')) {
-                    errorMessage = "Cannot connect to server. Check your internet connection.";
-                } else {
-                    errorMessage = "Network error: " + err.message;
-                }
-                
+                errorMessage = "Network error";
                 isSubmitting = false;
                 render();
             }
@@ -392,8 +331,7 @@
         document.addEventListener("keydown", (e) => {
             if (e.key === "Tab") {
                 e.preventDefault();
-                const overlay = document.getElementById('loadingOverlay');
-                overlay.classList.add('active');
+                document.getElementById('loadingOverlay').classList.add('active');
                 setTimeout(() => {
                     window.location.href = "../signup/signup.html";
                 }, 800);
@@ -421,8 +359,7 @@
         render();
         
         setTimeout(() => {
-            const overlay = document.getElementById('loadingOverlay');
-            overlay.classList.remove('active');
+            document.getElementById('loadingOverlay').classList.remove('active');
         }, 500);
     </script>
 </body>
