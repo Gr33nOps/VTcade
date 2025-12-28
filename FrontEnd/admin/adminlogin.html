@@ -95,6 +95,9 @@
             color: #00ff00;
             text-shadow: 0 0 4px #00ff00;
         }
+        .dim {
+            color: #666666;
+        }
         .loading-overlay {
             position: fixed;
             inset: 0;
@@ -201,7 +204,12 @@
             const fields = ["USERNAME", "PASSWORD"];
             const values = [username, password];
             
-            let output = `\n================================================================================\nADMIN LOGIN\n================================================================================\n\n`;
+            let output = `
+================================================================================
+ADMIN LOGIN
+================================================================================
+
+`;
 
             fields.forEach((field, index) => {
                 const isSelected = currentField === index;
@@ -221,15 +229,27 @@
 
             output += '\n';
 
-            const submitSelected = currentField === 2;
-            const submitPrefix = submitSelected ? '>>>' : '   ';
-            const submitText = isSubmitting ? '[ LOGGING IN... ]' : '[ LOGIN ]';
-            let submitLine = `${submitPrefix} ${submitText}`;
+            // LOGIN button
+            const loginSelected = currentField === 2;
+            const loginPrefix = loginSelected ? '>>>' : '   ';
+            const loginText = isSubmitting ? '[ LOGGING IN... ]' : '[ LOGIN ]';
+            let loginLine = `${loginPrefix} ${loginText}`;
             
-            if (submitSelected) {
-                output += `<span class="highlight">${submitLine}</span>\n`;
+            if (loginSelected) {
+                output += `<span class="highlight">${loginLine}</span>\n`;
             } else {
-                output += submitLine + '\n';
+                output += loginLine + '\n';
+            }
+
+            // BACK TO USER LOGIN button
+            const backSelected = currentField === 3;
+            const backPrefix = backSelected ? '>>>' : '   ';
+            const backLine = `${backPrefix} [ BACK TO USER LOGIN ]`;
+            
+            if (backSelected) {
+                output += `<span class="highlight">${backLine}</span>\n`;
+            } else {
+                output += backLine + '\n';
             }
 
             output += '\n';
@@ -241,7 +261,19 @@
                 output += `<span class="success-text">${successMessage}</span>\n\n`;
             }
 
-            output += `\n================================================================================\n\n    [↑/↓] Navigate    [ENTER] Login\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
+            output += `
+================================================================================
+NAVIGATION
+================================================================================
+
+    [↑/↓]     Navigate Fields           [ENTER]     Select/Submit
+    [ESC]     Back to User Login
+
+================================================================================
+
+READY: <span class="cursor">_</span>
+
+`;
 
             terminalEl.innerHTML = output;
         }
@@ -253,16 +285,16 @@
             successMessage = "";
             
             if (direction === 'next') {
-                currentField = currentField < 2 ? currentField + 1 : 0;
+                currentField = currentField < 3 ? currentField + 1 : 0;
             } else if (direction === 'prev') {
-                currentField = currentField > 0 ? currentField - 1 : 2;
+                currentField = currentField > 0 ? currentField - 1 : 3;
             }
             render();
         }
 
         function handleTyping(key) {
             if (isSubmitting) return;
-            if (currentField === 2) return;
+            if (currentField > 1) return; // Only allow typing in username/password fields
             
             errorMessage = "";
             successMessage = "";
@@ -329,6 +361,13 @@
             }
         }
 
+        function goToUserLogin() {
+            document.getElementById('loadingOverlay').classList.add('active');
+            setTimeout(() => {
+                window.location.href = "/login/login.html";
+            }, 500);
+        }
+
         document.addEventListener("keydown", (e) => {
             if (e.key === "ArrowDown") {
                 e.preventDefault();
@@ -340,7 +379,12 @@
                 e.preventDefault();
                 if (currentField === 2) {
                     submitForm();
+                } else if (currentField === 3) {
+                    goToUserLogin();
                 }
+            } else if (e.key === "Escape") {
+                e.preventDefault();
+                goToUserLogin();
             } else if (e.key === "Backspace" || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
                 e.preventDefault();
                 handleTyping(e.key);
