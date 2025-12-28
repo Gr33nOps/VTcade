@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FLAPPY</title>
+    <title>FLAPPY BIRD</title>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body {
@@ -31,13 +31,6 @@
             user-select: none;
             line-height: 1.0;
         }
-        #game {
-            position: relative;
-        }
-        #ui {
-            position: relative;
-        }
-        /* CRT scanlines */
         body::after {
             content: "";
             position: fixed;
@@ -51,7 +44,6 @@
             pointer-events: none;
             z-index: 100;
         }
-        /* Loading overlay */
         .loading-overlay {
             position: fixed;
             inset: 0;
@@ -108,27 +100,21 @@ const gameEl = document.getElementById("game");
 const uiEl = document.getElementById("ui");
 const WIDTH = 50;
 const HEIGHT = 25;
-const GAME_NAME = "BlockFlap";
+const GAME_NAME = "FLAPPY BIRD";
 
-console.log("Script loaded");
-
-// ---------------- LOGIN CHECK ----------------
 const currentUser = localStorage.getItem("currentUser");
-console.log("Current user:", currentUser);
 
 if (!currentUser) {
     alert("You must be logged in to play!");
     window.location.href = "../login/login.html";
 }
 
-// Game state
 let score = 0;
 let highScore = 0;
 let gameRunning = false;
 let frameCount = 0;
 let gameStarted = false;
 
-// Bird
 let bird = {
     x: 10,
     y: Math.floor(HEIGHT / 2),
@@ -137,34 +123,27 @@ let bird = {
     jump: -2.5
 };
 
-// Pipes
 let pipes = [];
 const pipeWidth = 3;
 const pipeGap = 8;
 const pipeSpeed = 1;
 
-// Leaderboard
 let leaderboard = [];
 
-// Drawing
 function draw() {
     let out = "";
     
-    // Top border
     out += "+" + "=".repeat(WIDTH - 2) + "+\n";
     
-    // Game area
     for (let y = 0; y < HEIGHT; y++) {
         let line = "|";
         for (let x = 1; x < WIDTH - 1; x++) {
             let ch = " ";
             
-            // Draw bird
             if (Math.floor(bird.y) === y && x === bird.x) {
                 ch = "█";
             }
             
-            // Draw pipes
             pipes.forEach(pipe => {
                 if (x >= pipe.x && x < pipe.x + pipeWidth) {
                     if (y < pipe.topHeight || y >= HEIGHT - pipe.bottomHeight) {
@@ -179,10 +158,8 @@ function draw() {
         out += line;
     }
     
-    // Bottom border
     out += "+" + "=".repeat(WIDTH - 2) + "+\n";
     
-    // Status messages
     if (!gameStarted) {
         out += "< PRESS SPACE OR UP ARROW TO START >\n";
     } else if (!gameRunning && gameStarted) {
@@ -191,7 +168,6 @@ function draw() {
     
     gameEl.textContent = out;
     
-    // UI panel
     let ui = `FLAPPY BIRD v1.0
 ━━━━━━━━━━━━━━━━━━━━
 
@@ -207,7 +183,6 @@ LEADERBOARD:
         ui += "(Loading...)\n";
     } else {
         leaderboard.slice(0, 8).forEach((entry) => {
-            // Backend returns { rank, username, score, date }
             const username = entry.username.substring(0, 12).padEnd(12);
             const displayScore = entry.score || 0;
             ui += `${entry.rank}. ${username} ${displayScore}\n`;
@@ -227,13 +202,15 @@ ESC = BACK TO HOME
     uiEl.textContent = ui;
 }
 
-// Game loop
 function gameLoop() {
     if (!gameRunning) return;
     
     updateBird();
     updatePipes();
-    updateScore();
+    
+    if (score > highScore) {
+        highScore = score;
+    }
     
     if (checkCollision()) {
         gameOver();
@@ -244,7 +221,6 @@ function gameLoop() {
     setTimeout(gameLoop, 80);
 }
 
-// Update bird
 function updateBird() {
     bird.velocity += bird.gravity;
     bird.y += bird.velocity;
@@ -255,7 +231,6 @@ function updateBird() {
     }
 }
 
-// Update pipes
 function updatePipes() {
     frameCount++;
     
@@ -281,14 +256,6 @@ function updatePipes() {
     pipes = pipes.filter(pipe => pipe.x + pipeWidth > 1);
 }
 
-// Update score display
-function updateScore() {
-    if (score > highScore) {
-        highScore = score;
-    }
-}
-
-// Collision detection
 function checkCollision() {
     if (Math.floor(bird.y) >= HEIGHT || bird.y < 0) return true;
     
@@ -303,26 +270,17 @@ function checkCollision() {
     });
 }
 
-// ---------------- GAME OVER ----------------
 async function gameOver() {
     gameRunning = false;
-    console.log("Game over! Score:", score);
     
-    // Save personal best FIRST
-    await saveHighscoreToDB();
-    
-    // Then save to leaderboard (always saves current score)
-    await saveLeaderboardScoreToDB();
-    
-    // Finally update leaderboard UI
-    await updateLeaderboardUI();
+    await saveHighscore();
+    await saveLeaderboard();
+    await loadLeaderboard();
     
     draw();
 }
 
-// ---------------- RESTART ----------------
 function restartGame() {
-    console.log("Restarting game");
     bird.y = Math.floor(HEIGHT / 2);
     bird.velocity = 0;
     pipes = [];
@@ -333,64 +291,42 @@ function restartGame() {
     draw();
 }
 
-// Start game
 function startGame() {
-    console.log("Starting game");
     gameRunning = true;
     gameStarted = true;
     gameLoop();
 }
 
-// Jump
 function jump() {
-    console.log("Jump called - gameStarted:", gameStarted, "gameRunning:", gameRunning);
-    
     if (!gameStarted) {
-        console.log("Starting new game");
         startGame();
     } else if (gameRunning) {
-        console.log("Jumping");
         bird.velocity = bird.jump;
     } else if (!gameRunning && gameStarted) {
-        console.log("Restarting after game over");
         restartGame();
         setTimeout(() => startGame(), 100);
     }
 }
 
-// ---------------- HIGH SCORE ----------------
 async function loadHighScore() {
     try {
-        console.log("Loading highscore for:", currentUser, GAME_NAME);
-        
         const res = await fetch(
             `https://vtcade.onrender.com/api/highscore/${currentUser}/${GAME_NAME}`
         );
 
-        if (!res.ok) {
-            if (res.status === 404) {
-                console.log("No highscore found (404), starting fresh");
-                highScore = 0;
-                return;
-            }
-            throw new Error(`HTTP ${res.status}`);
+        if (res.ok) {
+            const data = await res.json();
+            highScore = data.highscore || 0;
+        } else {
+            highScore = 0;
         }
-
-        const data = await res.json();
-        highScore = data.highscore || 0;
-        
-        console.log("✓ Loaded highscore:", highScore);
     } catch (err) {
-        console.error("Highscore load error:", err);
         highScore = 0;
     }
 }
 
-async function saveHighscoreToDB() {
-    // Always send to backend - let backend decide with $max operator
+async function saveHighscore() {
     try {
-        console.log("Sending score to backend:", score);
-        
         const res = await fetch("https://vtcade.onrender.com/api/highscore/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -401,29 +337,17 @@ async function saveHighscoreToDB() {
             })
         });
 
-        if (!res.ok) {
-            const errorData = await res.json();
-            console.error("Highscore save failed:", errorData);
-            throw new Error(`HTTP error! status: ${res.status}`);
-        }
-
-        const data = await res.json();
-        highScore = data.highscore;
-        
-        if (data.isNewRecord) {
-            console.log("🎉 NEW HIGHSCORE:", highScore);
-        } else {
-            console.log("Score saved, current highscore remains:", highScore);
+        if (res.ok) {
+            const data = await res.json();
+            highScore = data.highscore;
         }
     } catch (err) {
-        console.error("Highscore save error:", err);
     }
 }
 
-// ---------------- LEADERBOARD ----------------
-async function saveLeaderboardScoreToDB() {
+async function saveLeaderboard() {
     try {
-        const res = await fetch("https://vtcade.onrender.com/api/leaderboard/save", {
+        await fetch("https://vtcade.onrender.com/api/leaderboard/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -432,91 +356,61 @@ async function saveLeaderboardScoreToDB() {
                 score
             })
         });
-        
-        if (!res.ok) {
-            console.log("Leaderboard save failed:", res.status);
-        }
     } catch (err) {
-        console.log("Leaderboard save error:", err);
     }
 }
 
-async function updateLeaderboardUI() {
+async function loadLeaderboard() {
     try {
         const res = await fetch(`https://vtcade.onrender.com/api/leaderboard/${GAME_NAME}`);
         
-        if (!res.ok) {
-            console.log("No leaderboard data available");
+        if (res.ok) {
+            const data = await res.json();
+            leaderboard = data.leaderboard || [];
+            draw();
+        } else {
             leaderboard = [];
-            return;
         }
-        
-        const data = await res.json();
-        
-        // Backend returns { game, leaderboard: [...], total }
-        // We need the leaderboard array
-        leaderboard = data.leaderboard || [];
-        
-        console.log("Leaderboard loaded:", leaderboard.length, "entries");
-        draw();
     } catch (err) {
-        console.log("Leaderboard fetch error:", err);
         leaderboard = [];
     }
 }
 
-// Controls
 document.addEventListener("keydown", (e) => {
-    console.log("Key pressed:", e.key, e.code);
-    
-    if (e.code === "Space" || e.code === "ArrowUp" || e.key === " " || e.key === "ArrowUp") {
+    if (e.code === "Space" || e.code === "ArrowUp") {
         e.preventDefault();
         jump();
-    } else if (e.code === "Escape" || e.key === "Escape") {
+    } else if (e.code === "Escape") {
         e.preventDefault();
-        const overlay = document.getElementById('loadingOverlay');
-        overlay.classList.add('active');
+        document.getElementById('loadingOverlay').classList.add('active');
         setTimeout(() => {
             window.location.href = "../../dashboard/dashboard.html";
         }, 800);
     }
 });
 
-// Click to jump
 document.addEventListener("click", (e) => {
-    console.log("Click detected");
     jump();
 });
 
-// Prevent context menu
 document.addEventListener("contextmenu", (e) => {
     e.preventDefault();
 });
 
-// ---------------- INITIAL ----------------
 async function initGame() {
     try {
-        console.log("Initializing game for user:", currentUser);
-        
         await loadHighScore();
-        await updateLeaderboardUI();
+        await loadLeaderboard();
         restartGame();
-        
-        console.log("Game initialized successfully");
-        console.log("Press SPACE or UP ARROW to start");
     } catch (err) {
-        console.error("Init error:", err);
         restartGame();
     } finally {
         setTimeout(() => {
-            const overlay = document.getElementById('loadingOverlay');
-            overlay.classList.remove('active');
-            console.log("Loading overlay hidden, game ready");
+            document.getElementById('loadingOverlay').classList.remove('active');
         }, 500);
     }
 }
 
-// Make sure page is fully loaded
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initGame);
 } else {
