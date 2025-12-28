@@ -23,7 +23,7 @@
         }
         .container {
             width: 100%;
-            max-width: 1000px;
+            max-width: 900px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -123,6 +123,13 @@
             .logo { font-size: 7px; }
             .subtitle { font-size: 11px; }
         }
+        
+        @media (max-width: 480px) {
+            body { font-size: 10px; }
+            .terminal-output { font-size: 9px; }
+            .logo { font-size: 5px; }
+            .subtitle { font-size: 9px; }
+        }
     </style>
 </head>
 <body>
@@ -131,7 +138,7 @@
             <pre>
 ================================================================================
 
-<span class="loading-dots">LOADING ADMIN PANEL</span>
+<span class="loading-dots">LOADING</span>
 
 ================================================================================
             </pre>
@@ -209,19 +216,18 @@
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ${statusColor}${stats.status || "UNKNOWN"}${statusEnd}
+SYSTEM STATUS: ${statusColor}${stats.status || "ONLINE"}${statusEnd}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-ADMIN HOME
+ADMIN DASHBOARD
 ================================================================================
 
     TOTAL USERS:              ${stats.users || 0}
     TOTAL GAMES:              ${stats.games || 0}
     SCORES TODAY:             ${stats.scoresToday || 0}
-    SYSTEM STATUS:            ${statusColor}${stats.status || "UNKNOWN"}${statusEnd}
 
 ================================================================================
 MAIN MENU
@@ -251,10 +257,16 @@ MAIN MENU
 
             output += `
 ================================================================================
-NAVIGATION: [↑/↓] Navigate  [ENTER] Select  [1-5] Quick Access
+NAVIGATION
+================================================================================
+
+    [↑/↓]     Navigate Menu              [ENTER]     Select Option
+    [1-5]     Direct Access              [ESC]       Exit
+
 ================================================================================
 
 READY: <span class="cursor">_</span>
+
 `;
 
             terminalEl.innerHTML = output;
@@ -267,7 +279,7 @@ READY: <span class="cursor">_</span>
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ${stats.status || "UNKNOWN"}
+SYSTEM STATUS: ${stats.status || "ONLINE"}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
@@ -285,12 +297,12 @@ USER CONTROL - ${users.length} USERS
                     const isSelected = index === selectedIndex;
                     const prefix = isSelected ? '>>>' : '   ';
                     const bannedTag = user.isBanned ? '<span class="red">[BANNED]</span>' : '';
-                    const verifiedTag = user.isVerified ? '[VERIFIED]' : '';
+                    const verifiedTag = user.isVerified ? '<span class="yellow">[VERIFIED]</span>' : '';
                     
                     const line = `${prefix} [${index + 1}] ${user.username.padEnd(15)} ${user.email.padEnd(30)}`;
                     
                     if (isSelected) {
-                        output += `<span class="highlight">${line}</span>\n`;
+                        output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span>\n`;
                         output += `        ${verifiedTag} ${bannedTag}\n\n`;
                     } else {
                         output += line + '\n';
@@ -301,10 +313,17 @@ USER CONTROL - ${users.length} USERS
 
             output += `
 ================================================================================
-COMMANDS: [↑/↓] Navigate  [B] Ban  [U] Unban  [D] Delete  [R] Refresh  [ESC] Back
+COMMANDS
+================================================================================
+
+    [↑/↓]     Navigate List              [B]         Ban User
+    [U]       Unban User                 [D]         Delete User
+    [R]       Refresh                    [ESC]       Back to Menu
+
 ================================================================================
 
 READY: <span class="cursor">_</span>
+
 `;
 
             terminalEl.innerHTML = output;
@@ -317,7 +336,7 @@ READY: <span class="cursor">_</span>
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ${stats.status || "UNKNOWN"}
+SYSTEM STATUS: ${stats.status || "ONLINE"}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
@@ -334,12 +353,12 @@ GAME CONTROL - ${games.length} GAMES
                 games.forEach((game, index) => {
                     const isSelected = index === selectedIndex;
                     const prefix = isSelected ? '>>>' : '   ';
-                    const statusTag = game.isActive ? '[ENABLED]' : '<span class="red">[DISABLED]</span>';
+                    const statusTag = game.isActive ? '<span class="yellow">[ENABLED]</span>' : '<span class="red">[DISABLED]</span>';
                     
                     const line = `${prefix} [${index + 1}] ${game.title.padEnd(25)} ${game.genre.padEnd(15)}`;
                     
                     if (isSelected) {
-                        output += `<span class="highlight">${line}</span>\n`;
+                        output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span>\n`;
                         output += `        STATUS: ${statusTag}\n\n`;
                     } else {
                         output += line + '\n';
@@ -350,10 +369,17 @@ GAME CONTROL - ${games.length} GAMES
 
             output += `
 ================================================================================
-COMMANDS: [↑/↓] Navigate  [E] Enable  [X] Disable  [R] Refresh  [ESC] Back
+COMMANDS
+================================================================================
+
+    [↑/↓]     Navigate List              [E]         Enable Game
+    [X]       Disable Game               [R]         Refresh
+    [ESC]     Back to Menu
+
 ================================================================================
 
 READY: <span class="cursor">_</span>
+
 `;
 
             terminalEl.innerHTML = output;
@@ -366,7 +392,7 @@ READY: <span class="cursor">_</span>
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ${stats.status || "UNKNOWN"}
+SYSTEM STATUS: ${stats.status || "ONLINE"}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
@@ -394,7 +420,12 @@ SCOREBOARD CONTROL
 
                 output += `
 ================================================================================
-COMMANDS: [↑/↓] Navigate  [ENTER] Select Game  [ESC] Back
+COMMANDS
+================================================================================
+
+    [↑/↓]     Navigate List              [ENTER]     Select Game
+    [ESC]     Back to Menu
+
 ================================================================================
 `;
             } else {
@@ -413,7 +444,7 @@ COMMANDS: [↑/↓] Navigate  [ENTER] Select Game  [ESC] Back
                         const line = `${prefix} [${index + 1}] ${username.padEnd(15)} SCORE: ${String(entry.score).padStart(8)}`;
                         
                         if (isSelected) {
-                            output += `<span class="highlight">${line}</span> ${flagTag}\n`;
+                            output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span> ${flagTag}\n`;
                         } else {
                             output += line + ` ${flagTag}\n`;
                         }
@@ -422,13 +453,20 @@ COMMANDS: [↑/↓] Navigate  [ENTER] Select Game  [ESC] Back
 
                 output += `
 ================================================================================
-COMMANDS: [↑/↓] Navigate  [F] Flag  [D] Delete  [Z] Reset All  [ESC] Back
+COMMANDS
+================================================================================
+
+    [↑/↓]     Navigate List              [F]         Flag Score
+    [D]       Delete Score               [Z]         Reset All Scores
+    [ESC]     Back to Menu
+
 ================================================================================
 `;
             }
 
             output += `
 READY: <span class="cursor">_</span>
+
 `;
 
             terminalEl.innerHTML = output;
@@ -437,12 +475,12 @@ READY: <span class="cursor">_</span>
         // ==================== RENDER MAINTENANCE ====================
         function renderMaintenance() {
             const { date, time } = getDateTime();
-            const modeStatus = stats.maintenanceMode ? '<span class="red">ENABLED</span>' : 'DISABLED';
+            const modeStatus = stats.maintenanceMode ? '<span class="red">ENABLED</span>' : '<span class="yellow">DISABLED</span>';
             
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ${stats.status || "UNKNOWN"}
+SYSTEM STATUS: ${stats.status || "ONLINE"}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
@@ -470,10 +508,11 @@ ACTIONS
                 { id: 3, name: "BACK TO MENU", enabled: true }
             ];
 
+            let actionIndex = 0;
             actions.forEach((action, index) => {
                 if (!action.enabled) return;
                 
-                const isSelected = index === selectedIndex;
+                const isSelected = actionIndex === selectedIndex;
                 const prefix = isSelected ? '>>>' : '   ';
                 const line = `${prefix} [${action.id}] ${action.name}`;
                 
@@ -482,14 +521,21 @@ ACTIONS
                 } else {
                     output += line + '\n';
                 }
+                actionIndex++;
             });
 
             output += `
 ================================================================================
-COMMANDS: [↑/↓] Navigate  [ENTER] Select  [ESC] Back
+COMMANDS
+================================================================================
+
+    [↑/↓]     Navigate Menu              [ENTER]     Select Option
+    [ESC]     Back to Menu
+
 ================================================================================
 
 READY: <span class="cursor">_</span>
+
 `;
 
             terminalEl.innerHTML = output;
@@ -775,7 +821,7 @@ READY: <span class="cursor">_</span>
                     } else if (currentView === "maintenance") {
                         if (selectedIndex === 0 && !stats.maintenanceMode) enableMaintenance();
                         else if (selectedIndex === 1 && stats.maintenanceMode) disableMaintenance();
-                        else if (selectedIndex === 2) { currentView = "home"; loadStats(); }
+                        else if (selectedIndex === 2) { currentView = "home"; selectedIndex = 0; loadStats(); }
                     }
                     e.preventDefault();
                     break;

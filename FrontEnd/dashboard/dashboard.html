@@ -306,10 +306,10 @@ USER DASHBOARD
 `;
 
             const menuItems = [
-                { id: 1, name: "GAMES", view: "games" },
-                { id: 2, name: "MY HIGH SCORES", view: "highscores" },
-                { id: 3, name: "VIEW LEADERBOARD", view: "leaderboard" },
-                { id: 4, name: "LOGOUT", view: "logout" }
+                { id: 1, name: "GAMES" },
+                { id: 2, name: "MY HIGH SCORES" },
+                { id: 3, name: "VIEW LEADERBOARD" },
+                { id: 4, name: "LOGOUT" }
             ];
 
             menuItems.forEach((item, index) => {
@@ -377,7 +377,7 @@ AVAILABLE GAMES
 COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate Games             [ENTER]     Launch Game
+    [↑/↓]     Navigate List              [ENTER]     Launch Game
     [1-5]     Direct Launch              [ESC]       Back to Menu
 
 ================================================================================
@@ -468,7 +468,7 @@ GLOBAL LEADERBOARD - TOP 10
             if (errorMessage) {
                 output += `    <span class="red">ERROR: ${errorMessage}</span>\n`;
             } else if (leaderboardData.length === 0) {
-                output += `    <span class="dim">No leaderboard data available</span>\n`;
+                output += `    <span class="dim">NO LEADERBOARD DATA AVAILABLE</span>\n`;
             } else {
                 leaderboardData.forEach((entry, index) => {
                     const rank = `#${index + 1}`.padEnd(6);
@@ -641,13 +641,6 @@ READY: <span class="cursor">_</span>
                 case "5":
                     if (currentView === "games") {
                         launchGame(4);
-                    }
-                    e.preventDefault();
-                    break;
-                case "l":
-                case "L":
-                    if (currentView === "menu") {
-                        logout();
                     }
                     e.preventDefault();
                     break;
