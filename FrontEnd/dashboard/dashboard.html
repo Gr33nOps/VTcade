@@ -133,7 +133,7 @@
     </style>
 </head>
 <body>
-    <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-overlay active" id="loadingOverlay">
         <div class="loading-content">
             <pre>
 ================================================================================
@@ -158,17 +158,21 @@
     </div>
 
     <script>
+        const API_BASE_URL = 'http://localhost:5000/api'; // Change this to your backend URL
         const terminalEl = document.getElementById("terminal");
         let selectedIndex = 0;
-        let currentView = "menu"; // menu, games, highscores, leaderboard
+        let currentView = "menu";
         let username = "UNKNOWN";
+        let userHighscores = {};
+        let leaderboardData = [];
+        let totalGamesPlayed = 0;
 
         const games = [
-            { id: 1, name: "FLAPPY BIRD", url: "../games/BlockFlap/index.html", available: true },
-            { id: 2, name: "RUNNER", url: "../games/BlockRun/index.html", available: true },
-            { id: 3, name: "SNAKE", url: "../games/BlockSnake/index.html", available: true },
-            { id: 4, name: "PROGRAM 04", url: "../games/game4/game.html", available: false },
-            { id: 5, name: "PROGRAM 05", url: "../games/game5/game.html", available: false }
+            { id: 1, name: "FLAPPY BIRD", url: "../games/BlockFlap/index.html", available: true, apiName: "FLAPPY BIRD" },
+            { id: 2, name: "RUNNER", url: "../games/BlockRun/index.html", available: true, apiName: "RUNNER" },
+            { id: 3, name: "SNAKE", url: "../games/BlockSnake/index.html", available: true, apiName: "SNAKE" },
+            { id: 4, name: "PROGRAM 04", url: "../games/game4/game.html", available: false, apiName: "PROGRAM 04" },
+            { id: 5, name: "PROGRAM 05", url: "../games/game5/game.html", available: false, apiName: "PROGRAM 05" }
         ];
 
         function checkLogin() {
@@ -180,6 +184,52 @@
             }
 
             return user.toUpperCase();
+        }
+
+        async function fetchUserHighscores() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/highscore/user/${username}`);
+                const data = await response.json();
+                
+                if (data.scores) {
+                    userHighscores = {};
+                    data.scores.forEach(score => {
+                        userHighscores[score.game] = score.highscore;
+                    });
+                    totalGamesPlayed = data.total;
+                }
+            } catch (error) {
+                console.error('Error fetching highscores:', error);
+                userHighscores = {};
+            }
+        }
+
+        async function fetchLeaderboard() {
+            try {
+                const allGames = ['FLAPPY BIRD', 'RUNNER', 'SNAKE'];
+                const allScores = [];
+                
+                for (const game of allGames) {
+                    const response = await fetch(`${API_BASE_URL}/leaderboard/${encodeURIComponent(game)}?limit=50`);
+                    const data = await response.json();
+                    
+                    if (data.leaderboard) {
+                        data.leaderboard.forEach(entry => {
+                            allScores.push({
+                                username: entry.username,
+                                game: game,
+                                score: entry.score
+                            });
+                        });
+                    }
+                }
+                
+                allScores.sort((a, b) => b.score - a.score);
+                leaderboardData = allScores.slice(0, 10);
+            } catch (error) {
+                console.error('Error fetching leaderboard:', error);
+                leaderboardData = [];
+            }
         }
 
         function getDateTime() {
@@ -314,12 +364,27 @@ TIME: ${time}
 MY HIGH SCORES
 ================================================================================
 
-    FLAPPY BIRD:          1,250 PTS
-    RUNNER:               3,480 PTS
-    SNAKE:                890 PTS
+`;
 
-    <span class="dim">Total Games Played: 47</span>
-    <span class="dim">Average Score: 1,873 PTS</span>
+            const availableGames = ['FLAPPY BIRD', 'RUNNER', 'SNAKE'];
+            let totalScore = 0;
+            let gamesWithScores = 0;
+
+            availableGames.forEach(game => {
+                const score = userHighscores[game] || 0;
+                if (score > 0) {
+                    totalScore += score;
+                    gamesWithScores++;
+                }
+                const formattedScore = score.toLocaleString();
+                output += `    ${game.padEnd(20)} ${formattedScore.padStart(10)} PTS\n`;
+            });
+
+            const avgScore = gamesWithScores > 0 ? Math.round(totalScore / gamesWithScores) : 0;
+
+            output += `
+    <span class="dim">Total Games Played: ${totalGamesPlayed}</span>
+    <span class="dim">Average Score: ${avgScore.toLocaleString()} PTS</span>
 
 ================================================================================
 COMMANDS
@@ -354,17 +419,22 @@ GLOBAL LEADERBOARD - TOP 10
     RANK  PLAYER             GAME              SCORE
     ----  ---------------    ---------------   --------
 
-    #1    PLAYER_ONE         FLAPPY BIRD       5,420
-    #2    ACE_GAMER          RUNNER            4,890
-    #3    RETRO_KING         SNAKE             3,650
-    #4    ${username.padEnd(15)}   FLAPPY BIRD       1,250
-    #5    OLDSCHOOL          RUNNER            2,340
-    #6    PIXEL_PRO          SNAKE             1,890
-    #7    ARCADE_MASTER      FLAPPY BIRD       1,650
-    #8    GAMER_X            RUNNER            1,450
-    #9    NOOB_DESTROYER     SNAKE             1,230
-    #10   BYTE_WARRIOR       FLAPPY BIRD       980
+`;
 
+            if (leaderboardData.length === 0) {
+                output += `    <span class="dim">No leaderboard data available</span>\n`;
+            } else {
+                leaderboardData.forEach((entry, index) => {
+                    const rank = `#${index + 1}`.padEnd(6);
+                    const player = entry.username.substring(0, 15).padEnd(19);
+                    const game = entry.game.substring(0, 15).padEnd(18);
+                    const score = entry.score.toLocaleString().padStart(8);
+                    
+                    output += `    ${rank}${player}${game}${score}\n`;
+                });
+            }
+
+            output += `
 ================================================================================
 COMMANDS
 ================================================================================
@@ -411,16 +481,22 @@ READY: <span class="cursor">_</span>
             render();
         }
 
-        function selectOption(index) {
+        async function selectOption(index) {
             if (currentView !== "menu") return;
             
             if (index === 0) {
                 currentView = "games";
                 selectedIndex = 0;
             } else if (index === 1) {
+                document.getElementById('loadingOverlay').classList.add('active');
+                await fetchUserHighscores();
+                document.getElementById('loadingOverlay').classList.remove('active');
                 currentView = "highscores";
                 selectedIndex = 0;
             } else if (index === 2) {
+                document.getElementById('loadingOverlay').classList.add('active');
+                await fetchLeaderboard();
+                document.getElementById('loadingOverlay').classList.remove('active');
                 currentView = "leaderboard";
                 selectedIndex = 0;
             } else if (index === 3) {
@@ -535,19 +611,24 @@ READY: <span class="cursor">_</span>
             e.preventDefault();
         }, { passive: false });
 
-        username = checkLogin();
-        if (username) {
-            render();
-            setInterval(() => {
-                if (currentView === "menu") {
-                    render();
-                }
-            }, 1000);
-            
-            setTimeout(() => {
-                document.getElementById('loadingOverlay').classList.remove('active');
-            }, 500);
+        async function init() {
+            username = checkLogin();
+            if (username) {
+                await fetchUserHighscores();
+                render();
+                setInterval(() => {
+                    if (currentView === "menu") {
+                        render();
+                    }
+                }, 1000);
+                
+                setTimeout(() => {
+                    document.getElementById('loadingOverlay').classList.remove('active');
+                }, 500);
+            }
         }
+
+        init();
     </script>
 </body>
 </html>
