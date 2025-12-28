@@ -28,10 +28,44 @@ router.post("/save", async (req, res) => {
         });
 
     } catch (err) {
+        console.error('Highscore save error:', err);
         res.status(500).json({ message: "Server error" });
     }
 });
 
+// ✅ PUT THIS ROUTE FIRST - More specific route
+router.get("/user/:username", async (req, res) => {
+    try {
+        const { username } = req.params;
+
+        if (!username) {
+            return res.status(400).json({ message: "Username is required" });
+        }
+
+        console.log('Fetching all scores for user:', username);
+
+        const scores = await UserHighscore.find({ 
+            username: username.trim() 
+        }).sort({ highscore: -1 });
+
+        console.log('Found scores:', scores);
+
+        res.json({ 
+            username: username.trim(),
+            scores: scores.map(s => ({
+                game: s.game,
+                highscore: s.highscore
+            })),
+            total: scores.length
+        });
+
+    } catch (err) {
+        console.error('Highscore fetch error:', err);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// ✅ PUT THIS ROUTE SECOND - Less specific route
 router.get("/:username/:game", async (req, res) => {
     try {
         const { username, game } = req.params;
@@ -53,32 +87,7 @@ router.get("/:username/:game", async (req, res) => {
         });
 
     } catch (err) {
-        res.status(500).json({ message: "Server error" });
-    }
-});
-
-router.get("/user/:username", async (req, res) => {
-    try {
-        const { username } = req.params;
-
-        if (!username) {
-            return res.status(400).json({ message: "Username is required" });
-        }
-
-        const scores = await UserHighscore.find({ 
-            username: username.trim() 
-        }).sort({ highscore: -1 });
-
-        res.json({ 
-            username: username.trim(),
-            scores: scores.map(s => ({
-                game: s.game,
-                highscore: s.highscore
-            })),
-            total: scores.length
-        });
-
-    } catch (err) {
+        console.error('Highscore single game fetch error:', err);
         res.status(500).json({ message: "Server error" });
     }
 });
