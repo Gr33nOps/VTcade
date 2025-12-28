@@ -60,6 +60,9 @@
         .yellow {
             color: #ffff00;
         }
+        .red {
+            color: #ff0000;
+        }
         body::after {
             content: "";
             position: fixed;
@@ -158,7 +161,7 @@
     </div>
 
     <script>
-        const API_BASE_URL = 'http://localhost:5000/api'; // Change this to your backend URL
+        const API_BASE_URL = 'https://vtcade.onrender.com/api';
         const terminalEl = document.getElementById("terminal");
         let selectedIndex = 0;
         let currentView = "menu";
@@ -166,6 +169,7 @@
         let userHighscores = {};
         let leaderboardData = [];
         let totalGamesPlayed = 0;
+        let errorMessage = "";
 
         const games = [
             { id: 1, name: "FLAPPY BIRD", url: "../games/BlockFlap/index.html", available: true, apiName: "FLAPPY BIRD" },
@@ -183,13 +187,20 @@
                 return null;
             }
 
-            return user.toUpperCase();
+            return user;
         }
 
         async function fetchUserHighscores() {
             try {
+                errorMessage = "";
                 const response = await fetch(`${API_BASE_URL}/highscore/user/${username}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
                 const data = await response.json();
+                console.log('Highscores fetched:', data);
                 
                 if (data.scores) {
                     userHighscores = {};
@@ -200,34 +211,53 @@
                 }
             } catch (error) {
                 console.error('Error fetching highscores:', error);
+                errorMessage = "Failed to load highscores";
                 userHighscores = {};
+                totalGamesPlayed = 0;
             }
         }
 
         async function fetchLeaderboard() {
             try {
+                errorMessage = "";
                 const allGames = ['FLAPPY BIRD', 'RUNNER', 'SNAKE'];
                 const allScores = [];
                 
                 for (const game of allGames) {
-                    const response = await fetch(`${API_BASE_URL}/leaderboard/${encodeURIComponent(game)}?limit=50`);
-                    const data = await response.json();
-                    
-                    if (data.leaderboard) {
-                        data.leaderboard.forEach(entry => {
-                            allScores.push({
-                                username: entry.username,
-                                game: game,
-                                score: entry.score
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/leaderboard/${encodeURIComponent(game)}?limit=50`);
+                        
+                        if (!response.ok) {
+                            console.warn(`Failed to fetch leaderboard for ${game}`);
+                            continue;
+                        }
+                        
+                        const data = await response.json();
+                        console.log(`Leaderboard for ${game}:`, data);
+                        
+                        if (data.leaderboard && Array.isArray(data.leaderboard)) {
+                            data.leaderboard.forEach(entry => {
+                                allScores.push({
+                                    username: entry.username,
+                                    game: game,
+                                    score: entry.score
+                                });
                             });
-                        });
+                        }
+                    } catch (err) {
+                        console.error(`Error fetching ${game}:`, err);
                     }
                 }
                 
                 allScores.sort((a, b) => b.score - a.score);
                 leaderboardData = allScores.slice(0, 10);
+                
+                if (leaderboardData.length === 0) {
+                    errorMessage = "No leaderboard data available";
+                }
             } catch (error) {
                 console.error('Error fetching leaderboard:', error);
+                errorMessage = "Failed to load leaderboard";
                 leaderboardData = [];
             }
         }
@@ -366,6 +396,10 @@ MY HIGH SCORES
 
 `;
 
+            if (errorMessage) {
+                output += `    <span class="red">ERROR: ${errorMessage}</span>\n\n`;
+            }
+
             const availableGames = ['FLAPPY BIRD', 'RUNNER', 'SNAKE'];
             let totalScore = 0;
             let gamesWithScores = 0;
@@ -421,7 +455,9 @@ GLOBAL LEADERBOARD - TOP 10
 
 `;
 
-            if (leaderboardData.length === 0) {
+            if (errorMessage) {
+                output += `    <span class="red">ERROR: ${errorMessage}</span>\n`;
+            } else if (leaderboardData.length === 0) {
                 output += `    <span class="dim">No leaderboard data available</span>\n`;
             } else {
                 leaderboardData.forEach((entry, index) => {
@@ -487,24 +523,25 @@ READY: <span class="cursor">_</span>
             if (index === 0) {
                 currentView = "games";
                 selectedIndex = 0;
+                render();
             } else if (index === 1) {
                 document.getElementById('loadingOverlay').classList.add('active');
                 await fetchUserHighscores();
                 document.getElementById('loadingOverlay').classList.remove('active');
                 currentView = "highscores";
                 selectedIndex = 0;
+                render();
             } else if (index === 2) {
                 document.getElementById('loadingOverlay').classList.add('active');
                 await fetchLeaderboard();
                 document.getElementById('loadingOverlay').classList.remove('active');
                 currentView = "leaderboard";
                 selectedIndex = 0;
+                render();
             } else if (index === 3) {
                 logout();
                 return;
             }
-            
-            render();
         }
 
         function launchGame(index) {
