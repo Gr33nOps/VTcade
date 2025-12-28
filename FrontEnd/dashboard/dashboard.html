@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VTcade</title>
+    <title>VTcade - Dashboard</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -56,6 +56,9 @@
         }
         .dim {
             color: #006600;
+        }
+        .yellow {
+            color: #ffff00;
         }
         body::after {
             content: "";
@@ -115,34 +118,17 @@
         }
         
         @media (max-width: 768px) {
-            body {
-                font-size: 12px;
-                padding: 10px;
-            }
-            .terminal-output {
-                font-size: 11px;
-            }
-            .logo {
-                font-size: 7px;
-            }
-            .subtitle {
-                font-size: 11px;
-            }
+            body { font-size: 12px; padding: 10px; }
+            .terminal-output { font-size: 11px; }
+            .logo { font-size: 7px; }
+            .subtitle { font-size: 11px; }
         }
         
         @media (max-width: 480px) {
-            body {
-                font-size: 10px;
-            }
-            .terminal-output {
-                font-size: 9px;
-            }
-            .logo {
-                font-size: 5px;
-            }
-            .subtitle {
-                font-size: 9px;
-            }
+            body { font-size: 10px; }
+            .terminal-output { font-size: 9px; }
+            .logo { font-size: 5px; }
+            .subtitle { font-size: 9px; }
         }
     </style>
 </head>
@@ -174,6 +160,7 @@
     <script>
         const terminalEl = document.getElementById("terminal");
         let selectedIndex = 0;
+        let currentView = "menu"; // menu, games, highscores, leaderboard
         let username = "UNKNOWN";
 
         const games = [
@@ -211,7 +198,7 @@
             return { date, time };
         }
 
-        function render() {
+        function renderMenu() {
             const { date, time } = getDateTime();
             
             let output = `
@@ -223,21 +210,25 @@ DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-AVAILABLE PROGRAMS
+USER DASHBOARD
 ================================================================================
 
 `;
 
-            games.forEach((game, index) => {
+            const menuItems = [
+                { id: 1, name: "GAMES", view: "games" },
+                { id: 2, name: "MY HIGH SCORES", view: "highscores" },
+                { id: 3, name: "VIEW LEADERBOARD", view: "leaderboard" },
+                { id: 4, name: "LOGOUT", view: "logout" }
+            ];
+
+            menuItems.forEach((item, index) => {
                 const isSelected = index === selectedIndex;
                 const prefix = isSelected ? '>>>' : '   ';
-                const status = game.available ? 'READY' : 'LOCKED';
+                const line = `${prefix} [${item.id}] ${item.name}`;
                 
-                let line = `${prefix} [${game.id}] ${game.name.padEnd(25)} ${status}`;
-                
-                if (isSelected && game.available) {
-                    line = line.split('').map(char => char === ' ' ? ' ' : char).join('');
-                    output += `\x1b[7m${line}\x1b[0m\n`;
+                if (isSelected) {
+                    output += `<span class="highlight">${line}</span>\n`;
                 } else {
                     output += line + '\n';
                 }
@@ -245,11 +236,11 @@ AVAILABLE PROGRAMS
 
             output += `
 ================================================================================
-COMMAND REFERENCE
+NAVIGATION
 ================================================================================
 
-    [↑/↓]     Navigate Programs          [ENTER]     Execute Selected
-    [1-5]     Direct Launch              [L]         Logout
+    [↑/↓]     Navigate Menu              [ENTER]     Select Option
+    [1-4]     Direct Access              [ESC]       Exit
 
 ================================================================================
 
@@ -257,29 +248,191 @@ READY: <span class="cursor">_</span>
 
 `;
 
-            const lines = output.split('\n');
-            const rendered = lines.map((line, i) => {
-                if (line.includes('>>>')) {
-                    return `<span class="highlight">${line}</span>`;
-                } else if (line.includes('LOCKED')) {
-                    return `<span class="dim">${line}</span>`;
-                }
-                return line;
-            }).join('\n');
+            terminalEl.innerHTML = output;
+        }
 
-            terminalEl.innerHTML = rendered;
+        function renderGames() {
+            const { date, time } = getDateTime();
+            
+            let output = `
+================================================================================
+
+SYSTEM STATUS: ONLINE
+USER: ${username}
+DATE: ${date}
+TIME: ${time}
+
+================================================================================
+AVAILABLE GAMES
+================================================================================
+
+`;
+
+            games.forEach((game, index) => {
+                const isSelected = index === selectedIndex;
+                const prefix = isSelected ? '>>>' : '   ';
+                const status = game.available ? '<span class="yellow">[READY]</span>' : '<span class="dim">[LOCKED]</span>';
+                
+                let line = `${prefix} [${game.id}] ${game.name.padEnd(25)} ${status}`;
+                
+                if (isSelected && game.available) {
+                    output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span>\n`;
+                } else {
+                    output += line + '\n';
+                }
+            });
+
+            output += `
+================================================================================
+COMMANDS
+================================================================================
+
+    [↑/↓]     Navigate Games             [ENTER]     Launch Game
+    [1-5]     Direct Launch              [ESC]       Back to Menu
+
+================================================================================
+
+READY: <span class="cursor">_</span>
+
+`;
+
+            terminalEl.innerHTML = output;
+        }
+
+        function renderHighScores() {
+            const { date, time } = getDateTime();
+            
+            let output = `
+================================================================================
+
+SYSTEM STATUS: ONLINE
+USER: ${username}
+DATE: ${date}
+TIME: ${time}
+
+================================================================================
+MY HIGH SCORES
+================================================================================
+
+    FLAPPY BIRD:          1,250 PTS
+    RUNNER:               3,480 PTS
+    SNAKE:                890 PTS
+
+    <span class="dim">Total Games Played: 47</span>
+    <span class="dim">Average Score: 1,873 PTS</span>
+
+================================================================================
+COMMANDS
+================================================================================
+
+    [ESC]     Back to Menu
+
+================================================================================
+
+READY: <span class="cursor">_</span>
+
+`;
+
+            terminalEl.innerHTML = output;
+        }
+
+        function renderLeaderboard() {
+            const { date, time } = getDateTime();
+            
+            let output = `
+================================================================================
+
+SYSTEM STATUS: ONLINE
+USER: ${username}
+DATE: ${date}
+TIME: ${time}
+
+================================================================================
+GLOBAL LEADERBOARD - TOP 10
+================================================================================
+
+    RANK  PLAYER             GAME              SCORE
+    ----  ---------------    ---------------   --------
+
+    #1    PLAYER_ONE         FLAPPY BIRD       5,420
+    #2    ACE_GAMER          RUNNER            4,890
+    #3    RETRO_KING         SNAKE             3,650
+    #4    ${username.padEnd(15)}   FLAPPY BIRD       1,250
+    #5    OLDSCHOOL          RUNNER            2,340
+    #6    PIXEL_PRO          SNAKE             1,890
+    #7    ARCADE_MASTER      FLAPPY BIRD       1,650
+    #8    GAMER_X            RUNNER            1,450
+    #9    NOOB_DESTROYER     SNAKE             1,230
+    #10   BYTE_WARRIOR       FLAPPY BIRD       980
+
+================================================================================
+COMMANDS
+================================================================================
+
+    [ESC]     Back to Menu
+
+================================================================================
+
+READY: <span class="cursor">_</span>
+
+`;
+
+            terminalEl.innerHTML = output;
+        }
+
+        function render() {
+            switch(currentView) {
+                case "menu":
+                    renderMenu();
+                    break;
+                case "games":
+                    renderGames();
+                    break;
+                case "highscores":
+                    renderHighScores();
+                    break;
+                case "leaderboard":
+                    renderLeaderboard();
+                    break;
+            }
         }
 
         function navigate(direction) {
+            let maxIndex = 0;
+            
+            if (currentView === "menu") maxIndex = 3;
+            else if (currentView === "games") maxIndex = games.length - 1;
+            
             if (direction === 'up') {
-                selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : games.length - 1;
+                selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : maxIndex;
             } else if (direction === 'down') {
-                selectedIndex = selectedIndex < games.length - 1 ? selectedIndex + 1 : 0;
+                selectedIndex = selectedIndex < maxIndex ? selectedIndex + 1 : 0;
             }
             render();
         }
 
+        function selectOption(index) {
+            if (currentView !== "menu") return;
+            
+            if (index === 0) {
+                currentView = "games";
+                selectedIndex = 0;
+            } else if (index === 1) {
+                currentView = "highscores";
+                selectedIndex = 0;
+            } else if (index === 2) {
+                currentView = "leaderboard";
+                selectedIndex = 0;
+            } else if (index === 3) {
+                logout();
+                return;
+            }
+            
+            render();
+        }
+
         function launchGame(index) {
+            if (currentView !== "games") return;
             if (games[index] && games[index].available) {
                 const game = games[index];
                 localStorage.setItem(
@@ -315,20 +468,64 @@ READY: <span class="cursor">_</span>
                     e.preventDefault();
                     break;
                 case "Enter":
-                    launchGame(selectedIndex);
+                    if (currentView === "menu") {
+                        selectOption(selectedIndex);
+                    } else if (currentView === "games") {
+                        launchGame(selectedIndex);
+                    }
+                    e.preventDefault();
+                    break;
+                case "Escape":
+                    if (currentView !== "menu") {
+                        currentView = "menu";
+                        selectedIndex = 0;
+                        render();
+                    }
                     e.preventDefault();
                     break;
                 case "1":
+                    if (currentView === "menu") {
+                        selectOption(0);
+                    } else if (currentView === "games") {
+                        launchGame(0);
+                    }
+                    e.preventDefault();
+                    break;
                 case "2":
+                    if (currentView === "menu") {
+                        selectOption(1);
+                    } else if (currentView === "games") {
+                        launchGame(1);
+                    }
+                    e.preventDefault();
+                    break;
                 case "3":
+                    if (currentView === "menu") {
+                        selectOption(2);
+                    } else if (currentView === "games") {
+                        launchGame(2);
+                    }
+                    e.preventDefault();
+                    break;
                 case "4":
+                    if (currentView === "menu") {
+                        selectOption(3);
+                    } else if (currentView === "games") {
+                        launchGame(3);
+                    }
+                    e.preventDefault();
+                    break;
                 case "5":
-                    launchGame(parseInt(e.key) - 1);
+                    if (currentView === "games") {
+                        launchGame(4);
+                    }
                     e.preventDefault();
                     break;
                 case "l":
                 case "L":
-                    logout();
+                    if (currentView === "menu") {
+                        logout();
+                    }
                     e.preventDefault();
                     break;
             }
@@ -341,7 +538,11 @@ READY: <span class="cursor">_</span>
         username = checkLogin();
         if (username) {
             render();
-            setInterval(render, 1000);
+            setInterval(() => {
+                if (currentView === "menu") {
+                    render();
+                }
+            }, 1000);
             
             setTimeout(() => {
                 document.getElementById('loadingOverlay').classList.remove('active');
