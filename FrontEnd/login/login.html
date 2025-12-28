@@ -334,8 +334,16 @@
                 document.getElementById('loadingOverlay').classList.add('active');
                 setTimeout(() => {
                     window.location.href = "../signup/signup.html";
-                }, 800);
-            } else if (e.key === "ArrowDown") {
+                }, 800);  
+            } 
+            else if (e.key === "F1") {
+                e.preventDefault();
+                document.getElementById('loadingOverlay').classList.add('active');
+                setTimeout(() => {
+                    window.location.href = "../admin/admin login.html";
+                }, 800);  
+            }
+            else if (e.key === "ArrowDown") {
                 e.preventDefault();
                 navigateField('next');
             } else if (e.key === "ArrowUp") {

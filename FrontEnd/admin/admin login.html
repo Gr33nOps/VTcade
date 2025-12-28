@@ -27,7 +27,7 @@
         }
         .container {
             width: 100%;
-            max-width: 700px;
+            max-width: 600px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -201,7 +201,7 @@
             const fields = ["USERNAME", "PASSWORD"];
             const values = [username, password];
             
-            let output = `\n================================================================================\nADMINISTRATOR AUTHENTICATION\n================================================================================\n\n`;
+            let output = `\n================================================================================\nADMIN LOGIN\n================================================================================\n\n`;
 
             fields.forEach((field, index) => {
                 const isSelected = currentField === index;
@@ -223,7 +223,7 @@
 
             const submitSelected = currentField === 2;
             const submitPrefix = submitSelected ? '>>>' : '   ';
-            const submitText = isSubmitting ? '[ AUTHENTICATING... ]' : '[ LOGIN ]';
+            const submitText = isSubmitting ? '[ LOGGING IN... ]' : '[ LOGIN ]';
             let submitLine = `${submitPrefix} ${submitText}`;
             
             if (submitSelected) {
@@ -238,10 +238,10 @@
                 output += `<span class="error-text">ERROR: ${errorMessage}</span>\n\n`;
             }
             if (successMessage) {
-                output += `<span class="success-text">ACCESS GRANTED: ${successMessage}</span>\n\n`;
+                output += `<span class="success-text">${successMessage}</span>\n\n`;
             }
 
-            output += `\n================================================================================\nCOMMAND REFERENCE\n================================================================================\n\n    [↑/↓]              Navigate Fields\n    [ENTER]            Execute Selected\n    [ESC]              Return to Main Site\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
+            output += `\n================================================================================\n\n    [↑/↓] Navigate    [ENTER] Login\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
 
             terminalEl.innerHTML = output;
         }
@@ -285,7 +285,7 @@
             successMessage = "";
             
             if (!username || !password) {
-                errorMessage = "All fields are required";
+                errorMessage = "All fields required";
                 render();
                 return;
             }
@@ -303,41 +303,34 @@
                 const data = await res.json();
                 
                 if (!res.ok) {
-                    errorMessage = data?.message || "Authentication failed";
+                    errorMessage = data?.message || "Login failed";
                     isSubmitting = false;
                     render();
                     return;
                 }
                 
-                // Store admin credentials
                 localStorage.setItem("adminAuth", JSON.stringify({ username, password }));
                 
-                successMessage = "Loading admin panel";
+                successMessage = "Access granted";
                 isSubmitting = false;
                 render();
                 
                 setTimeout(() => {
                     document.getElementById('loadingOverlay').classList.add('active');
                     setTimeout(() => {
-                        window.location.href = "admin-panel.html";
+                        window.location.href = "Admin Panal.html";
                     }, 800);
                 }, 1000);
                 
             } catch (err) {
-                errorMessage = "Network error - Cannot reach server";
+                errorMessage = "Connection failed";
                 isSubmitting = false;
                 render();
             }
         }
 
         document.addEventListener("keydown", (e) => {
-            if (e.key === "Escape") {
-                e.preventDefault();
-                document.getElementById('loadingOverlay').classList.add('active');
-                setTimeout(() => {
-                    window.location.href = "../login/login.html";
-                }, 800);
-            } else if (e.key === "ArrowDown") {
+            if (e.key === "ArrowDown") {
                 e.preventDefault();
                 navigateField('next');
             } else if (e.key === "ArrowUp") {
@@ -358,12 +351,11 @@
             e.preventDefault();
         }, { passive: false });
 
-        // Check if already logged in
         const existingAuth = localStorage.getItem("adminAuth");
         if (existingAuth) {
             document.getElementById('loadingOverlay').classList.add('active');
             setTimeout(() => {
-                window.location.href = "admin-panel.html";
+                window.location.href = "admin panal.html";
             }, 500);
         } else {
             render();
