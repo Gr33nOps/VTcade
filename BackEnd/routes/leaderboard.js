@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Leaderboard = require("../models/leaderboard");
+const User = require("../models/User"); 
 
 router.post("/save", async (req, res) => {
     try {
@@ -14,6 +15,13 @@ router.post("/save", async (req, res) => {
         
         if (isNaN(numScore) || numScore < 0) {
             return res.status(400).json({ message: "Invalid score" });
+        }
+
+        // Find the user by username to get their userId
+        const user = await User.findOne({ username: username.trim() });
+        
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
         }
 
         const existing = await Leaderboard.findOne({ 
@@ -33,7 +41,9 @@ router.post("/save", async (req, res) => {
                 savedScore = existing.score;
             }
         } else {
+            // Now include userId when creating
             await Leaderboard.create({ 
+                userId: user._id,  // ✅ Added userId
                 username: username.trim(), 
                 game: game.trim(), 
                 score: numScore 
@@ -48,7 +58,8 @@ router.post("/save", async (req, res) => {
         });
 
     } catch (err) {
-        res.status(500).json({ message: "Server error" });
+        console.error('Leaderboard save error:', err);
+        res.status(500).json({ message: "Server error", error: err.message });
     }
 });
 
