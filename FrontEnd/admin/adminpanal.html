@@ -323,10 +323,8 @@ NAVIGATION
 
     [↑/↓]     Navigate Item              [←/→]       Change Page
     [B]       Ban User                   [U]         Unban User
-    [D]       Delete User                 [R]         Refresh
+    [D]       Delete User                [R]         Refresh
     [ESC]     Back to Menu
-
-    PAGE ${currentPage + 1} OF ${totalPages}
 
 ================================================================================
 
@@ -388,8 +386,6 @@ NAVIGATION
     [E]       Enable Game                [X]         Disable Game
     [ESC]     Back to Menu
 
-    PAGE ${currentPage + 1} OF ${totalPages}
-
 ================================================================================
 
 READY: <span class="cursor">_</span>
@@ -411,7 +407,7 @@ DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-LEADERBOARD CONTROL
+LEADERBOARD CONTROL (PAGE ${currentPage + 1} OF ${totalPages})
 ================================================================================
 
 `;
@@ -444,8 +440,6 @@ NAVIGATION
 
     [↑/↓]     Navigate List              [←/→]       Change Page
     [ENTER]   Select Game                 [ESC]       Back to Menu
-
-    PAGE ${currentPage + 1} OF ${totalPages}
 
 ================================================================================
 `;
@@ -486,8 +480,6 @@ COMMANDS
     [↑/↓]     Navigate Score             [←/→]       Change Page
     [F]       Flag Score                 [D]         Delete Score
     [Z]       Reset All Scores           [ESC]       Back
-
-    PAGE ${currentPage + 1} OF ${totalPages}
 
 ================================================================================
 `;
@@ -765,7 +757,6 @@ READY: <span class="cursor">_</span>
                 }
             }
 
-            // Clamp selection to current page
             if (list.length > 0) {
                 const start = currentPage * ITEMS_PER_PAGE;
                 const end = Math.min(start + ITEMS_PER_PAGE, list.length);

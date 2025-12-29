@@ -12,9 +12,7 @@ app.use(cors());
 connectDB();
 
 app.use("/api/admin", require("./routes/adminRoutes"));
-
 app.use("/api/auth", checkMaintenance, require("./routes/authRoutes"));
-app.use("/api/score", checkMaintenance, require("./routes/scoreRoutes"));
 app.use("/api/game", checkMaintenance, require("./routes/gameRoutes"));
 app.use("/api/leaderboard", checkMaintenance, require("./routes/leaderboard"));
 app.use("/api/highscore", checkMaintenance, require("./routes/highscore"));

@@ -176,9 +176,9 @@
         let selectedGame = null;
 
         const games = [
-            { id: 1, name: "FLAPPY BIRD", url: "../games/BlockFlap/index.html", available: true, apiName: "FLAPPY BIRD" },
-            { id: 2, name: "RUNNER", url: "../games/BlockRun/index.html", available: true, apiName: "RUNNER" },
-            { id: 3, name: "SNAKE", url: "../games/BlockSnake/index.html", available: true, apiName: "SNAKE" },
+            { id: 1, name: "FLAPPY BIRD", url: "../games/flappyBird/game.html", available: true, apiName: "FLAPPY BIRD" },
+            { id: 2, name: "RUNNER", url: "../games/runner/game.html", available: true, apiName: "RUNNER" },
+            { id: 3, name: "SNAKE", url: "../games/snake/game.html", available: true, apiName: "SNAKE" },
             { id: 4, name: "PROGRAM 04", url: "../games/game4/game.html", available: false, apiName: "PROGRAM 04" },
             { id: 5, name: "PROGRAM 05", url: "../games/game5/game.html", available: false, apiName: "PROGRAM 05" }
         ];
@@ -326,8 +326,6 @@ COMMANDS
     [ENTER]   Launch Game              [1-5]       Direct Launch
     [ESC]     Back to Menu
 
-    PAGE ${currentPage + 1} OF ${totalPages}
-
 ================================================================================
 
 READY: <span class="cursor">_</span>
@@ -426,8 +424,6 @@ COMMANDS
     [↑/↓]     Navigate                 [←/→]       Change Page
     [ENTER]   View Leaderboard          [ESC]       Back to Menu
 
-    PAGE ${currentPage + 1} OF ${totalPages}
-
 ================================================================================
 
 READY: <span class="cursor">_</span>
@@ -479,8 +475,6 @@ COMMANDS
 ================================================================================
 
     [←/→]     Change Page              [ESC]       Back to Game Selection
-
-    PAGE ${currentPage + 1} OF ${totalPages}
 
 ================================================================================
 
