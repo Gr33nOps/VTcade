@@ -5,7 +5,6 @@ async function checkMaintenance(req, res, next) {
         let settings = await SystemSettings.findOne();
         
         if (!settings) {
-            // If no settings exist, create default (not in maintenance)
             settings = await SystemSettings.create({ maintenanceMode: false });
         }
         
@@ -19,7 +18,7 @@ async function checkMaintenance(req, res, next) {
         next();
     } catch (err) {
         console.error("Maintenance check error:", err);
-        next(); // If check fails, allow request to proceed
+        next(); 
     }
 }
 
