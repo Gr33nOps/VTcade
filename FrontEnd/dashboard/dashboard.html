@@ -319,7 +319,7 @@ NAVIGATION
 ================================================================================
 
     [↑/↓]     Navigate Menu              [ENTER]     Select Option
-    [1-4]     Direct Access              [ESC]       Exit
+    [1-4]     Direct Access             
 
 ================================================================================
 
@@ -505,7 +505,7 @@ LEADERBOARD - ${selectedGame.toUpperCase()}
                 output += `    <span class="dim">NO SCORES FOUND</span>\n`;
             } else {
                 output += `    RANK  PLAYER             SCORE\n`;
-                output += `    ----  ---------------    --------\n\n`;
+                output += `    ----  ---------------    --------\n`;
                 
                 leaderboardData.slice(0, 20).forEach((entry, index) => {
                     const rank = `#${index + 1}`.padEnd(6);

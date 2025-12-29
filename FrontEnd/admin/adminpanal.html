@@ -49,17 +49,17 @@
             text-align: center;
             margin-top: 5px;
             display: block;
-            color: #ff0000;
+            color: #00ff00;
         }
         .highlight {
             background: #00ff00;
             color: black;
         }
         .red {
-            color: #ff0000;
+            color: #00ff00;
         }
         .yellow {
-            color: #ffff00;
+            color: #00ff00;
         }
         .dim {
             color: #006600;
@@ -141,6 +141,7 @@
 <span class="loading-dots">LOADING</span>
 
 ================================================================================
+
             </pre>
         </div>
     </div>
@@ -153,7 +154,7 @@
 ╚██╗ ██╔╝   ██║   ██║     ██╔══██║██║  ██║██╔══╝  
  ╚████╔╝    ██║   ╚██████╗██║  ██║██████╔╝███████╗
   ╚═══╝     ╚═╝    ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝
-                    <span class="subtitle">ADMIN CONTROL PANEL</span></pre>
+                    <span class="subtitle">Play Like It's 1985</span></pre>
         <pre id="terminal" class="terminal-output"></pre>
     </div>
 
@@ -207,7 +208,6 @@
             });
         }
 
-        // ==================== RENDER HOME ====================
         function renderHome() {
             const { date, time } = getDateTime();
             const statusColor = stats.status === "OK" ? "" : '<span class="red">';
@@ -227,7 +227,6 @@ ADMIN DASHBOARD
 
     TOTAL USERS:              ${stats.users || 0}
     TOTAL GAMES:              ${stats.games || 0}
-    SCORES TODAY:             ${stats.scoresToday || 0}
 
 ================================================================================
 MAIN MENU
@@ -272,7 +271,6 @@ READY: <span class="cursor">_</span>
             terminalEl.innerHTML = output;
         }
 
-        // ==================== RENDER USERS ====================
         function renderUsers() {
             const { date, time } = getDateTime();
             
@@ -329,7 +327,6 @@ READY: <span class="cursor">_</span>
             terminalEl.innerHTML = output;
         }
 
-        // ==================== RENDER GAMES ====================
         function renderGames() {
             const { date, time } = getDateTime();
             
@@ -373,8 +370,7 @@ COMMANDS
 ================================================================================
 
     [↑/↓]     Navigate List              [E]         Enable Game
-    [X]       Disable Game               [R]         Refresh
-    [ESC]     Back to Menu
+    [X]       Disable Game               [ESC]     Back to Menu
 
 ================================================================================
 
@@ -385,7 +381,6 @@ READY: <span class="cursor">_</span>
             terminalEl.innerHTML = output;
         }
 
-        // ==================== RENDER LEADERBOARDS ====================
         function renderLeaderboards() {
             const { date, time } = getDateTime();
             
@@ -472,7 +467,6 @@ READY: <span class="cursor">_</span>
             terminalEl.innerHTML = output;
         }
 
-        // ==================== RENDER MAINTENANCE ====================
         function renderMaintenance() {
             const { date, time } = getDateTime();
             const modeStatus = stats.maintenanceMode ? '<span class="red">ENABLED</span>' : '<span class="yellow">DISABLED</span>';
@@ -541,7 +535,6 @@ READY: <span class="cursor">_</span>
             terminalEl.innerHTML = output;
         }
 
-        // ==================== DATA LOADERS ====================
         function loadStats() {
             apiCall('/stats')
                 .then(res => res.json())
@@ -583,7 +576,6 @@ READY: <span class="cursor">_</span>
                 .catch(err => console.error(err));
         }
 
-        // ==================== ACTIONS ====================
         function banUser(userId) {
             if (!confirm("BAN THIS USER? Press OK to confirm.")) return;
             
@@ -745,7 +737,6 @@ READY: <span class="cursor">_</span>
             }, 800);
         }
 
-        // ==================== RENDER & NAVIGATION ====================
         function render() {
             switch(currentView) {
                 case "home":
@@ -792,7 +783,6 @@ READY: <span class="cursor">_</span>
             document.getElementById('loadingOverlay').classList.remove('active');
         }
 
-        // ==================== KEYBOARD HANDLER ====================
         document.addEventListener("keydown", (e) => {
             switch(e.key) {
                 case "ArrowUp":
@@ -929,7 +919,6 @@ READY: <span class="cursor">_</span>
             e.preventDefault();
         }, { passive: false });
 
-        // ==================== INITIALIZATION ====================
         adminAuth = checkAuth();
         if (adminAuth) {
             adminUsername = adminAuth.username.toUpperCase();
