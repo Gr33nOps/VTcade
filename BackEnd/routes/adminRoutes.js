@@ -18,7 +18,6 @@ function checkAdmin(req, res, next) {
     }
 }
 
-// Login
 router.post("/login", async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -36,21 +35,17 @@ router.post("/login", async (req, res) => {
     }
 });
 
-// ==================== ADMIN HOME ====================
-
 router.get("/stats", checkAdmin, async (req, res) => {
     try {
         const userCount = await User.countDocuments();
         const gameCount = await Game.countDocuments();
-        
-        // Scores submitted today
+
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const scoresToday = await Score.countDocuments({ 
             createdAt: { $gte: today } 
         });
         
-        // Get maintenance mode status
         let settings = await SystemSettings.findOne();
         if (!settings) {
             settings = await SystemSettings.create({ maintenanceMode: false });
@@ -67,8 +62,6 @@ router.get("/stats", checkAdmin, async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 });
-
-// ==================== USER CONTROL ====================
 
 router.get("/users", checkAdmin, async (req, res) => {
     try {
@@ -122,7 +115,6 @@ router.delete("/users/:id", checkAdmin, async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
         
-        // Also delete user's scores
         await Score.deleteMany({ userId: req.params.id });
         await Leaderboard.deleteMany({ userId: req.params.id });
         
@@ -131,8 +123,6 @@ router.delete("/users/:id", checkAdmin, async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 });
-
-// ==================== GAME CONTROL ====================
 
 router.get("/games", checkAdmin, async (req, res) => {
     try {
@@ -176,8 +166,6 @@ router.put("/games/:id/disable", checkAdmin, async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 });
-
-// ==================== SCOREBOARD CONTROL ====================
 
 router.get("/leaderboards", checkAdmin, async (req, res) => {
     try {
@@ -237,8 +225,6 @@ router.put("/leaderboards/:id/flag", checkAdmin, async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 });
-
-// ==================== MAINTENANCE MODE ====================
 
 router.get("/maintenance", checkAdmin, async (req, res) => {
     try {
