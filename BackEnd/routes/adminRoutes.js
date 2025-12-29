@@ -3,7 +3,6 @@ const router = express.Router();
 const User = require("../models/User");
 const Game = require("../models/Game");
 const Leaderboard = require("../models/leaderboard");
-const Score = require("../models/Score");
 const SystemSettings = require("../models/SystemSetting");
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
