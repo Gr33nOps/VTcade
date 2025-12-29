@@ -229,7 +229,6 @@ ADMIN LOGIN
 
             output += '\n';
 
-            // LOGIN button
             const loginSelected = currentField === 2;
             const loginPrefix = loginSelected ? '>>>' : '   ';
             const loginText = isSubmitting ? '[ LOGGING IN... ]' : '[ LOGIN ]';
@@ -241,7 +240,6 @@ ADMIN LOGIN
                 output += loginLine + '\n';
             }
 
-            // BACK TO USER LOGIN button
             const backSelected = currentField === 3;
             const backPrefix = backSelected ? '>>>' : '   ';
             const backLine = `${backPrefix} [ BACK TO USER LOGIN ]`;
@@ -267,7 +265,6 @@ NAVIGATION
 ================================================================================
 
     [↑/↓]     Navigate Fields           [ENTER]     Select/Submit
-    [ESC]     Back to User Login
 
 ================================================================================
 
@@ -294,7 +291,7 @@ READY: <span class="cursor">_</span>
 
         function handleTyping(key) {
             if (isSubmitting) return;
-            if (currentField > 1) return; // Only allow typing in username/password fields
+            if (currentField > 1) return; 
             
             errorMessage = "";
             successMessage = "";
@@ -382,9 +379,6 @@ READY: <span class="cursor">_</span>
                 } else if (currentField === 3) {
                     goToUserLogin();
                 }
-            } else if (e.key === "Escape") {
-                e.preventDefault();
-                goToUserLogin();
             } else if (e.key === "Backspace" || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
                 e.preventDefault();
                 handleTyping(e.key);
