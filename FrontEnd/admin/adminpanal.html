@@ -308,10 +308,10 @@ USER CONTROL - ${users.length} USERS (Page ${currentPage + 1}/${totalPages})
                     
                     if (isSelected) {
                         output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span>\n`;
-                        output += `        ${verifiedTag} ${bannedTag}\n\n`;
+                        output += `        ${verifiedTag} ${bannedTag}\n`;
                     } else {
                         output += line + '\n';
-                        output += `        ${verifiedTag} ${bannedTag}\n\n`;
+                        output += `        ${verifiedTag} ${bannedTag}\n`;
                     }
                 });
             }
@@ -371,10 +371,10 @@ GAME CONTROL - ${games.length} GAMES (Page ${currentPage + 1}/${totalPages})
                     
                     if (isSelected) {
                         output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span>\n`;
-                        output += `        STATUS: ${statusTag}\n\n`;
+                        output += `        STATUS: ${statusTag}\n`;
                     } else {
                         output += line + '\n';
-                        output += `        STATUS: ${statusTag}\n\n`;
+                        output += `        STATUS: ${statusTag}\n`;
                     }
                 });
             }
@@ -518,7 +518,6 @@ MAINTENANCE MODE
 ================================================================================
 
     CURRENT STATUS:           ${modeStatus}
-
     WHEN ENABLED:
     - User logins blocked
     - Score submissions blocked

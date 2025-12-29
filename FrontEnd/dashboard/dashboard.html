@@ -164,6 +164,9 @@
         const API_BASE_URL = 'https://vtcade.onrender.com/api';
         const terminalEl = document.getElementById("terminal");
         let selectedIndex = 0;
+        let currentPage = 0;
+        const ITEMS_PER_PAGE_GAMES = 5;     // For games list and game selection
+        const ITEMS_PER_PAGE_SCORES = 10;    // For leaderboard scores (more readable)
         let currentView = "menu";
         let username = "UNKNOWN";
         let userHighscores = {};
@@ -182,43 +185,25 @@
 
         function checkLogin() {
             const user = localStorage.getItem("currentUser");
-            
             if (!user) {
                 window.location.href = "../login/login.html";
                 return null;
             }
-
             return user;
         }
 
         async function fetchUserHighscores() {
             try {
                 errorMessage = "";
-                console.log('Fetching highscores for username:', username);
-                console.log('API URL:', `${API_BASE_URL}/highscore/user/${username}`);
-                
                 const response = await fetch(`${API_BASE_URL}/highscore/user/${username}`);
-                
-                console.log('Response status:', response.status);
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Response error:', errorText);
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
-                console.log('Highscores fetched:', data);
-                console.log('Number of scores:', data.scores?.length);
-                
                 if (data.scores) {
                     userHighscores = {};
                     data.scores.forEach(score => {
-                        console.log(`Adding highscore: ${score.game} = ${score.highscore}`);
                         userHighscores[score.game] = score.highscore;
                     });
                     totalGamesPlayed = data.total;
-                    console.log('Final userHighscores object:', userHighscores);
                 }
             } catch (error) {
                 console.error('Error fetching highscores:', error);
@@ -231,26 +216,13 @@
         async function fetchLeaderboard(game) {
             try {
                 errorMessage = "";
-                console.log('Fetching leaderboard for game:', game);
-                
-                const response = await fetch(`${API_BASE_URL}/leaderboard/${encodeURIComponent(game)}?limit=50`);
-                
-                if (!response.ok) {
-                    console.warn(`Failed to fetch leaderboard for ${game}`);
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                
+                const response = await fetch(`${API_BASE_URL}/leaderboard/${encodeURIComponent(game)}?limit=100`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
-                console.log(`Leaderboard for ${game}:`, data);
-                
-                leaderboardData = [];
-                if (data.leaderboard && Array.isArray(data.leaderboard)) {
-                    leaderboardData = data.leaderboard.map(entry => ({
-                        username: entry.username,
-                        score: entry.score
-                    }));
-                }
-                
+                leaderboardData = data.leaderboard?.map(entry => ({
+                    username: entry.username,
+                    score: entry.score
+                })) || [];
                 if (leaderboardData.length === 0) {
                     errorMessage = "No scores found for this game";
                 }
@@ -263,23 +235,13 @@
 
         function getDateTime() {
             const now = new Date();
-            const date = now.toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: '2-digit', 
-                day: '2-digit' 
-            });
-            const time = now.toLocaleTimeString('en-US', { 
-                hour12: false,
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
+            const date = now.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            const time = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
             return { date, time };
         }
 
         function renderMenu() {
             const { date, time } = getDateTime();
-            
             let output = `
 ================================================================================
 
@@ -305,12 +267,7 @@ USER DASHBOARD
                 const isSelected = index === selectedIndex;
                 const prefix = isSelected ? '>>>' : '   ';
                 const line = `${prefix} [${item.id}] ${item.name}`;
-                
-                if (isSelected) {
-                    output += `<span class="highlight">${line}</span>\n`;
-                } else {
-                    output += line + '\n';
-                }
+                output += isSelected ? `<span class="highlight">${line}</span>\n` : line + '\n';
             });
 
             output += `
@@ -324,15 +281,17 @@ NAVIGATION
 ================================================================================
 
 READY: <span class="cursor">_</span>
-
 `;
-
             terminalEl.innerHTML = output;
         }
 
         function renderGames() {
             const { date, time } = getDateTime();
-            
+            const start = currentPage * ITEMS_PER_PAGE_GAMES;
+            const end = Math.min(start + ITEMS_PER_PAGE_GAMES, games.length);
+            const visibleGames = games.slice(start, end);
+            const totalPages = Math.ceil(games.length / ITEMS_PER_PAGE_GAMES) || 1;
+
             let output = `
 ================================================================================
 
@@ -342,23 +301,20 @@ DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-AVAILABLE GAMES
+AVAILABLE GAMES (Page ${currentPage + 1}/${totalPages})
 ================================================================================
 
 `;
 
-            games.forEach((game, index) => {
-                const isSelected = index === selectedIndex;
+            visibleGames.forEach((game, idx) => {
+                const globalIndex = start + idx;
+                const isSelected = globalIndex === selectedIndex;
                 const prefix = isSelected ? '>>>' : '   ';
                 const status = game.available ? '<span class="yellow">[READY]</span>' : '<span class="dim">[LOCKED]</span>';
-                
-                let line = `${prefix} [${game.id}] ${game.name.padEnd(25)} ${status}`;
-                
-                if (isSelected && game.available) {
-                    output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span>\n`;
-                } else {
-                    output += line + '\n';
-                }
+                const line = `${prefix} [${game.id}] ${game.name.padEnd(25)} ${status}`;
+                output += isSelected && game.available 
+                    ? `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span>\n`
+                    : line + '\n';
             });
 
             output += `
@@ -366,21 +322,21 @@ AVAILABLE GAMES
 COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate List              [ENTER]     Launch Game
-    [1-5]     Direct Launch              [ESC]       Back to Menu
+    [↑/↓]     Navigate                 [←/→]       Change Page
+    [ENTER]   Launch Game              [1-5]       Direct Launch
+    [ESC]     Back to Menu
+
+    PAGE ${currentPage + 1} OF ${totalPages}
 
 ================================================================================
 
 READY: <span class="cursor">_</span>
-
 `;
-
             terminalEl.innerHTML = output;
         }
 
         function renderHighScores() {
             const { date, time } = getDateTime();
-            
             let output = `
 ================================================================================
 
@@ -428,15 +384,18 @@ COMMANDS
 ================================================================================
 
 READY: <span class="cursor">_</span>
-
 `;
-
             terminalEl.innerHTML = output;
         }
 
         function renderLeaderboardMenu() {
             const { date, time } = getDateTime();
-            
+            const availableGames = games.filter(g => g.available);
+            const start = currentPage * ITEMS_PER_PAGE_GAMES;
+            const end = Math.min(start + ITEMS_PER_PAGE_GAMES, availableGames.length);
+            const visibleGames = availableGames.slice(start, end);
+            const totalPages = Math.ceil(availableGames.length / ITEMS_PER_PAGE_GAMES) || 1;
+
             let output = `
 ================================================================================
 
@@ -446,23 +405,17 @@ DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-LEADERBOARD - SELECT GAME
+LEADERBOARD - SELECT GAME (Page ${currentPage + 1}/${totalPages})
 ================================================================================
 
 `;
 
-            const availableGames = games.filter(g => g.available);
-
-            availableGames.forEach((game, index) => {
-                const isSelected = index === selectedIndex;
+            visibleGames.forEach((game, idx) => {
+                const globalIndex = start + idx;
+                const isSelected = globalIndex === selectedIndex;
                 const prefix = isSelected ? '>>>' : '   ';
-                const line = `${prefix} [${index + 1}] ${game.name}`;
-                
-                if (isSelected) {
-                    output += `<span class="highlight">${line}</span>\n`;
-                } else {
-                    output += line + '\n';
-                }
+                const line = `${prefix} [${globalIndex + 1}] ${game.name}`;
+                output += isSelected ? `<span class="highlight">${line}</span>\n` : line + '\n';
             });
 
             output += `
@@ -470,21 +423,25 @@ LEADERBOARD - SELECT GAME
 COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate List              [ENTER]     Select Game
-    [1-${availableGames.length}]     Direct Select              [ESC]       Back to Menu
+    [↑/↓]     Navigate                 [←/→]       Change Page
+    [ENTER]   View Leaderboard          [ESC]       Back to Menu
+
+    PAGE ${currentPage + 1} OF ${totalPages}
 
 ================================================================================
 
 READY: <span class="cursor">_</span>
-
 `;
-
             terminalEl.innerHTML = output;
         }
 
         function renderLeaderboard() {
             const { date, time } = getDateTime();
-            
+            const start = currentPage * ITEMS_PER_PAGE_SCORES;
+            const end = Math.min(start + ITEMS_PER_PAGE_SCORES, leaderboardData.length);
+            const visibleScores = leaderboardData.slice(start, end);
+            const totalPages = Math.ceil(leaderboardData.length / ITEMS_PER_PAGE_SCORES) || 1;
+
             let output = `
 ================================================================================
 
@@ -494,7 +451,7 @@ DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-LEADERBOARD - ${selectedGame.toUpperCase()}
+LEADERBOARD - ${selectedGame.toUpperCase()} (Page ${currentPage + 1}/${totalPages})
 ================================================================================
 
 `;
@@ -507,11 +464,11 @@ LEADERBOARD - ${selectedGame.toUpperCase()}
                 output += `    RANK  PLAYER             SCORE\n`;
                 output += `    ----  ---------------    --------\n`;
                 
-                leaderboardData.slice(0, 20).forEach((entry, index) => {
-                    const rank = `#${index + 1}`.padEnd(6);
+                visibleScores.forEach((entry, idx) => {
+                    const globalRank = start + idx + 1;
+                    const rank = `#${globalRank}`.padEnd(6);
                     const player = entry.username.substring(0, 15).padEnd(19);
                     const score = entry.score.toLocaleString().padStart(8);
-                    
                     output += `    ${rank}${player}${score}\n`;
                 });
             }
@@ -521,52 +478,89 @@ LEADERBOARD - ${selectedGame.toUpperCase()}
 COMMANDS
 ================================================================================
 
-    [ESC]     Back to Game Selection
+    [←/→]     Change Page              [ESC]       Back to Game Selection
+
+    PAGE ${currentPage + 1} OF ${totalPages}
 
 ================================================================================
 
 READY: <span class="cursor">_</span>
-
 `;
-
             terminalEl.innerHTML = output;
         }
 
         function render() {
             switch(currentView) {
-                case "menu":
-                    renderMenu();
-                    break;
-                case "games":
-                    renderGames();
-                    break;
-                case "highscores":
-                    renderHighScores();
-                    break;
-                case "leaderboard-menu":
-                    renderLeaderboardMenu();
-                    break;
-                case "leaderboard":
-                    renderLeaderboard();
-                    break;
+                case "menu": renderMenu(); break;
+                case "games": renderGames(); break;
+                case "highscores": renderHighScores(); break;
+                case "leaderboard-menu": renderLeaderboardMenu(); break;
+                case "leaderboard": renderLeaderboard(); break;
             }
         }
 
         function navigate(direction) {
+            let list = [];
+            let itemsPerPage = ITEMS_PER_PAGE_GAMES;
             let maxIndex = 0;
-            
-            if (currentView === "menu") maxIndex = 3;
-            else if (currentView === "games") maxIndex = games.length - 1;
-            else if (currentView === "leaderboard-menu") {
-                const availableGames = games.filter(g => g.available);
-                maxIndex = availableGames.length - 1;
+
+            if (currentView === "menu") {
+                maxIndex = 3;
+            } else if (currentView === "games") {
+                list = games;
+                maxIndex = games.length - 1;
+            } else if (currentView === "leaderboard-menu") {
+                list = games.filter(g => g.available);
+                maxIndex = list.length - 1;
+            } else if (currentView === "leaderboard") {
+                list = leaderboardData;
+                itemsPerPage = ITEMS_PER_PAGE_SCORES;
+                maxIndex = leaderboardData.length - 1;
             }
-            
-            if (direction === 'up') {
-                selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : maxIndex;
+
+            if (direction === 'left') {
+                if (currentPage > 0) {
+                    currentPage--;
+                    selectedIndex = currentPage * itemsPerPage;
+                    render();
+                }
+                return;
+            } else if (direction === 'right') {
+                const totalPages = Math.ceil((maxIndex + 1) / itemsPerPage);
+                if (currentPage < totalPages - 1) {
+                    currentPage++;
+                    selectedIndex = currentPage * itemsPerPage;
+                    render();
+                }
+                return;
+            } else if (direction === 'up') {
+                if (selectedIndex > 0) {
+                    selectedIndex--;
+                } else if (currentPage > 0) {
+                    currentPage--;
+                    selectedIndex = Math.min((currentPage + 1) * itemsPerPage - 1, maxIndex);
+                } else {
+                    selectedIndex = maxIndex;
+                }
             } else if (direction === 'down') {
-                selectedIndex = selectedIndex < maxIndex ? selectedIndex + 1 : 0;
+                if (selectedIndex < maxIndex) {
+                    selectedIndex++;
+                } else if (currentPage < Math.ceil((maxIndex + 1) / itemsPerPage) - 1) {
+                    currentPage++;
+                    selectedIndex = currentPage * itemsPerPage;
+                } else {
+                    selectedIndex = 0;
+                }
             }
+
+            // Clamp to current page
+            if (list.length > 0) {
+                const start = currentPage * itemsPerPage;
+                const end = Math.min(start + itemsPerPage, list.length);
+                if (selectedIndex < start) selectedIndex = start;
+                if (selectedIndex >= end) selectedIndex = end - 1;
+            }
+
             render();
         }
 
@@ -574,6 +568,7 @@ READY: <span class="cursor">_</span>
             if (currentView === "menu") {
                 if (index === 0) {
                     currentView = "games";
+                    currentPage = 0;
                     selectedIndex = 0;
                     render();
                 } else if (index === 1) {
@@ -581,22 +576,24 @@ READY: <span class="cursor">_</span>
                     await fetchUserHighscores();
                     document.getElementById('loadingOverlay').classList.remove('active');
                     currentView = "highscores";
-                    selectedIndex = 0;
                     render();
                 } else if (index === 2) {
                     currentView = "leaderboard-menu";
+                    currentPage = 0;
                     selectedIndex = 0;
                     render();
                 } else if (index === 3) {
                     logout();
-                    return;
                 }
             } else if (currentView === "leaderboard-menu") {
                 const availableGames = games.filter(g => g.available);
-                if (index >= 0 && index < availableGames.length) {
-                    selectedGame = availableGames[index].apiName;
+                const globalIndex = currentPage * ITEMS_PER_PAGE_GAMES + index;
+                if (globalIndex < availableGames.length) {
+                    selectedGame = availableGames[globalIndex].apiName;
                     document.getElementById('loadingOverlay').classList.add('active');
                     await fetchLeaderboard(selectedGame);
+                    currentPage = 0;
+                    selectedIndex = 0;
                     document.getElementById('loadingOverlay').classList.remove('active');
                     currentView = "leaderboard";
                     render();
@@ -604,26 +601,18 @@ READY: <span class="cursor">_</span>
             }
         }
 
-        function launchGame(index) {
-            if (currentView !== "games") return;
-            if (games[index] && games[index].available) {
-                const game = games[index];
-                localStorage.setItem(
-                    "currentGame",
-                    JSON.stringify({ name: game.name, selectedAt: Date.now() })
-                );
-                
+        function launchGame(globalIndex) {
+            if (currentView !== "games" || globalIndex >= games.length) return;
+            const game = games[globalIndex];
+            if (game.available) {
+                localStorage.setItem("currentGame", JSON.stringify({ name: game.name, selectedAt: Date.now() }));
                 document.getElementById('loadingOverlay').classList.add('active');
-                
-                setTimeout(() => {
-                    window.location.href = game.url;
-                }, 800);
+                setTimeout(() => window.location.href = game.url, 800);
             }
         }
 
         function logout() {
             document.getElementById('loadingOverlay').classList.add('active');
-            
             setTimeout(() => {
                 localStorage.removeItem("currentUser");
                 window.location.href = "../login/login.html";
@@ -632,103 +621,61 @@ READY: <span class="cursor">_</span>
 
         document.addEventListener("keydown", (e) => {
             switch(e.key) {
-                case "ArrowUp":
-                    navigate('up');
-                    e.preventDefault();
-                    break;
-                case "ArrowDown":
-                    navigate('down');
-                    e.preventDefault();
-                    break;
+                case "ArrowUp": navigate('up'); e.preventDefault(); break;
+                case "ArrowDown": navigate('down'); e.preventDefault(); break;
+                case "ArrowLeft": navigate('left'); e.preventDefault(); break;
+                case "ArrowRight": navigate('right'); e.preventDefault(); break;
                 case "Enter":
                     if (currentView === "menu") {
                         selectOption(selectedIndex);
                     } else if (currentView === "games") {
                         launchGame(selectedIndex);
                     } else if (currentView === "leaderboard-menu") {
-                        selectOption(selectedIndex);
+                        selectOption(selectedIndex - currentPage * ITEMS_PER_PAGE_GAMES);
                     }
                     e.preventDefault();
                     break;
                 case "Escape":
                     if (currentView === "leaderboard") {
                         currentView = "leaderboard-menu";
+                        currentPage = 0;
                         selectedIndex = 0;
                         selectedGame = null;
                         render();
                     } else if (currentView !== "menu") {
                         currentView = "menu";
+                        currentPage = 0;
                         selectedIndex = 0;
                         selectedGame = null;
                         render();
                     }
                     e.preventDefault();
                     break;
-                case "1":
+                case "1": case "2": case "3": case "4": case "5":
+                    const num = parseInt(e.key) - 1;
                     if (currentView === "menu") {
-                        selectOption(0);
+                        selectOption(num);
                     } else if (currentView === "games") {
-                        launchGame(0);
-                    } else if (currentView === "leaderboard-menu") {
-                        selectOption(0);
-                    }
-                    e.preventDefault();
-                    break;
-                case "2":
-                    if (currentView === "menu") {
-                        selectOption(1);
-                    } else if (currentView === "games") {
-                        launchGame(1);
-                    } else if (currentView === "leaderboard-menu") {
-                        selectOption(1);
-                    }
-                    e.preventDefault();
-                    break;
-                case "3":
-                    if (currentView === "menu") {
-                        selectOption(2);
-                    } else if (currentView === "games") {
-                        launchGame(2);
-                    } else if (currentView === "leaderboard-menu") {
-                        selectOption(2);
-                    }
-                    e.preventDefault();
-                    break;
-                case "4":
-                    if (currentView === "menu") {
-                        selectOption(3);
-                    } else if (currentView === "games") {
-                        launchGame(3);
-                    }
-                    e.preventDefault();
-                    break;
-                case "5":
-                    if (currentView === "games") {
-                        launchGame(4);
+                        const globalIndex = currentPage * ITEMS_PER_PAGE_GAMES + num;
+                        if (globalIndex < games.length) launchGame(globalIndex);
                     }
                     e.preventDefault();
                     break;
             }
         });
 
-        document.addEventListener("wheel", (e) => {
-            e.preventDefault();
-        }, { passive: false });
+        document.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
 
         async function init() {
             username = checkLogin();
             if (username) {
+                username = username.toUpperCase();
                 await fetchUserHighscores();
                 render();
                 setInterval(() => {
-                    if (currentView === "menu") {
-                        render();
-                    }
+                    if (currentView === "menu") render();
                 }, 1000);
-                
-                setTimeout(() => {
-                    document.getElementById('loadingOverlay').classList.remove('active');
-                }, 500);
+                setTimeout(() => document.getElementById('loadingOverlay').classList.remove('active'), 500);
             }
         }
 
