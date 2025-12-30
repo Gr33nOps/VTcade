@@ -737,7 +737,6 @@ READY: <span class="cursor">_</span>
         async function init() {
             username = checkLogin();
             if (username) {
-                username = username.toUpperCase();
                 await fetchUserHighscores();
                 render();
                 setInterval(() => {
