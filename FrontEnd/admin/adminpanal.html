@@ -49,7 +49,7 @@
             text-align: center;
             margin-top: 5px;
             display: block;
-            color: #00ff00;
+            color: #ff0000;
         }
         .highlight {
             background: #00ff00;
@@ -141,7 +141,6 @@
 <span class="loading-dots">LOADING</span>
 
 ================================================================================
-
             </pre>
         </div>
     </div>
@@ -154,7 +153,7 @@
 ╚██╗ ██╔╝   ██║   ██║     ██╔══██║██║  ██║██╔══╝  
  ╚████╔╝    ██║   ╚██████╗██║  ██║██████╔╝███████╗
   ╚═══╝     ╚═╝    ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝
-                    <span class="subtitle">Play Like It's 1985</span></pre>
+                    <span class="subtitle">ADMIN CONTROL PANEL</span></pre>
         <pre id="terminal" class="terminal-output"></pre>
     </div>
 
@@ -162,8 +161,6 @@
         const API_URL = "https://vtcade.onrender.com";
         const terminalEl = document.getElementById("terminal");
         let selectedIndex = 0;
-        let currentPage = 0;
-        const ITEMS_PER_PAGE = 5;
         let currentView = "home";
         let adminAuth = null;
         let adminUsername = "UNKNOWN";
@@ -210,6 +207,7 @@
             });
         }
 
+        // ==================== RENDER HOME ====================
         function renderHome() {
             const { date, time } = getDateTime();
             const statusColor = stats.status === "OK" ? "" : '<span class="red">';
@@ -239,7 +237,7 @@ MAIN MENU
             const menuItems = [
                 { id: 1, name: "USER CONTROL" },
                 { id: 2, name: "GAME CONTROL" },
-                { id: 3, name: "LEADERBOARD CONTROL" },
+                { id: 3, name: "SCOREBOARD CONTROL" },
                 { id: 4, name: "MAINTENANCE MODE" },
                 { id: 5, name: "LOGOUT" }
             ];
@@ -273,13 +271,10 @@ READY: <span class="cursor">_</span>
             terminalEl.innerHTML = output;
         }
 
+        // ==================== RENDER USERS ====================
         function renderUsers() {
             const { date, time } = getDateTime();
-            const start = currentPage * ITEMS_PER_PAGE;
-            const end = Math.min(start + ITEMS_PER_PAGE, users.length);
-            const visibleUsers = users.slice(start, end);
-            const totalPages = Math.ceil(users.length / ITEMS_PER_PAGE) || 1;
-
+            
             let output = `
 ================================================================================
 
@@ -289,7 +284,7 @@ DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-USER CONTROL - ${users.length} USERS (Page ${currentPage + 1}/${totalPages})
+USER CONTROL - ${users.length} USERS
 ================================================================================
 
 `;
@@ -297,34 +292,32 @@ USER CONTROL - ${users.length} USERS (Page ${currentPage + 1}/${totalPages})
             if (users.length === 0) {
                 output += `    <span class="dim">NO USERS FOUND</span>\n`;
             } else {
-                visibleUsers.forEach((user, idx) => {
-                    const globalIndex = start + idx;
-                    const isSelected = globalIndex === selectedIndex;
+                users.forEach((user, index) => {
+                    const isSelected = index === selectedIndex;
                     const prefix = isSelected ? '>>>' : '   ';
                     const bannedTag = user.isBanned ? '<span class="red">[BANNED]</span>' : '';
                     const verifiedTag = user.isVerified ? '<span class="yellow">[VERIFIED]</span>' : '';
                     
-                    const line = `${prefix} [${globalIndex + 1}] ${user.username.padEnd(15)} ${user.email.padEnd(30)}`;
+                    const line = `${prefix} [${index + 1}] ${user.username.padEnd(15)} ${user.email.padEnd(30)}`;
                     
                     if (isSelected) {
                         output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span>\n`;
-                        output += `        ${verifiedTag} ${bannedTag}\n`;
+                        output += `        ${verifiedTag} ${bannedTag}\n\n`;
                     } else {
                         output += line + '\n';
-                        output += `        ${verifiedTag} ${bannedTag}\n`;
+                        output += `        ${verifiedTag} ${bannedTag}\n\n`;
                     }
                 });
             }
 
             output += `
 ================================================================================
-NAVIGATION
+COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate Item              [←/→]       Change Page
-    [B]       Ban User                   [U]         Unban User
-    [D]       Delete User                [R]         Refresh
-    [ESC]     Back to Menu
+    [↑/↓]     Navigate List              [B]         Ban User
+    [U]       Unban User                 [D]         Delete User
+    [R]       Refresh                    [ESC]       Back to Menu
 
 ================================================================================
 
@@ -335,13 +328,10 @@ READY: <span class="cursor">_</span>
             terminalEl.innerHTML = output;
         }
 
+        // ==================== RENDER GAMES ====================
         function renderGames() {
             const { date, time } = getDateTime();
-            const start = currentPage * ITEMS_PER_PAGE;
-            const end = Math.min(start + ITEMS_PER_PAGE, games.length);
-            const visibleGames = games.slice(start, end);
-            const totalPages = Math.ceil(games.length / ITEMS_PER_PAGE) || 1;
-
+            
             let output = `
 ================================================================================
 
@@ -351,7 +341,7 @@ DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-GAME CONTROL - ${games.length} GAMES (Page ${currentPage + 1}/${totalPages})
+GAME CONTROL - ${games.length} GAMES
 ================================================================================
 
 `;
@@ -359,31 +349,30 @@ GAME CONTROL - ${games.length} GAMES (Page ${currentPage + 1}/${totalPages})
             if (games.length === 0) {
                 output += `    <span class="dim">NO GAMES FOUND</span>\n`;
             } else {
-                visibleGames.forEach((game, idx) => {
-                    const globalIndex = start + idx;
-                    const isSelected = globalIndex === selectedIndex;
+                games.forEach((game, index) => {
+                    const isSelected = index === selectedIndex;
                     const prefix = isSelected ? '>>>' : '   ';
                     const statusTag = game.isActive ? '<span class="yellow">[ENABLED]</span>' : '<span class="red">[DISABLED]</span>';
                     
-                    const line = `${prefix} [${globalIndex + 1}] ${game.title.padEnd(25)} ${game.genre.padEnd(15)}`;
+                    const line = `${prefix} [${index + 1}] ${game.title.padEnd(25)} ${game.genre.padEnd(15)}`;
                     
                     if (isSelected) {
                         output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span>\n`;
-                        output += `        STATUS: ${statusTag}\n`;
+                        output += `        STATUS: ${statusTag}\n\n`;
                     } else {
                         output += line + '\n';
-                        output += `        STATUS: ${statusTag}\n`;
+                        output += `        STATUS: ${statusTag}\n\n`;
                     }
                 });
             }
 
             output += `
 ================================================================================
-NAVIGATION
+COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate Item              [←/→]       Change Page
-    [E]       Enable Game                [X]         Disable Game
+    [↑/↓]     Navigate List              [E]         Enable Game
+    [X]       Disable Game               [R]         Refresh
     [ESC]     Back to Menu
 
 ================================================================================
@@ -395,6 +384,7 @@ READY: <span class="cursor">_</span>
             terminalEl.innerHTML = output;
         }
 
+        // ==================== RENDER LEADERBOARDS ====================
         function renderLeaderboards() {
             const { date, time } = getDateTime();
             
@@ -407,7 +397,7 @@ DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-LEADERBOARD CONTROL (PAGE ${currentPage + 1} OF ${totalPages})
+SCOREBOARD CONTROL
 ================================================================================
 
 `;
@@ -415,16 +405,10 @@ LEADERBOARD CONTROL (PAGE ${currentPage + 1} OF ${totalPages})
             if (!selectedGame) {
                 output += `SELECT A GAME TO VIEW LEADERBOARD:\n\n`;
                 
-                const start = currentPage * ITEMS_PER_PAGE;
-                const end = Math.min(start + ITEMS_PER_PAGE, games.length);
-                const visibleGames = games.slice(start, end);
-                const totalPages = Math.ceil(games.length / ITEMS_PER_PAGE) || 1;
-
-                visibleGames.forEach((game, idx) => {
-                    const globalIndex = start + idx;
-                    const isSelected = globalIndex === selectedIndex;
+                games.forEach((game, index) => {
+                    const isSelected = index === selectedIndex;
                     const prefix = isSelected ? '>>>' : '   ';
-                    const line = `${prefix} [${globalIndex + 1}] ${game.title}`;
+                    const line = `${prefix} [${index + 1}] ${game.title}`;
                     
                     if (isSelected) {
                         output += `<span class="highlight">${line}</span>\n`;
@@ -435,34 +419,28 @@ LEADERBOARD CONTROL (PAGE ${currentPage + 1} OF ${totalPages})
 
                 output += `
 ================================================================================
-NAVIGATION
+COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate List              [←/→]       Change Page
-    [ENTER]   Select Game                 [ESC]       Back to Menu
+    [↑/↓]     Navigate List              [ENTER]     Select Game
+    [ESC]     Back to Menu
 
 ================================================================================
 `;
             } else {
-                const start = currentPage * ITEMS_PER_PAGE;
-                const end = Math.min(start + ITEMS_PER_PAGE, leaderboards.length);
-                const visibleEntries = leaderboards.slice(start, end);
-                const totalPages = Math.ceil(leaderboards.length / ITEMS_PER_PAGE) || 1;
-
-                output += `GAME: ${selectedGame.toUpperCase()} (Page ${currentPage + 1}/${totalPages})\n`;
-                output += `SHOWING SCORES ${start + 1}-${end} OF ${leaderboards.length}\n\n`;
+                output += `GAME: ${selectedGame.toUpperCase()}\n`;
+                output += `SHOWING TOP ${Math.min(leaderboards.length, 100)} SCORES\n\n`;
 
                 if (leaderboards.length === 0) {
                     output += `    <span class="dim">NO SCORES FOUND</span>\n`;
                 } else {
-                    visibleEntries.forEach((entry, idx) => {
-                        const globalIndex = start + idx;
-                        const isSelected = globalIndex === selectedIndex;
+                    leaderboards.forEach((entry, index) => {
+                        const isSelected = index === selectedIndex;
                         const prefix = isSelected ? '>>>' : '   ';
                         const flagTag = entry.isFlagged ? '<span class="yellow">[FLAGGED]</span>' : '';
                         const username = entry.userId?.username || entry.username || 'UNKNOWN';
                         
-                        const line = `${prefix} [${globalIndex + 1}] ${username.padEnd(15)} SCORE: ${String(entry.score).padStart(8)}`;
+                        const line = `${prefix} [${index + 1}] ${username.padEnd(15)} SCORE: ${String(entry.score).padStart(8)}`;
                         
                         if (isSelected) {
                             output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span> ${flagTag}\n`;
@@ -477,9 +455,9 @@ NAVIGATION
 COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate Score             [←/→]       Change Page
-    [F]       Flag Score                 [D]         Delete Score
-    [Z]       Reset All Scores           [ESC]       Back
+    [↑/↓]     Navigate List              [F]         Flag Score
+    [D]       Delete Score               [Z]         Reset All Scores
+    [ESC]     Back to Menu
 
 ================================================================================
 `;
@@ -493,6 +471,7 @@ READY: <span class="cursor">_</span>
             terminalEl.innerHTML = output;
         }
 
+        // ==================== RENDER MAINTENANCE ====================
         function renderMaintenance() {
             const { date, time } = getDateTime();
             const modeStatus = stats.maintenanceMode ? '<span class="red">ENABLED</span>' : '<span class="yellow">DISABLED</span>';
@@ -510,6 +489,7 @@ MAINTENANCE MODE
 ================================================================================
 
     CURRENT STATUS:           ${modeStatus}
+
     WHEN ENABLED:
     - User logins blocked
     - Score submissions blocked
@@ -560,6 +540,7 @@ READY: <span class="cursor">_</span>
             terminalEl.innerHTML = output;
         }
 
+        // ==================== DATA LOADERS ====================
         function loadStats() {
             apiCall('/stats')
                 .then(res => res.json())
@@ -567,31 +548,39 @@ READY: <span class="cursor">_</span>
                     stats = data;
                     render();
                 })
-                .catch(err => console.error(err));
+                .catch(err => {
+                    console.error('Error loading stats:', err);
+                    stats = { users: 0, games: 0, status: "ERROR" };
+                    render();
+                });
         }
 
         function loadUsers() {
             apiCall('/users')
                 .then(res => res.json())
                 .then(data => {
-                    users = data.users;
-                    currentPage = 0;
-                    selectedIndex = 0;
+                    users = data.users || [];
                     render();
                 })
-                .catch(err => console.error(err));
+                .catch(err => {
+                    console.error('Error loading users:', err);
+                    users = [];
+                    render();
+                });
         }
 
         function loadGames() {
             apiCall('/games')
                 .then(res => res.json())
                 .then(data => {
-                    games = data.games;
-                    currentPage = 0;
-                    selectedIndex = 0;
+                    games = data.games || [];
                     render();
                 })
-                .catch(err => console.error(err));
+                .catch(err => {
+                    console.error('Error loading games:', err);
+                    games = [];
+                    render();
+                });
         }
 
         function loadLeaderboards(game) {
@@ -599,87 +588,168 @@ READY: <span class="cursor">_</span>
             apiCall(`/leaderboards${query}`)
                 .then(res => res.json())
                 .then(data => {
-                    leaderboards = data.leaderboards;
-                    currentPage = 0;
-                    selectedIndex = 0;
+                    leaderboards = data.leaderboards || [];
                     render();
                 })
-                .catch(err => console.error(err));
+                .catch(err => {
+                    console.error('Error loading leaderboards:', err);
+                    leaderboards = [];
+                    render();
+                });
         }
 
+        // ==================== ACTIONS ====================
         function banUser(userId) {
             if (!confirm("BAN THIS USER? Press OK to confirm.")) return;
+            
             showLoading();
             apiCall(`/users/${userId}/ban`, { method: 'PUT' })
-                .then(() => { hideLoading(); loadUsers(); })
-                .catch(() => { hideLoading(); alert("ERROR: Failed to ban user"); });
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    loadUsers();
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to ban user");
+                });
         }
 
         function unbanUser(userId) {
             showLoading();
             apiCall(`/users/${userId}/unban`, { method: 'PUT' })
-                .then(() => { hideLoading(); loadUsers(); })
-                .catch(() => { hideLoading(); alert("ERROR: Failed to unban user"); });
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    loadUsers();
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to unban user");
+                });
         }
 
         function deleteUser(userId) {
             if (!confirm("DELETE USER? ALL DATA WILL BE REMOVED. Press OK to confirm.")) return;
+            
             showLoading();
             apiCall(`/users/${userId}`, { method: 'DELETE' })
-                .then(() => { hideLoading(); loadUsers(); })
-                .catch(() => { hideLoading(); alert("ERROR: Failed to delete user"); });
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    selectedIndex = 0;
+                    loadUsers();
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to delete user");
+                });
         }
 
         function enableGame(gameId) {
             showLoading();
             apiCall(`/games/${gameId}/enable`, { method: 'PUT' })
-                .then(() => { hideLoading(); loadGames(); })
-                .catch(() => { hideLoading(); alert("ERROR: Failed to enable game"); });
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    loadGames();
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to enable game");
+                });
         }
 
         function disableGame(gameId) {
             showLoading();
             apiCall(`/games/${gameId}/disable`, { method: 'PUT' })
-                .then(() => { hideLoading(); loadGames(); })
-                .catch(() => { hideLoading(); alert("ERROR: Failed to disable game"); });
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    loadGames();
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to disable game");
+                });
         }
 
         function flagScore(entryId) {
             showLoading();
             apiCall(`/leaderboards/${entryId}/flag`, { method: 'PUT' })
-                .then(() => { hideLoading(); loadLeaderboards(selectedGame); })
-                .catch(() => { hideLoading(); alert("ERROR: Failed to flag score"); });
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    loadLeaderboards(selectedGame);
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to flag score");
+                });
         }
 
         function deleteScore(entryId) {
             if (!confirm("DELETE THIS SCORE? Press OK to confirm.")) return;
+            
             showLoading();
             apiCall(`/leaderboards/${entryId}`, { method: 'DELETE' })
-                .then(() => { hideLoading(); loadLeaderboards(selectedGame); })
-                .catch(() => { hideLoading(); alert("ERROR: Failed to delete score"); });
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    selectedIndex = 0;
+                    loadLeaderboards(selectedGame);
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to delete score");
+                });
         }
 
         function resetLeaderboard(game) {
             if (!confirm(`RESET ALL SCORES FOR ${game.toUpperCase()}? THIS CANNOT BE UNDONE. Press OK to confirm.`)) return;
+            
             showLoading();
             apiCall(`/leaderboards/reset/${encodeURIComponent(game)}`, { method: 'DELETE' })
-                .then(() => { hideLoading(); loadLeaderboards(selectedGame); })
-                .catch(() => { hideLoading(); alert("ERROR: Failed to reset leaderboard"); });
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    selectedIndex = 0;
+                    loadLeaderboards(selectedGame);
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to reset leaderboard");
+                });
         }
 
         function enableMaintenance() {
             if (!confirm("ENABLE MAINTENANCE MODE? Users will be unable to login or submit scores. Press OK to confirm.")) return;
+            
             showLoading();
             apiCall('/maintenance/enable', { method: 'PUT' })
-                .then(() => { hideLoading(); loadStats(); })
-                .catch(() => { hideLoading(); alert("ERROR: Failed to enable maintenance mode"); });
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    loadStats();
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to enable maintenance mode");
+                });
         }
 
         function disableMaintenance() {
             showLoading();
             apiCall('/maintenance/disable', { method: 'PUT' })
-                .then(() => { hideLoading(); loadStats(); })
-                .catch(() => { hideLoading(); alert("ERROR: Failed to disable maintenance mode"); });
+                .then(res => res.json())
+                .then(() => {
+                    hideLoading();
+                    loadStats();
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert("ERROR: Failed to disable maintenance mode");
+                });
         }
 
         function logout() {
@@ -690,80 +760,42 @@ READY: <span class="cursor">_</span>
             }, 800);
         }
 
+        // ==================== RENDER & NAVIGATION ====================
         function render() {
             switch(currentView) {
-                case "home": renderHome(); break;
-                case "users": renderUsers(); break;
-                case "games": renderGames(); break;
-                case "leaderboards": renderLeaderboards(); break;
-                case "maintenance": renderMaintenance(); break;
+                case "home":
+                    renderHome();
+                    break;
+                case "users":
+                    renderUsers();
+                    break;
+                case "games":
+                    renderGames();
+                    break;
+                case "leaderboards":
+                    renderLeaderboards();
+                    break;
+                case "maintenance":
+                    renderMaintenance();
+                    break;
             }
         }
 
         function navigate(direction) {
-            let list = [];
             let maxIndex = 0;
-
-            if (currentView === "home") {
-                maxIndex = 4;
-            } else if (currentView === "users") {
-                list = users;
-                maxIndex = users.length - 1;
-            } else if (currentView === "games") {
-                list = games;
-                maxIndex = games.length - 1;
-            } else if (currentView === "leaderboards" && !selectedGame) {
-                list = games;
-                maxIndex = games.length - 1;
-            } else if (currentView === "leaderboards" && selectedGame) {
-                list = leaderboards;
-                maxIndex = leaderboards.length - 1;
-            } else if (currentView === "maintenance") {
-                maxIndex = 2;
-            }
-
-            if (direction === 'left') {
-                if (currentPage > 0) {
-                    currentPage--;
-                    selectedIndex = currentPage * ITEMS_PER_PAGE;
-                    render();
-                }
-                return;
-            } else if (direction === 'right') {
-                const totalPages = Math.ceil((maxIndex + 1) / ITEMS_PER_PAGE);
-                if (currentPage < totalPages - 1) {
-                    currentPage++;
-                    selectedIndex = currentPage * ITEMS_PER_PAGE;
-                    render();
-                }
-                return;
-            } else if (direction === 'up') {
-                if (selectedIndex > 0) {
-                    selectedIndex--;
-                } else if (currentPage > 0) {
-                    currentPage--;
-                    selectedIndex = (currentPage + 1) * ITEMS_PER_PAGE - 1;
-                } else {
-                    selectedIndex = maxIndex;
-                }
+            
+            if (currentView === "home") maxIndex = 4;
+            else if (currentView === "users") maxIndex = users.length - 1;
+            else if (currentView === "games") maxIndex = games.length - 1;
+            else if (currentView === "leaderboards" && !selectedGame) maxIndex = games.length - 1;
+            else if (currentView === "leaderboards" && selectedGame) maxIndex = leaderboards.length - 1;
+            else if (currentView === "maintenance") maxIndex = 2;
+            
+            if (direction === 'up') {
+                selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : maxIndex;
             } else if (direction === 'down') {
-                if (selectedIndex < maxIndex) {
-                    selectedIndex++;
-                } else if (selectedIndex === maxIndex && currentPage < Math.ceil((maxIndex + 1) / ITEMS_PER_PAGE) - 1) {
-                    currentPage++;
-                    selectedIndex = currentPage * ITEMS_PER_PAGE;
-                } else {
-                    selectedIndex = 0;
-                }
+                selectedIndex = selectedIndex < maxIndex ? selectedIndex + 1 : 0;
             }
-
-            if (list.length > 0) {
-                const start = currentPage * ITEMS_PER_PAGE;
-                const end = Math.min(start + ITEMS_PER_PAGE, list.length);
-                if (selectedIndex < start) selectedIndex = start;
-                if (selectedIndex >= end) selectedIndex = end - 1;
-            }
-
             render();
         }
 
@@ -775,34 +807,30 @@ READY: <span class="cursor">_</span>
             document.getElementById('loadingOverlay').classList.remove('active');
         }
 
+        // ==================== KEYBOARD HANDLER ====================
         document.addEventListener("keydown", (e) => {
             switch(e.key) {
                 case "ArrowUp":
                     navigate('up');
                     e.preventDefault();
                     break;
+                    
                 case "ArrowDown":
                     navigate('down');
                     e.preventDefault();
                     break;
-                case "ArrowLeft":
-                    navigate('left');
-                    e.preventDefault();
-                    break;
-                case "ArrowRight":
-                    navigate('right');
-                    e.preventDefault();
-                    break;
+                    
                 case "Enter":
                     if (currentView === "home") {
-                        if (selectedIndex === 0) { currentView = "users"; currentPage = 0; selectedIndex = 0; loadUsers(); }
-                        else if (selectedIndex === 1) { currentView = "games"; currentPage = 0; selectedIndex = 0; loadGames(); }
-                        else if (selectedIndex === 2) { currentView = "leaderboards"; currentPage = 0; selectedIndex = 0; loadGames(); selectedGame = null; }
-                        else if (selectedIndex === 3) { currentView = "maintenance"; selectedIndex = 0; render(); }
+                        if (selectedIndex === 0) { currentView = "users"; loadUsers(); }
+                        else if (selectedIndex === 1) { currentView = "games"; loadGames(); }
+                        else if (selectedIndex === 2) { currentView = "leaderboards"; loadGames(); selectedGame = null; }
+                        else if (selectedIndex === 3) { currentView = "maintenance"; }
                         else if (selectedIndex === 4) { logout(); }
+                        selectedIndex = 0;
+                        render();
                     } else if (currentView === "leaderboards" && !selectedGame && games.length > 0) {
                         selectedGame = games[selectedIndex].title;
-                        currentPage = 0;
                         selectedIndex = 0;
                         loadLeaderboards(selectedGame);
                     } else if (currentView === "maintenance") {
@@ -812,10 +840,10 @@ READY: <span class="cursor">_</span>
                     }
                     e.preventDefault();
                     break;
+                    
                 case "Escape":
                     if (currentView === "leaderboards" && selectedGame) {
                         selectedGame = null;
-                        currentPage = 0;
                         selectedIndex = 0;
                         render();
                     } else if (currentView !== "home") {
@@ -825,47 +853,85 @@ READY: <span class="cursor">_</span>
                     }
                     e.preventDefault();
                     break;
-                case "1": case "2": case "3": case "4": case "5":
+                    
+                case "1":
+                case "2":
+                case "3":
+                case "4":
+                case "5":
                     if (currentView === "home") {
                         const index = parseInt(e.key) - 1;
-                        if (index === 0) { currentView = "users"; currentPage = 0; selectedIndex = 0; loadUsers(); }
-                        else if (index === 1) { currentView = "games"; currentPage = 0; selectedIndex = 0; loadGames(); }
-                        else if (index === 2) { currentView = "leaderboards"; currentPage = 0; selectedIndex = 0; loadGames(); selectedGame = null; }
-                        else if (index === 3) { currentView = "maintenance"; selectedIndex = 0; render(); }
+                        if (index === 0) { currentView = "users"; loadUsers(); }
+                        else if (index === 1) { currentView = "games"; loadGames(); }
+                        else if (index === 2) { currentView = "leaderboards"; loadGames(); selectedGame = null; }
+                        else if (index === 3) { currentView = "maintenance"; }
                         else if (index === 4) { logout(); }
+                        selectedIndex = 0;
+                        render();
                     }
                     e.preventDefault();
                     break;
-                case "b": case "B":
-                    if (currentView === "users" && users.length > 0) banUser(users[selectedIndex]._id);
+                    
+                case "b":
+                case "B":
+                    if (currentView === "users" && users.length > 0) {
+                        banUser(users[selectedIndex]._id);
+                    }
                     e.preventDefault();
                     break;
-                case "u": case "U":
-                    if (currentView === "users" && users.length > 0) unbanUser(users[selectedIndex]._id);
+                    
+                case "u":
+                case "U":
+                    if (currentView === "users" && users.length > 0) {
+                        unbanUser(users[selectedIndex]._id);
+                    }
                     e.preventDefault();
                     break;
-                case "d": case "D":
-                    if (currentView === "users" && users.length > 0) deleteUser(users[selectedIndex]._id);
-                    else if (currentView === "leaderboards" && selectedGame && leaderboards.length > 0) deleteScore(leaderboards[selectedIndex]._id);
+                    
+                case "d":
+                case "D":
+                    if (currentView === "users" && users.length > 0) {
+                        deleteUser(users[selectedIndex]._id);
+                    } else if (currentView === "leaderboards" && selectedGame && leaderboards.length > 0) {
+                        deleteScore(leaderboards[selectedIndex]._id);
+                    }
                     e.preventDefault();
                     break;
-                case "e": case "E":
-                    if (currentView === "games" && games.length > 0) enableGame(games[selectedIndex]._id);
+                    
+                case "e":
+                case "E":
+                    if (currentView === "games" && games.length > 0) {
+                        enableGame(games[selectedIndex]._id);
+                    }
                     e.preventDefault();
                     break;
-                case "x": case "X":
-                    if (currentView === "games" && games.length > 0) disableGame(games[selectedIndex]._id);
+                    
+                case "x":
+                case "X":
+                    if (currentView === "games" && games.length > 0) {
+                        disableGame(games[selectedIndex]._id);
+                    }
                     e.preventDefault();
                     break;
-                case "f": case "F":
-                    if (currentView === "leaderboards" && selectedGame && leaderboards.length > 0) flagScore(leaderboards[selectedIndex]._id);
+                    
+                case "f":
+                case "F":
+                    if (currentView === "leaderboards" && selectedGame && leaderboards.length > 0) {
+                        flagScore(leaderboards[selectedIndex]._id);
+                    }
                     e.preventDefault();
                     break;
-                case "z": case "Z":
-                    if (currentView === "leaderboards" && selectedGame) resetLeaderboard(selectedGame);
+                    
+                case "z":
+                case "Z":
+                    if (currentView === "leaderboards" && selectedGame) {
+                        resetLeaderboard(selectedGame);
+                    }
                     e.preventDefault();
                     break;
-                case "r": case "R":
+                    
+                case "r":
+                case "R":
                     if (currentView === "users") loadUsers();
                     else if (currentView === "games") loadGames();
                     else if (currentView === "leaderboards" && selectedGame) loadLeaderboards(selectedGame);
@@ -878,16 +944,21 @@ READY: <span class="cursor">_</span>
             e.preventDefault();
         }, { passive: false });
 
+        // ==================== INITIALIZATION ====================
         adminAuth = checkAuth();
         if (adminAuth) {
             adminUsername = adminAuth.username.toUpperCase();
             loadStats();
             
             setInterval(() => {
-                if (currentView === "home") loadStats();
+                if (currentView === "home") {
+                    loadStats();
+                }
             }, 5000);
             
-            setTimeout(() => hideLoading(), 500);
+            setTimeout(() => {
+                hideLoading();
+            }, 500);
         }
     </script>
 </body>
