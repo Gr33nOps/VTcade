@@ -59,7 +59,7 @@ router.post("/signup", async (req, res) => {
             email: email.toLowerCase(),
             password: "SUPABASE_AUTH",
             isVerified: false,
-            isBanned: false, // Initialize as not banned
+            isBanned: false, 
             supabaseId: authData.user.id
         });
 
@@ -84,14 +84,12 @@ router.post("/login", async (req, res) => {
             return res.status(400).json({ message: "Email and password are required" });
         }
 
-        // First check if user exists in MongoDB and if they're banned
         const mongoUser = await User.findOne({ email: email.toLowerCase() });
         
         if (!mongoUser) {
             return res.status(401).json({ message: "Invalid email or password" });
         }
 
-        // ⚠️ CHECK IF USER IS BANNED - CRITICAL SECURITY CHECK
         if (mongoUser.isBanned) {
             return res.status(403).json({ 
                 message: "Your account has been banned. Please contact support for assistance.",
@@ -99,7 +97,6 @@ router.post("/login", async (req, res) => {
             });
         }
 
-        // Proceed with Supabase authentication
         const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
             email: email.toLowerCase(),
             password: password
@@ -115,7 +112,6 @@ router.post("/login", async (req, res) => {
             return res.status(401).json({ message: "Invalid email or password" });
         }
 
-        // Update verification status if needed
         if (!mongoUser.isVerified && authData.user.email_confirmed_at) {
             mongoUser.isVerified = true;
             await mongoUser.save();
@@ -142,7 +138,6 @@ router.post("/resend-verification", async (req, res) => {
             return res.status(400).json({ message: "Email is required" });
         }
 
-        // Check if user is banned before resending verification
         const mongoUser = await User.findOne({ email: email.toLowerCase() });
         
         if (mongoUser && mongoUser.isBanned) {

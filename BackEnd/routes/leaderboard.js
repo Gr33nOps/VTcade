@@ -17,7 +17,6 @@ router.post("/save", async (req, res) => {
             return res.status(400).json({ message: "Invalid score" });
         }
 
-        // Find the user by username to get their userId
         const user = await User.findOne({ username: username.trim() });
         
         if (!user) {
@@ -41,9 +40,8 @@ router.post("/save", async (req, res) => {
                 savedScore = existing.score;
             }
         } else {
-            // Now include userId when creating
             await Leaderboard.create({ 
-                userId: user._id,  // ✅ Added userId
+                userId: user._id, 
                 username: username.trim(), 
                 game: game.trim(), 
                 score: numScore 

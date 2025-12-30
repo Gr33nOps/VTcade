@@ -1,11 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VTcade - Dashboard</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             background: black;
             color: #00ff00;
@@ -21,6 +27,7 @@
             justify-content: center;
             padding: 20px;
         }
+
         .container {
             width: 100%;
             max-width: 900px;
@@ -28,15 +35,18 @@
             flex-direction: column;
             align-items: center;
         }
+
         pre {
             white-space: pre;
             user-select: none;
             line-height: 1.4;
         }
+
         .terminal-output {
             font-size: 14px;
             text-align: left;
         }
+
         .logo {
             font-size: 10px;
             line-height: 1.1;
@@ -44,49 +54,70 @@
             margin-bottom: 0;
             animation: flicker 0.15s infinite alternate;
         }
+
         .subtitle {
             font-size: 14px;
             text-align: center;
             margin-top: 5px;
             display: block;
         }
+
         .highlight {
             background: #00ff00;
             color: black;
         }
+
         .dim {
             color: #006600;
         }
+
         .yellow {
             color: #00ff00;
         }
+
         .red {
             color: #ff0000;
         }
+
         body::after {
             content: "";
             position: fixed;
             inset: 0;
-            background: repeating-linear-gradient(
-                to bottom,
-                rgba(0,0,0,0) 0px,
-                rgba(0,255,0,0.04) 2px,
-                rgba(0,0,0,0) 4px
-            );
+            background: repeating-linear-gradient(to bottom,
+                    rgba(0, 0, 0, 0) 0px,
+                    rgba(0, 255, 0, 0.04) 2px,
+                    rgba(0, 0, 0, 0) 4px);
             pointer-events: none;
             z-index: 9999;
         }
+
         @keyframes blink {
-            0%, 49% { opacity: 1; }
-            50%, 100% { opacity: 0; }
+
+            0%,
+            49% {
+                opacity: 1;
+            }
+
+            50%,
+            100% {
+                opacity: 0;
+            }
         }
+
         .cursor {
             animation: blink 1s infinite;
         }
+
         @keyframes flicker {
-            0% { opacity: 0.97; }
-            100% { opacity: 1; }
+            0% {
+                opacity: 0.97;
+            }
+
+            100% {
+                opacity: 1;
+            }
         }
+
         .loading-overlay {
             position: fixed;
             inset: 0;
@@ -102,39 +133,78 @@
             pointer-events: none;
             transition: opacity 0.3s;
         }
+
         .loading-overlay.active {
             opacity: 1;
             pointer-events: all;
         }
+
         .loading-content {
             font-size: 14px;
             line-height: 1.5;
         }
+
         @keyframes dots {
-            0%, 20% { content: '.'; }
-            40% { content: '..'; }
-            60%, 100% { content: '...'; }
+
+            0%,
+            20% {
+                content: '.';
+            }
+
+            40% {
+                content: '..';
+            }
+
+            60%,
+            100% {
+                content: '...';
+            }
         }
+
         .loading-dots::after {
             content: '';
             animation: dots 1.5s infinite;
         }
-        
+
         @media (max-width: 768px) {
-            body { font-size: 12px; padding: 10px; }
-            .terminal-output { font-size: 11px; }
-            .logo { font-size: 7px; }
-            .subtitle { font-size: 11px; }
+            body {
+                font-size: 12px;
+                padding: 10px;
+            }
+
+            .terminal-output {
+                font-size: 11px;
+            }
+
+            .logo {
+                font-size: 7px;
+            }
+
+            .subtitle {
+                font-size: 11px;
+            }
         }
-        
+
         @media (max-width: 480px) {
-            body { font-size: 10px; }
-            .terminal-output { font-size: 9px; }
-            .logo { font-size: 5px; }
-            .subtitle { font-size: 9px; }
+            body {
+                font-size: 10px;
+            }
+
+            .terminal-output {
+                font-size: 9px;
+            }
+
+            .logo {
+                font-size: 5px;
+            }
+
+            .subtitle {
+                font-size: 9px;
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="loading-overlay active" id="loadingOverlay">
         <div class="loading-content">
@@ -147,7 +217,7 @@
             </pre>
         </div>
     </div>
-    
+
     <div class="container">
         <pre class="logo">
 ██╗   ██╗████████╗ ██████╗ █████╗ ██████╗ ███████╗
@@ -165,8 +235,8 @@
         const terminalEl = document.getElementById("terminal");
         let selectedIndex = 0;
         let currentPage = 0;
-        const ITEMS_PER_PAGE_GAMES = 5;     // For games list and game selection
-        const ITEMS_PER_PAGE_SCORES = 10;    // For leaderboard scores (more readable)
+        const ITEMS_PER_PAGE_GAMES = 5;
+        const ITEMS_PER_PAGE_SCORES = 10;
         let currentView = "menu";
         let username = "UNKNOWN";
         let userHighscores = {};
@@ -198,10 +268,15 @@
                 const response = await fetch(`${API_BASE_URL}/highscore/user/${username}`);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
+
+                console.log('Received highscores:', data); 
+
                 if (data.scores) {
                     userHighscores = {};
                     data.scores.forEach(score => {
-                        userHighscores[score.game] = score.highscore;
+                        const gameName = score.game.trim().toUpperCase();
+                        userHighscores[gameName] = score.highscore;
+                        console.log(`Stored: ${gameName} = ${score.highscore}`); 
                     });
                     totalGamesPlayed = data.total;
                 }
@@ -312,7 +387,7 @@ AVAILABLE GAMES (Page ${currentPage + 1}/${totalPages})
                 const prefix = isSelected ? '>>>' : '   ';
                 const status = game.available ? '<span class="yellow">[READY]</span>' : '<span class="dim">[LOCKED]</span>';
                 const line = `${prefix} [${game.id}] ${game.name.padEnd(25)} ${status}`;
-                output += isSelected && game.available 
+                output += isSelected && game.available
                     ? `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span>\n`
                     : line + '\n';
             });
@@ -459,7 +534,7 @@ LEADERBOARD - ${selectedGame.toUpperCase()} (Page ${currentPage + 1}/${totalPage
             } else {
                 output += `    RANK  PLAYER             SCORE\n`;
                 output += `    ----  ---------------    --------\n`;
-                
+
                 visibleScores.forEach((entry, idx) => {
                     const globalRank = start + idx + 1;
                     const rank = `#${globalRank}`.padEnd(6);
@@ -484,7 +559,7 @@ READY: <span class="cursor">_</span>
         }
 
         function render() {
-            switch(currentView) {
+            switch (currentView) {
                 case "menu": renderMenu(); break;
                 case "games": renderGames(); break;
                 case "highscores": renderHighScores(); break;
@@ -547,7 +622,6 @@ READY: <span class="cursor">_</span>
                 }
             }
 
-            // Clamp to current page
             if (list.length > 0) {
                 const start = currentPage * itemsPerPage;
                 const end = Math.min(start + itemsPerPage, list.length);
@@ -614,7 +688,7 @@ READY: <span class="cursor">_</span>
         }
 
         document.addEventListener("keydown", (e) => {
-            switch(e.key) {
+            switch (e.key) {
                 case "ArrowUp": navigate('up'); e.preventDefault(); break;
                 case "ArrowDown": navigate('down'); e.preventDefault(); break;
                 case "ArrowLeft": navigate('left'); e.preventDefault(); break;
@@ -676,4 +750,5 @@ READY: <span class="cursor">_</span>
         init();
     </script>
 </body>
+
 </html>

@@ -100,7 +100,7 @@ const gameEl = document.getElementById("game");
 const uiEl = document.getElementById("ui");
 const WIDTH = 50;
 const HEIGHT = 25;
-const GAME_NAME = "SNAKE";  // ✅ CHANGED FROM "SnakeGame" TO "SNAKE"
+const GAME_NAME = "SNAKE";  
 
 const currentUser = localStorage.getItem("currentUser");
 
@@ -118,7 +118,7 @@ let snake = [];
 let direction = { x: 1, y: 0 };
 let nextDirection = { x: 1, y: 0 };
 let food = { x: 0, y: 0 };
-let leaderboard = null; // null = loading, [] = no data
+let leaderboard = null;
 
 function initSnake() {
     snake = [

@@ -33,7 +33,6 @@ router.post("/save", async (req, res) => {
     }
 });
 
-// ✅ PUT THIS ROUTE FIRST - More specific route
 router.get("/user/:username", async (req, res) => {
     try {
         const { username } = req.params;
@@ -65,7 +64,6 @@ router.get("/user/:username", async (req, res) => {
     }
 });
 
-// ✅ PUT THIS ROUTE SECOND - Less specific route
 router.get("/:username/:game", async (req, res) => {
     try {
         const { username, game } = req.params;
