@@ -162,11 +162,16 @@
         const terminalEl = document.getElementById("terminal");
         let selectedIndex = 0;
         let currentPage = 0;
-        const ITEMS_PER_PAGE = 5;
+        const ITEMS_PER_PAGE = 10;
         let currentView = "home";
         let adminAuth = null;
         let adminUsername = "UNKNOWN";
-        let stats = {};
+        let stats = {
+            users: 0,
+            games: 3,
+            status: "ONLINE",
+            maintenanceMode: false
+        };
         let users = [];
         let games = [];
         let leaderboards = [];
@@ -212,13 +217,13 @@
         // ==================== RENDER HOME ====================
         function renderHome() {
             const { date, time } = getDateTime();
-            const statusColor = stats.status === "OK" ? "" : '<span class="red">';
-            const statusEnd = stats.status === "OK" ? "" : '</span>';
+            const statusColor = stats.status === "ONLINE" ? "" : '<span class="red">';
+            const statusEnd = stats.status === "ONLINE" ? "" : '</span>';
             
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ${statusColor}${stats.status || "ONLINE"}${statusEnd}
+SYSTEM STATUS: ${statusColor}${stats.status}${statusEnd}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
@@ -227,8 +232,8 @@ TIME: ${time}
 ADMIN DASHBOARD
 ================================================================================
 
-    TOTAL USERS:              ${stats.users || 0}
-    TOTAL GAMES:              ${stats.games || 0}
+    TOTAL USERS:              ${stats.users}
+    TOTAL GAMES:              ${stats.games}
 
 ================================================================================
 MAIN MENU
@@ -239,7 +244,7 @@ MAIN MENU
             const menuItems = [
                 { id: 1, name: "USER CONTROL" },
                 { id: 2, name: "GAME CONTROL" },
-                { id: 3, name: "LEADERBOARD CONTROL" },
+                { id: 3, name: "SCOREBOARD CONTROL" },
                 { id: 4, name: "MAINTENANCE MODE" },
                 { id: 5, name: "LOGOUT" }
             ];
@@ -284,7 +289,7 @@ READY: <span class="cursor">_</span>
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ${stats.status || "ONLINE"}
+SYSTEM STATUS: ${stats.status}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
@@ -347,7 +352,7 @@ READY: <span class="cursor">_</span>
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ${stats.status || "ONLINE"}
+SYSTEM STATUS: ${stats.status}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
@@ -404,7 +409,7 @@ READY: <span class="cursor">_</span>
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ${stats.status || "ONLINE"}
+SYSTEM STATUS: ${stats.status}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
@@ -504,7 +509,7 @@ READY: <span class="cursor">_</span>
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ${stats.status || "ONLINE"}
+SYSTEM STATUS: ${stats.status}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
@@ -566,25 +571,12 @@ READY: <span class="cursor">_</span>
         }
 
         // ==================== DATA LOADERS ====================
-        function loadStats() {
-            apiCall('/stats')
-                .then(res => res.json())
-                .then(data => {
-                    stats = data;
-                    render();
-                })
-                .catch(err => {
-                    console.error('Error loading stats:', err);
-                    stats = { users: 0, games: 0, status: "ERROR" };
-                    render();
-                });
-        }
-
         function loadUsers() {
             apiCall('/users')
                 .then(res => res.json())
                 .then(data => {
                     users = data.users || [];
+                    stats.users = users.length;
                     currentPage = 0;
                     selectedIndex = 0;
                     render();
@@ -592,6 +584,7 @@ READY: <span class="cursor">_</span>
                 .catch(err => {
                     console.error('Error loading users:', err);
                     users = [];
+                    stats.users = 0;
                     currentPage = 0;
                     selectedIndex = 0;
                     render();
@@ -603,6 +596,7 @@ READY: <span class="cursor">_</span>
                 .then(res => res.json())
                 .then(data => {
                     games = data.games || [];
+                    stats.games = games.length;
                     currentPage = 0;
                     selectedIndex = 0;
                     render();
@@ -610,6 +604,7 @@ READY: <span class="cursor">_</span>
                 .catch(err => {
                     console.error('Error loading games:', err);
                     games = [];
+                    stats.games = 3;
                     currentPage = 0;
                     selectedIndex = 0;
                     render();
@@ -767,7 +762,8 @@ READY: <span class="cursor">_</span>
                 .then(res => res.json())
                 .then(() => {
                     hideLoading();
-                    loadStats();
+                    stats.maintenanceMode = true;
+                    render();
                 })
                 .catch(err => {
                     hideLoading();
@@ -781,7 +777,8 @@ READY: <span class="cursor">_</span>
                 .then(res => res.json())
                 .then(() => {
                     hideLoading();
-                    loadStats();
+                    stats.maintenanceMode = false;
+                    render();
                 })
                 .catch(err => {
                     hideLoading();
@@ -840,7 +837,6 @@ READY: <span class="cursor">_</span>
                 maxIndex = 2;
             }
 
-            // Handle left/right for pagination
             if (direction === 'left') {
                 const totalPages = Math.ceil((maxIndex + 1) / ITEMS_PER_PAGE);
                 if (currentPage > 0) {
@@ -859,7 +855,6 @@ READY: <span class="cursor">_</span>
                 return;
             }
 
-            // Handle up/down for item selection
             if (direction === 'up') {
                 if (selectedIndex > 0) {
                     selectedIndex--;
@@ -880,7 +875,6 @@ READY: <span class="cursor">_</span>
                 }
             }
 
-            // Keep selection within current page bounds
             if (list.length > 0) {
                 const start = currentPage * ITEMS_PER_PAGE;
                 const end = Math.min(start + ITEMS_PER_PAGE, list.length);
@@ -968,7 +962,7 @@ READY: <span class="cursor">_</span>
                         else if (selectedIndex === 2) { 
                             currentView = "home"; 
                             selectedIndex = 0; 
-                            loadStats(); 
+                            render(); 
                         }
                     }
                     e.preventDefault();
@@ -983,7 +977,7 @@ READY: <span class="cursor">_</span>
                     } else if (currentView !== "home") {
                         currentView = "home";
                         selectedIndex = 0;
-                        loadStats();
+                        render();
                     }
                     e.preventDefault();
                     break;
@@ -1106,17 +1100,29 @@ READY: <span class="cursor">_</span>
         adminAuth = checkAuth();
         if (adminAuth) {
             adminUsername = adminAuth.username.toUpperCase();
-            loadStats();
             
+            // Initialize stats with defaults
+            stats = {
+                users: 0,
+                games: 3,
+                status: "ONLINE",
+                maintenanceMode: false
+            };
+            
+            // Load users to update stats.users
+            showLoading();
+            loadUsers();
+            
+            // Update clock every second on home screen
             setInterval(() => {
                 if (currentView === "home") {
-                    loadStats();
+                    render();
                 }
-            }, 5000);
+            }, 1000);
             
             setTimeout(() => {
                 hideLoading();
-            }, 500);
+            }, 1000);
         }
     </script>
 </body>
