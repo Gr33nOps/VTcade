@@ -39,6 +39,15 @@ router.get("/stats", checkAdmin, async (req, res) => {
     try {
         const userCount = await User.countDocuments();
         const gameCount = await Game.countDocuments();
+<<<<<<< HEAD
+=======
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const scoresToday = await Score.countDocuments({ 
+            createdAt: { $gte: today } 
+        });
+>>>>>>> b7a531d4faac8258d00f9af9d7f160f24851a088
         
         let settings = await SystemSettings.findOne();
         if (!settings) {
