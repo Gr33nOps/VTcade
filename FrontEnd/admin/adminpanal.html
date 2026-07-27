@@ -161,10 +161,17 @@
         const API_URL = "https://vtcade.onrender.com";
         const terminalEl = document.getElementById("terminal");
         let selectedIndex = 0;
+        let currentPage = 0;
+        const ITEMS_PER_PAGE = 5;
         let currentView = "home";
         let adminAuth = null;
         let adminUsername = "UNKNOWN";
-        let stats = {};
+        let stats = {
+            users: 0,
+            games: 3,
+            status: "ONLINE",
+            maintenanceMode: false
+        };
         let users = [];
         let games = [];
         let leaderboards = [];
@@ -210,13 +217,13 @@
         // ==================== RENDER HOME ====================
         function renderHome() {
             const { date, time } = getDateTime();
-            const statusColor = stats.status === "OK" ? "" : '<span class="red">';
-            const statusEnd = stats.status === "OK" ? "" : '</span>';
+            const statusColor = stats.status === "ONLINE" ? "" : '<span class="red">';
+            const statusEnd = stats.status === "ONLINE" ? "" : '</span>';
             
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ${statusColor}${stats.status || "ONLINE"}${statusEnd}
+SYSTEM STATUS: ${statusColor}${stats.status}${statusEnd}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
@@ -225,8 +232,8 @@ TIME: ${time}
 ADMIN DASHBOARD
 ================================================================================
 
-    TOTAL USERS:              ${stats.users || 0}
-    TOTAL GAMES:              ${stats.games || 0}
+    TOTAL USERS:              ${stats.users}
+    TOTAL GAMES:              ${stats.games}
 
 ================================================================================
 MAIN MENU
@@ -237,7 +244,7 @@ MAIN MENU
             const menuItems = [
                 { id: 1, name: "USER CONTROL" },
                 { id: 2, name: "GAME CONTROL" },
-                { id: 3, name: "SCOREBOARD CONTROL" },
+                { id: 3, name: "LEADERBOARD CONTROL" },
                 { id: 4, name: "MAINTENANCE MODE" },
                 { id: 5, name: "LOGOUT" }
             ];
@@ -274,17 +281,21 @@ READY: <span class="cursor">_</span>
         // ==================== RENDER USERS ====================
         function renderUsers() {
             const { date, time } = getDateTime();
+            const start = currentPage * ITEMS_PER_PAGE;
+            const end = Math.min(start + ITEMS_PER_PAGE, users.length);
+            const visibleUsers = users.slice(start, end);
+            const totalPages = Math.ceil(users.length / ITEMS_PER_PAGE) || 1;
             
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ${stats.status || "ONLINE"}
+SYSTEM STATUS: ${stats.status}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-USER CONTROL - ${users.length} USERS
+USER CONTROL - ${users.length} USERS (Page ${currentPage + 1}/${totalPages})
 ================================================================================
 
 `;
@@ -292,20 +303,21 @@ USER CONTROL - ${users.length} USERS
             if (users.length === 0) {
                 output += `    <span class="dim">NO USERS FOUND</span>\n`;
             } else {
-                users.forEach((user, index) => {
-                    const isSelected = index === selectedIndex;
+                visibleUsers.forEach((user, idx) => {
+                    const globalIndex = start + idx;
+                    const isSelected = globalIndex === selectedIndex;
                     const prefix = isSelected ? '>>>' : '   ';
                     const bannedTag = user.isBanned ? '<span class="red">[BANNED]</span>' : '';
                     const verifiedTag = user.isVerified ? '<span class="yellow">[VERIFIED]</span>' : '';
                     
-                    const line = `${prefix} [${index + 1}] ${user.username.padEnd(15)} ${user.email.padEnd(30)}`;
+                    const line = `${prefix} [${globalIndex + 1}] ${user.username.padEnd(15)} ${user.email.padEnd(30)}`;
                     
                     if (isSelected) {
                         output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span>\n`;
-                        output += `        ${verifiedTag} ${bannedTag}\n\n`;
+                        output += `        ${verifiedTag} ${bannedTag}\n`;
                     } else {
                         output += line + '\n';
-                        output += `        ${verifiedTag} ${bannedTag}\n\n`;
+                        output += `        ${verifiedTag} ${bannedTag}\n`;
                     }
                 });
             }
@@ -315,9 +327,10 @@ USER CONTROL - ${users.length} USERS
 COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate List              [B]         Ban User
-    [U]       Unban User                 [D]         Delete User
-    [R]       Refresh                    [ESC]       Back to Menu
+    [↑/↓]     Navigate List              [←/→]       Change Page
+    [B]       Ban User                   [U]         Unban User
+    [D]       Delete User                [R]         Refresh
+    [ESC]     Back to Menu
 
 ================================================================================
 
@@ -331,17 +344,21 @@ READY: <span class="cursor">_</span>
         // ==================== RENDER GAMES ====================
         function renderGames() {
             const { date, time } = getDateTime();
+            const start = currentPage * ITEMS_PER_PAGE;
+            const end = Math.min(start + ITEMS_PER_PAGE, games.length);
+            const visibleGames = games.slice(start, end);
+            const totalPages = Math.ceil(games.length / ITEMS_PER_PAGE) || 1;
             
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ${stats.status || "ONLINE"}
+SYSTEM STATUS: ${stats.status}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-GAME CONTROL - ${games.length} GAMES
+GAME CONTROL - ${games.length} GAMES (Page ${currentPage + 1}/${totalPages})
 ================================================================================
 
 `;
@@ -349,19 +366,20 @@ GAME CONTROL - ${games.length} GAMES
             if (games.length === 0) {
                 output += `    <span class="dim">NO GAMES FOUND</span>\n`;
             } else {
-                games.forEach((game, index) => {
-                    const isSelected = index === selectedIndex;
+                visibleGames.forEach((game, idx) => {
+                    const globalIndex = start + idx;
+                    const isSelected = globalIndex === selectedIndex;
                     const prefix = isSelected ? '>>>' : '   ';
                     const statusTag = game.isActive ? '<span class="yellow">[ENABLED]</span>' : '<span class="red">[DISABLED]</span>';
                     
-                    const line = `${prefix} [${index + 1}] ${game.title.padEnd(25)} ${game.genre.padEnd(15)}`;
+                    const line = `${prefix} [${globalIndex + 1}] ${game.title.padEnd(25)} ${game.genre.padEnd(15)}`;
                     
                     if (isSelected) {
                         output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span>\n`;
-                        output += `        STATUS: ${statusTag}\n\n`;
+                        output += `        STATUS: ${statusTag}\n`;
                     } else {
                         output += line + '\n';
-                        output += `        STATUS: ${statusTag}\n\n`;
+                        output += `        STATUS: ${statusTag}\n`;
                     }
                 });
             }
@@ -371,9 +389,9 @@ GAME CONTROL - ${games.length} GAMES
 COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate List              [E]         Enable Game
-    [X]       Disable Game               [R]         Refresh
-    [ESC]     Back to Menu
+    [↑/↓]     Navigate List              [←/→]       Change Page
+    [E]       Enable Game                [X]         Disable Game
+    [R]       Refresh                    [ESC]       Back to Menu
 
 ================================================================================
 
@@ -391,24 +409,30 @@ READY: <span class="cursor">_</span>
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ${stats.status || "ONLINE"}
+SYSTEM STATUS: ${stats.status}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
 
 ================================================================================
-SCOREBOARD CONTROL
+LEADERBOARD CONTROL
 ================================================================================
 
 `;
 
             if (!selectedGame) {
-                output += `SELECT A GAME TO VIEW LEADERBOARD:\n\n`;
+                const start = currentPage * ITEMS_PER_PAGE;
+                const end = Math.min(start + ITEMS_PER_PAGE, games.length);
+                const visibleGames = games.slice(start, end);
+                const totalPages = Math.ceil(games.length / ITEMS_PER_PAGE) || 1;
                 
-                games.forEach((game, index) => {
-                    const isSelected = index === selectedIndex;
+                output += `SELECT A GAME TO VIEW LEADERBOARD: (Page ${currentPage + 1}/${totalPages})\n`;
+                
+                visibleGames.forEach((game, idx) => {
+                    const globalIndex = start + idx;
+                    const isSelected = globalIndex === selectedIndex;
                     const prefix = isSelected ? '>>>' : '   ';
-                    const line = `${prefix} [${index + 1}] ${game.title}`;
+                    const line = `${prefix} [${globalIndex + 1}] ${game.title}`;
                     
                     if (isSelected) {
                         output += `<span class="highlight">${line}</span>\n`;
@@ -422,25 +446,31 @@ SCOREBOARD CONTROL
 COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate List              [ENTER]     Select Game
-    [ESC]     Back to Menu
+    [↑/↓]     Navigate List              [←/→]       Change Page
+    [ENTER]   Select Game                 [ESC]       Back to Menu
 
 ================================================================================
 `;
             } else {
-                output += `GAME: ${selectedGame.toUpperCase()}\n`;
-                output += `SHOWING TOP ${Math.min(leaderboards.length, 100)} SCORES\n\n`;
+                const start = currentPage * ITEMS_PER_PAGE;
+                const end = Math.min(start + ITEMS_PER_PAGE, leaderboards.length);
+                const visibleEntries = leaderboards.slice(start, end);
+                const totalPages = Math.ceil(leaderboards.length / ITEMS_PER_PAGE) || 1;
+                
+                output += `GAME: ${selectedGame.toUpperCase()} (Page ${currentPage + 1}/${totalPages})\n`;
+                output += `SHOWING SCORES ${start + 1}-${end} OF ${leaderboards.length}\n`;
 
                 if (leaderboards.length === 0) {
                     output += `    <span class="dim">NO SCORES FOUND</span>\n`;
                 } else {
-                    leaderboards.forEach((entry, index) => {
-                        const isSelected = index === selectedIndex;
+                    visibleEntries.forEach((entry, idx) => {
+                        const globalIndex = start + idx;
+                        const isSelected = globalIndex === selectedIndex;
                         const prefix = isSelected ? '>>>' : '   ';
                         const flagTag = entry.isFlagged ? '<span class="yellow">[FLAGGED]</span>' : '';
                         const username = entry.userId?.username || entry.username || 'UNKNOWN';
                         
-                        const line = `${prefix} [${index + 1}] ${username.padEnd(15)} SCORE: ${String(entry.score).padStart(8)}`;
+                        const line = `${prefix} [${globalIndex + 1}] ${username.padEnd(15)} SCORE: ${String(entry.score).padStart(8)}`;
                         
                         if (isSelected) {
                             output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span> ${flagTag}\n`;
@@ -455,9 +485,9 @@ COMMANDS
 COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate List              [F]         Flag Score
-    [D]       Delete Score               [Z]         Reset All Scores
-    [ESC]     Back to Menu
+    [↑/↓]     Navigate List              [←/→]       Change Page
+    [F]       Flag Score                 [D]         Delete Score
+    [Z]       Reset All Scores           [ESC]       Back to Game List
 
 ================================================================================
 `;
@@ -479,7 +509,7 @@ READY: <span class="cursor">_</span>
             let output = `
 ================================================================================
 
-SYSTEM STATUS: ${stats.status || "ONLINE"}
+SYSTEM STATUS: ${stats.status}
 ADMIN: ${adminUsername}
 DATE: ${date}
 TIME: ${time}
@@ -541,30 +571,22 @@ READY: <span class="cursor">_</span>
         }
 
         // ==================== DATA LOADERS ====================
-        function loadStats() {
-            apiCall('/stats')
-                .then(res => res.json())
-                .then(data => {
-                    stats = data;
-                    render();
-                })
-                .catch(err => {
-                    console.error('Error loading stats:', err);
-                    stats = { users: 0, games: 0, status: "ERROR" };
-                    render();
-                });
-        }
-
         function loadUsers() {
             apiCall('/users')
                 .then(res => res.json())
                 .then(data => {
                     users = data.users || [];
+                    stats.users = users.length;
+                    currentPage = 0;
+                    selectedIndex = 0;
                     render();
                 })
                 .catch(err => {
                     console.error('Error loading users:', err);
                     users = [];
+                    stats.users = 0;
+                    currentPage = 0;
+                    selectedIndex = 0;
                     render();
                 });
         }
@@ -574,11 +596,17 @@ READY: <span class="cursor">_</span>
                 .then(res => res.json())
                 .then(data => {
                     games = data.games || [];
+                    stats.games = games.length;
+                    currentPage = 0;
+                    selectedIndex = 0;
                     render();
                 })
                 .catch(err => {
                     console.error('Error loading games:', err);
                     games = [];
+                    stats.games = 3;
+                    currentPage = 0;
+                    selectedIndex = 0;
                     render();
                 });
         }
@@ -589,11 +617,15 @@ READY: <span class="cursor">_</span>
                 .then(res => res.json())
                 .then(data => {
                     leaderboards = data.leaderboards || [];
+                    currentPage = 0;
+                    selectedIndex = 0;
                     render();
                 })
                 .catch(err => {
                     console.error('Error loading leaderboards:', err);
                     leaderboards = [];
+                    currentPage = 0;
+                    selectedIndex = 0;
                     render();
                 });
         }
@@ -637,7 +669,7 @@ READY: <span class="cursor">_</span>
                 .then(res => res.json())
                 .then(() => {
                     hideLoading();
-                    selectedIndex = 0;
+                    selectedIndex = Math.max(0, selectedIndex - 1);
                     loadUsers();
                 })
                 .catch(err => {
@@ -696,7 +728,7 @@ READY: <span class="cursor">_</span>
                 .then(res => res.json())
                 .then(() => {
                     hideLoading();
-                    selectedIndex = 0;
+                    selectedIndex = Math.max(0, selectedIndex - 1);
                     loadLeaderboards(selectedGame);
                 })
                 .catch(err => {
@@ -730,7 +762,8 @@ READY: <span class="cursor">_</span>
                 .then(res => res.json())
                 .then(() => {
                     hideLoading();
-                    loadStats();
+                    stats.maintenanceMode = true;
+                    render();
                 })
                 .catch(err => {
                     hideLoading();
@@ -744,7 +777,8 @@ READY: <span class="cursor">_</span>
                 .then(res => res.json())
                 .then(() => {
                     hideLoading();
-                    loadStats();
+                    stats.maintenanceMode = false;
+                    render();
                 })
                 .catch(err => {
                     hideLoading();
@@ -782,20 +816,72 @@ READY: <span class="cursor">_</span>
         }
 
         function navigate(direction) {
+            let list = [];
             let maxIndex = 0;
             
-            if (currentView === "home") maxIndex = 4;
-            else if (currentView === "users") maxIndex = users.length - 1;
-            else if (currentView === "games") maxIndex = games.length - 1;
-            else if (currentView === "leaderboards" && !selectedGame) maxIndex = games.length - 1;
-            else if (currentView === "leaderboards" && selectedGame) maxIndex = leaderboards.length - 1;
-            else if (currentView === "maintenance") maxIndex = 2;
-            
-            if (direction === 'up') {
-                selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : maxIndex;
-            } else if (direction === 'down') {
-                selectedIndex = selectedIndex < maxIndex ? selectedIndex + 1 : 0;
+            if (currentView === "home") {
+                maxIndex = 4;
+            } else if (currentView === "users") {
+                list = users;
+                maxIndex = users.length - 1;
+            } else if (currentView === "games") {
+                list = games;
+                maxIndex = games.length - 1;
+            } else if (currentView === "leaderboards" && !selectedGame) {
+                list = games;
+                maxIndex = games.length - 1;
+            } else if (currentView === "leaderboards" && selectedGame) {
+                list = leaderboards;
+                maxIndex = leaderboards.length - 1;
+            } else if (currentView === "maintenance") {
+                maxIndex = 2;
             }
+
+            if (direction === 'left') {
+                const totalPages = Math.ceil((maxIndex + 1) / ITEMS_PER_PAGE);
+                if (currentPage > 0) {
+                    currentPage--;
+                    selectedIndex = currentPage * ITEMS_PER_PAGE;
+                    render();
+                }
+                return;
+            } else if (direction === 'right') {
+                const totalPages = Math.ceil((maxIndex + 1) / ITEMS_PER_PAGE);
+                if (currentPage < totalPages - 1) {
+                    currentPage++;
+                    selectedIndex = currentPage * ITEMS_PER_PAGE;
+                    render();
+                }
+                return;
+            }
+
+            if (direction === 'up') {
+                if (selectedIndex > 0) {
+                    selectedIndex--;
+                } else if (currentPage > 0) {
+                    currentPage--;
+                    selectedIndex = (currentPage + 1) * ITEMS_PER_PAGE - 1;
+                } else {
+                    selectedIndex = maxIndex;
+                }
+            } else if (direction === 'down') {
+                if (selectedIndex < maxIndex) {
+                    selectedIndex++;
+                } else if (currentPage < Math.ceil((maxIndex + 1) / ITEMS_PER_PAGE) - 1) {
+                    currentPage++;
+                    selectedIndex = currentPage * ITEMS_PER_PAGE;
+                } else {
+                    selectedIndex = 0;
+                }
+            }
+
+            if (list.length > 0) {
+                const start = currentPage * ITEMS_PER_PAGE;
+                const end = Math.min(start + ITEMS_PER_PAGE, list.length);
+                if (selectedIndex < start) selectedIndex = start;
+                if (selectedIndex >= end) selectedIndex = end - 1;
+            }
+
             render();
         }
 
@@ -820,23 +906,64 @@ READY: <span class="cursor">_</span>
                     e.preventDefault();
                     break;
                     
+                case "ArrowLeft":
+                    navigate('left');
+                    e.preventDefault();
+                    break;
+                    
+                case "ArrowRight":
+                    navigate('right');
+                    e.preventDefault();
+                    break;
+                    
                 case "Enter":
                     if (currentView === "home") {
-                        if (selectedIndex === 0) { currentView = "users"; loadUsers(); }
-                        else if (selectedIndex === 1) { currentView = "games"; loadGames(); }
-                        else if (selectedIndex === 2) { currentView = "leaderboards"; loadGames(); selectedGame = null; }
-                        else if (selectedIndex === 3) { currentView = "maintenance"; }
-                        else if (selectedIndex === 4) { logout(); }
-                        selectedIndex = 0;
-                        render();
+                        if (selectedIndex === 0) { 
+                            currentView = "users"; 
+                            currentPage = 0; 
+                            selectedIndex = 0; 
+                            loadUsers(); 
+                        }
+                        else if (selectedIndex === 1) { 
+                            currentView = "games"; 
+                            currentPage = 0; 
+                            selectedIndex = 0; 
+                            loadGames(); 
+                        }
+                        else if (selectedIndex === 2) { 
+                            currentView = "leaderboards"; 
+                            currentPage = 0; 
+                            selectedIndex = 0; 
+                            if (games.length === 0) {
+                                loadGames();
+                            } else {
+                                selectedGame = null; 
+                                render();
+                            }
+                        }
+                        else if (selectedIndex === 3) { 
+                            currentView = "maintenance"; 
+                            selectedIndex = 0; 
+                            render(); 
+                        }
+                        else if (selectedIndex === 4) { 
+                            logout(); 
+                        }
                     } else if (currentView === "leaderboards" && !selectedGame && games.length > 0) {
-                        selectedGame = games[selectedIndex].title;
-                        selectedIndex = 0;
-                        loadLeaderboards(selectedGame);
+                        if (selectedIndex >= 0 && selectedIndex < games.length) {
+                            selectedGame = games[selectedIndex].title;
+                            currentPage = 0;
+                            selectedIndex = 0;
+                            loadLeaderboards(selectedGame);
+                        }
                     } else if (currentView === "maintenance") {
                         if (selectedIndex === 0 && !stats.maintenanceMode) enableMaintenance();
                         else if (selectedIndex === 1 && stats.maintenanceMode) disableMaintenance();
-                        else if (selectedIndex === 2) { currentView = "home"; selectedIndex = 0; loadStats(); }
+                        else if (selectedIndex === 2) { 
+                            currentView = "home"; 
+                            selectedIndex = 0; 
+                            render(); 
+                        }
                     }
                     e.preventDefault();
                     break;
@@ -844,12 +971,13 @@ READY: <span class="cursor">_</span>
                 case "Escape":
                     if (currentView === "leaderboards" && selectedGame) {
                         selectedGame = null;
+                        currentPage = 0;
                         selectedIndex = 0;
                         render();
                     } else if (currentView !== "home") {
                         currentView = "home";
                         selectedIndex = 0;
-                        loadStats();
+                        render();
                     }
                     e.preventDefault();
                     break;
@@ -861,13 +989,37 @@ READY: <span class="cursor">_</span>
                 case "5":
                     if (currentView === "home") {
                         const index = parseInt(e.key) - 1;
-                        if (index === 0) { currentView = "users"; loadUsers(); }
-                        else if (index === 1) { currentView = "games"; loadGames(); }
-                        else if (index === 2) { currentView = "leaderboards"; loadGames(); selectedGame = null; }
-                        else if (index === 3) { currentView = "maintenance"; }
-                        else if (index === 4) { logout(); }
-                        selectedIndex = 0;
-                        render();
+                        if (index === 0) { 
+                            currentView = "users"; 
+                            currentPage = 0; 
+                            selectedIndex = 0; 
+                            loadUsers(); 
+                        }
+                        else if (index === 1) { 
+                            currentView = "games"; 
+                            currentPage = 0; 
+                            selectedIndex = 0; 
+                            loadGames(); 
+                        }
+                        else if (index === 2) { 
+                            currentView = "leaderboards"; 
+                            currentPage = 0; 
+                            selectedIndex = 0; 
+                            if (games.length === 0) {
+                                loadGames();
+                            } else {
+                                selectedGame = null; 
+                                render();
+                            }
+                        }
+                        else if (index === 3) { 
+                            currentView = "maintenance"; 
+                            selectedIndex = 0; 
+                            render(); 
+                        }
+                        else if (index === 4) { 
+                            logout(); 
+                        }
                     }
                     e.preventDefault();
                     break;
@@ -948,17 +1100,29 @@ READY: <span class="cursor">_</span>
         adminAuth = checkAuth();
         if (adminAuth) {
             adminUsername = adminAuth.username.toUpperCase();
-            loadStats();
             
+            // Initialize stats with defaults
+            stats = {
+                users: 0,
+                games: 3,
+                status: "ONLINE",
+                maintenanceMode: false
+            };
+            
+            // Load users to update stats.users
+            showLoading();
+            loadUsers();
+            
+            // Update clock every second on home screen
             setInterval(() => {
                 if (currentView === "home") {
-                    loadStats();
+                    render();
                 }
-            }, 5000);
+            }, 1000);
             
             setTimeout(() => {
                 hideLoading();
-            }, 500);
+            }, 1000);
         }
     </script>
 </body>
