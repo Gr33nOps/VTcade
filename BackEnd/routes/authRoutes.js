@@ -3,6 +3,63 @@ const { supabasePublic, supabaseAdmin } = require("../config/supabase");
 
 const router = express.Router();
 
+// Kicks off Google OAuth via Supabase's hosted authorize endpoint. A plain
+// top-level redirect (not a fetch) so no CORS/SDK is needed on the frontend —
+// consistent with the rest of this app's "backend does everything" pattern.
+router.get("/google", (req, res) => {
+    const redirectTo = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login/oauth-callback.html`;
+    const authorizeUrl = `${process.env.SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}`;
+    res.redirect(authorizeUrl);
+});
+
+// The callback page lands here with the access_token Supabase issued after
+// Google auth completed. We verify it server-side and hand back the same
+// { username, email } shape the normal /login endpoint returns.
+router.post("/google/session", async (req, res) => {
+    try {
+        const { access_token } = req.body;
+
+        if (!access_token) {
+            return res.status(400).json({ message: "Missing access token" });
+        }
+
+        const { data: { user }, error } = await supabaseAdmin.auth.getUser(access_token);
+
+        if (error || !user) {
+            return res.status(401).json({ message: "Invalid or expired session" });
+        }
+
+        const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .maybeSingle();
+
+        if (!profile) {
+            // Shouldn't happen — on_auth_user_created creates this atomically —
+            // but fail safely rather than crash if it somehow does.
+            return res.status(500).json({ message: "Profile not found for this account" });
+        }
+
+        if (profile.is_banned) {
+            return res.status(403).json({
+                message: "Your account has been banned. Please contact support for assistance.",
+                isBanned: true
+            });
+        }
+
+        res.json({
+            message: "Login successful",
+            username: profile.username,
+            email: profile.email
+        });
+
+    } catch (err) {
+        console.error("Google session error:", err);
+        res.status(500).json({ message: "Server error during Google sign-in" });
+    }
+});
+
 router.post("/signup", async (req, res) => {
     try {
         const { username, email, password } = req.body;

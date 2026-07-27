@@ -250,6 +250,17 @@
                 output += submitLine + '\n';
             }
 
+            const googleSelected = currentField === 5;
+            const googlePrefix = googleSelected ? '>>>' : '   ';
+            const googleText = isSubmitting ? '[ REDIRECTING... ]' : '[ CONTINUE WITH GOOGLE ]';
+            let googleLine = `${googlePrefix} ${googleText}`;
+
+            if (googleSelected) {
+                output += `<span class="highlight">${googleLine}</span>\n`;
+            } else {
+                output += googleLine + '\n';
+            }
+
             output += '\n';
 
             if (errorMessage) {
@@ -271,16 +282,16 @@
             successMessage = "";
 
             if (direction === 'next') {
-                currentField = currentField < 4 ? currentField + 1 : 0;
+                currentField = currentField < 5 ? currentField + 1 : 0;
             } else if (direction === 'prev') {
-                currentField = currentField > 0 ? currentField - 1 : 4;
+                currentField = currentField > 0 ? currentField - 1 : 5;
             }
             render();
         }
 
         function handleTyping(key) {
             if (isSubmitting || registrationComplete) return;
-            if (currentField === 4) return;
+            if (currentField === 4 || currentField === 5) return;
 
             errorMessage = "";
             successMessage = "";
@@ -374,6 +385,19 @@
             }
         }
 
+        function continueWithGoogle() {
+            if (isSubmitting || registrationComplete) return;
+            if (currentField !== 5) return;
+
+            isSubmitting = true;
+            render();
+
+            document.getElementById('loadingOverlay').classList.add('active');
+            setTimeout(() => {
+                window.location.href = `${API_URL}/api/auth/google`;
+            }, 500);
+        }
+
         document.addEventListener("keydown", (e) => {
             if (e.key === "Tab") {
                 e.preventDefault();
@@ -391,6 +415,8 @@
                 e.preventDefault();
                 if (currentField === 4 && !registrationComplete) {
                     submitForm();
+                } else if (currentField === 5 && !registrationComplete) {
+                    continueWithGoogle();
                 }
             } else if (e.key === "Backspace" || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
                 e.preventDefault();

@@ -16,6 +16,32 @@
 > rows) before Render could redeploy the new code out from under them. Excluded two
 > stale test entries (`BlockFlap`, and a `SnakeGame` score for a space-containing
 > username that the app's own validation would reject) as clearly abandoned dev data.
+>
+> **2026-07-27, "Continue with Google" added:** Login and signup now have a fourth
+> (login) / sixth (signup) navigable option, `[ CONTINUE WITH GOOGLE ]`, styled
+> identically to the existing fields. Flow: `GET /api/auth/google` redirects to
+> Supabase's hosted OAuth authorize endpoint → Google → back to the new
+> `FrontEnd/login/oauth-callback.html`, which posts the returned access token to
+> `POST /api/auth/google/session` for server-side verification, then logs in the
+> same way the password flow does. Also hardened `handle_new_user()` (the signup
+> trigger) to derive a unique username from the OAuth profile when one isn't
+> supplied in metadata — verified against simulated Google-shaped signups,
+> including a username collision, before relying on it.
+>
+> **External setup still required (I have no tool access to do this — Supabase's
+> Auth provider settings aren't exposed via the SQL/migration tools, and Google
+> Cloud credential creation requires your own account):**
+> 1. Google Cloud Console → create an OAuth 2.0 Client ID, authorized redirect URI
+>    set to `https://tjvtjffmeznkuxextxmw.supabase.co/auth/v1/callback`.
+> 2. Supabase Dashboard → Authentication → Sign In / Providers → Google → paste
+>    the Client ID + Secret, enable it.
+> 3. Supabase Dashboard → Authentication → URL Configuration → Redirect URLs → add
+>    `https://vtcade.vercel.app/login/oauth-callback.html` (and a localhost
+>    equivalent if you test locally).
+>
+> Until those three are done, clicking "Continue with Google" will reach Supabase
+> and fail there (provider not enabled) rather than erroring in this app's own code
+> — the redirect endpoint itself was verified working locally.
 
 Living roadmap to take VTcade from "student project" to "solid small production app."
 Organized into phases. Each phase maps to one or more of the 20 quality pillars we're

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VTcade - AUTHENTICATING</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: black;
+            color: #00ff00;
+            font-family: "Courier New", monospace;
+            font-size: 16px;
+            line-height: 1.4;
+            text-shadow: 0 0 4px #00ff00;
+            overflow: hidden;
+            cursor: none;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            width: 100%;
+            max-width: 700px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        pre {
+            white-space: pre;
+            user-select: none;
+            line-height: 1.4;
+        }
+        .terminal-output {
+            font-size: 14px;
+            text-align: left;
+        }
+        .logo {
+            font-size: 10px;
+            line-height: 1.1;
+            text-align: center;
+            margin-bottom: 0;
+            animation: flicker 0.15s infinite alternate;
+        }
+        .subtitle {
+            font-size: 14px;
+            text-align: center;
+            margin-top: 5px;
+            display: block;
+        }
+        body::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(
+                to bottom,
+                rgba(0,0,0,0) 0px,
+                rgba(0,255,0,0.04) 2px,
+                rgba(0,0,0,0) 4px
+            );
+            pointer-events: none;
+            z-index: 9999;
+        }
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+        .cursor {
+            animation: blink 1s infinite;
+        }
+        @keyframes flicker {
+            0% { opacity: 0.97; }
+            100% { opacity: 1; }
+        }
+        .error-text {
+            color: #00ff00;
+            text-shadow: 0 0 4px #00ff00;
+        }
+        .success-text {
+            color: #00ff00;
+            text-shadow: 0 0 4px #00ff00;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+        .loading-dots::after {
+            content: '';
+            animation: dots 1.5s infinite;
+        }
+        @media (max-width: 768px) {
+            body { font-size: 12px; padding: 10px; }
+            .terminal-output { font-size: 11px; }
+            .logo { font-size: 7px; }
+            .subtitle { font-size: 11px; }
+        }
+        @media (max-width: 480px) {
+            body { font-size: 10px; }
+            .terminal-output { font-size: 9px; }
+            .logo { font-size: 5px; }
+            .subtitle { font-size: 9px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <pre class="logo">
+██╗   ██╗████████╗ ██████╗ █████╗ ██████╗ ███████╗
+██║   ██║╚══██╔══╝██╔════╝██╔══██╗██╔══██╗██╔════╝
+██║   ██║   ██║   ██║     ███████║██║  ██║█████╗
+╚██╗ ██╔╝   ██║   ██║     ██╔══██║██║  ██║██╔══╝
+ ╚████╔╝    ██║   ╚██████╗██║  ██║██████╔╝███████╗
+  ╚═══╝     ╚═╝    ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝
+                    <span class="subtitle">Play Like It's 1985</span></pre>
+        <pre id="terminal" class="terminal-output"></pre>
+    </div>
+
+    <script>
+        const API_URL = "https://vtcade.onrender.com";
+        const terminalEl = document.getElementById("terminal");
+
+        function render(statusLine, extra) {
+            let output = `\n================================================================================\nGOOGLE AUTHENTICATION\n================================================================================\n\n${statusLine}\n\n`;
+            if (extra) output += `${extra}\n\n`;
+            output += `================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
+            terminalEl.innerHTML = output;
+        }
+
+        function showError(message) {
+            render(
+                `<span class="error-text">ERROR: ${message}</span>`,
+                'Returning to login...'
+            );
+            setTimeout(() => {
+                window.location.href = "login.html";
+            }, 2000);
+        }
+
+        function parseHashParams() {
+            const hash = window.location.hash.startsWith('#')
+                ? window.location.hash.slice(1)
+                : window.location.hash;
+            const params = new URLSearchParams(hash);
+            return {
+                access_token: params.get('access_token'),
+                error: params.get('error'),
+                error_description: params.get('error_description')
+            };
+        }
+
+        async function completeSignIn() {
+            render('<span class="loading-dots">AUTHENTICATING</span>');
+
+            const { access_token, error, error_description } = parseHashParams();
+
+            if (error) {
+                showError(error_description || error);
+                return;
+            }
+            if (!access_token) {
+                showError("No authentication token received");
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/api/auth/google/session`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ access_token })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    showError(data?.message || "Google sign-in failed");
+                    return;
+                }
+
+                localStorage.setItem("currentUser", data.username);
+                render(`<span class="success-text">SUCCESS: Welcome, ${data.username}</span>`, 'Redirecting to dashboard...');
+
+                setTimeout(() => {
+                    window.location.href = "../dashboard/dashboard.html";
+                }, 800);
+
+            } catch (err) {
+                showError("Network error");
+            }
+        }
+
+        document.addEventListener("wheel", (e) => {
+            e.preventDefault();
+        }, { passive: false });
+
+        completeSignIn();
+    </script>
+</body>
+</html>
