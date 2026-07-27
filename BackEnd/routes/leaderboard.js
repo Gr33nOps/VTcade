@@ -1,55 +1,41 @@
 const express = require("express");
 const router = express.Router();
 const { supabaseAdmin } = require("../config/supabase");
+const asyncRoute = require("../config/asyncRoute");
+const { requireUser } = require("../config/auth");
 
-router.post("/save", async (req, res) => {
-    try {
-        const { username, game, score } = req.body;
+const MAX_SCORE = 1000000;
 
-        if (!username || !game || score == null) {
-            return res.status(400).json({ message: "Missing required fields" });
-        }
+router.post("/save", requireUser, asyncRoute(async (req, res) => {
+    const { game, score } = req.body;
 
-        const numScore = Number(score);
-
-        if (isNaN(numScore) || numScore < 0) {
-            return res.status(400).json({ message: "Invalid score" });
-        }
-
-        const { data: user } = await supabaseAdmin
-            .from("profiles")
-            .select("id")
-            .eq("username", username.trim())
-            .maybeSingle();
-
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-
-        // Atomic "keep the higher score" upsert (submit_leaderboard_score RPC) —
-        // avoids the read-then-maybe-write race the old find/save pattern had.
-        const { data, error } = await supabaseAdmin
-            .rpc("submit_leaderboard_score", {
-                p_user_id: user.id,
-                p_username: username.trim(),
-                p_game: game.trim(),
-                p_score: numScore
-            })
-            .single();
-
-        if (error) throw error;
-
-        res.json({
-            message: data.is_new_highscore ? "New highscore!" : "Score saved",
-            score: data.score,
-            isNewHighscore: data.is_new_highscore
-        });
-
-    } catch (err) {
-        console.error('Leaderboard save error:', err);
-        res.status(500).json({ message: "Server error", error: err.message });
+    if (!game || typeof game !== "string" || score == null) {
+        return res.status(400).json({ message: "Missing required fields" });
     }
-});
+
+    const numScore = Number(score);
+    if (!Number.isFinite(numScore) || !Number.isInteger(numScore) || numScore < 0 || numScore > MAX_SCORE) {
+        return res.status(400).json({ message: "Invalid score" });
+    }
+
+    // Identity comes from the verified token, never from the request body.
+    const { data, error } = await supabaseAdmin
+        .rpc("submit_leaderboard_score", {
+            p_user_id: req.user.id,
+            p_username: req.user.username,
+            p_game: game.trim(),
+            p_score: numScore
+        })
+        .single();
+
+    if (error) throw error;
+
+    res.json({
+        message: data.is_new_highscore ? "New highscore!" : "Score saved",
+        score: data.score,
+        isNewHighscore: data.is_new_highscore
+    });
+}));
 
 router.get("/:game", async (req, res) => {
     try {

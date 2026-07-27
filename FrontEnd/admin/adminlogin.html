@@ -348,7 +348,11 @@ READY: <span class="cursor">_</span>
                     return;
                 }
                 
-                localStorage.setItem("adminAuth", JSON.stringify({ username, password }));
+                // Store only the short-lived token the server issued. The old
+                // code kept the admin password in localStorage in plaintext and
+                // replayed it as a header on every request.
+                localStorage.setItem("adminToken", data.token);
+                localStorage.setItem("adminUsername", data.username);
                 
                 successMessage = "Access granted";
                 isSubmitting = false;
@@ -399,7 +403,7 @@ READY: <span class="cursor">_</span>
             e.preventDefault();
         }, { passive: false });
 
-        const existingAuth = localStorage.getItem("adminAuth");
+        const existingAuth = localStorage.getItem("adminToken");
         if (existingAuth) {
             document.getElementById('loadingOverlay').classList.add('active');
             setTimeout(() => {

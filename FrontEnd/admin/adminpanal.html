@@ -186,22 +186,15 @@
         }
 
         function checkAuth() {
-            const authData = localStorage.getItem("adminAuth");
-            if (!authData) {
+            const token = localStorage.getItem("adminToken");
+            if (!token) {
                 window.location.href = "adminlogin.html";
                 return null;
             }
-            try {
-                const parsed = JSON.parse(authData);
-                if (!parsed || !parsed.username || !parsed.password) throw new Error("incomplete");
-                return parsed;
-            } catch (err) {
-                // Corrupt/partial value used to throw here and leave a blank,
-                // frozen page with no way out. Clear it and start over.
-                localStorage.removeItem("adminAuth");
-                window.location.href = "adminlogin.html";
-                return null;
-            }
+            return {
+                token,
+                username: localStorage.getItem("adminUsername") || "ADMIN"
+            };
         }
 
         function getDateTime() {
@@ -229,8 +222,7 @@
                 ...options,
                 headers: {
                     'Content-Type': 'application/json',
-                    username: adminAuth.username,
-                    password: adminAuth.password,
+                    Authorization: `Bearer ${adminAuth.token}`,
                     ...options.headers
                 }
             });
@@ -244,7 +236,8 @@
 
             if (!res.ok) {
                 if (res.status === 401) {
-                    localStorage.removeItem("adminAuth");
+                    localStorage.removeItem("adminToken");
+                    localStorage.removeItem("adminUsername");
                     alert("Session rejected. Please sign in again.");
                     window.location.href = "adminlogin.html";
                 }
@@ -815,7 +808,8 @@ READY: <span class="cursor">_</span>
         function logout() {
             showLoading();
             setTimeout(() => {
-                localStorage.removeItem("adminAuth");
+                localStorage.removeItem("adminToken");
+                localStorage.removeItem("adminUsername");
                 window.location.href = "adminlogin.html";
             }, 800);
         }

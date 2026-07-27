@@ -2,19 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { supabaseAdmin } = require("../config/supabase");
 const asyncRoute = require("../config/asyncRoute");
-
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
-
-function checkAdmin(req, res, next) {
-    const { username, password } = req.headers;
-
-    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-        next();
-    } else {
-        res.status(401).json({ message: "Unauthorized" });
-    }
-}
+const { ADMIN_USERNAME, signAdminToken, verifyAdminCredentials, requireAdmin } = require("../config/auth");
 
 function mapUser(u) {
     return {
@@ -62,17 +50,20 @@ const USER_COLUMNS = "id, username, email, is_verified, is_banned, created_at";
 router.post("/login", asyncRoute(async (req, res) => {
     const { username, password } = req.body;
 
-    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-        res.json({
-            message: "Admin login successful",
-            username: ADMIN_USERNAME
-        });
-    } else {
-        res.status(401).json({ message: "Invalid credentials" });
+    if (!verifyAdminCredentials(username, password)) {
+        return res.status(401).json({ message: "Invalid credentials" });
     }
+
+    // Hand back a short-lived signed token. The password never leaves this
+    // request and is never stored client-side.
+    res.json({
+        message: "Admin login successful",
+        username: ADMIN_USERNAME,
+        token: signAdminToken()
+    });
 }));
 
-router.get("/stats", checkAdmin, asyncRoute(async (req, res) => {
+router.get("/stats", requireAdmin, asyncRoute(async (req, res) => {
     const { count: userCount } = await supabaseAdmin
         .from("profiles")
         .select("*", { count: "exact", head: true });
@@ -106,7 +97,7 @@ router.get("/stats", checkAdmin, asyncRoute(async (req, res) => {
     });
 }));
 
-router.get("/users", checkAdmin, asyncRoute(async (req, res) => {
+router.get("/users", requireAdmin, asyncRoute(async (req, res) => {
     const { data, error } = await supabaseAdmin
         .from("profiles")
         .select(USER_COLUMNS)
@@ -118,7 +109,7 @@ router.get("/users", checkAdmin, asyncRoute(async (req, res) => {
     res.json({ users, total: users.length });
 }));
 
-router.put("/users/:id/ban", checkAdmin, asyncRoute(async (req, res) => {
+router.put("/users/:id/ban", requireAdmin, asyncRoute(async (req, res) => {
     const { data, error } = await supabaseAdmin
         .from("profiles")
         .update({ is_banned: true })
@@ -132,7 +123,7 @@ router.put("/users/:id/ban", checkAdmin, asyncRoute(async (req, res) => {
     res.json({ message: "User banned", user: mapUser(data) });
 }));
 
-router.put("/users/:id/unban", checkAdmin, asyncRoute(async (req, res) => {
+router.put("/users/:id/unban", requireAdmin, asyncRoute(async (req, res) => {
     const { data, error } = await supabaseAdmin
         .from("profiles")
         .update({ is_banned: false })
@@ -146,7 +137,7 @@ router.put("/users/:id/unban", checkAdmin, asyncRoute(async (req, res) => {
     res.json({ message: "User unbanned", user: mapUser(data) });
 }));
 
-router.delete("/users/:id", checkAdmin, asyncRoute(async (req, res) => {
+router.delete("/users/:id", requireAdmin, asyncRoute(async (req, res) => {
     const { data: profile } = await supabaseAdmin
         .from("profiles")
         .select("username")
@@ -172,7 +163,7 @@ router.delete("/users/:id", checkAdmin, asyncRoute(async (req, res) => {
     res.json({ message: "User deleted successfully" });
 }));
 
-router.get("/games", checkAdmin, asyncRoute(async (req, res) => {
+router.get("/games", requireAdmin, asyncRoute(async (req, res) => {
     const { data, error } = await supabaseAdmin
         .from("games")
         .select("*")
@@ -184,7 +175,7 @@ router.get("/games", checkAdmin, asyncRoute(async (req, res) => {
     res.json({ games, total: games.length });
 }));
 
-router.put("/games/:id/enable", checkAdmin, asyncRoute(async (req, res) => {
+router.put("/games/:id/enable", requireAdmin, asyncRoute(async (req, res) => {
     const { data, error } = await supabaseAdmin
         .from("games")
         .update({ is_active: true })
@@ -198,7 +189,7 @@ router.put("/games/:id/enable", checkAdmin, asyncRoute(async (req, res) => {
     res.json({ message: "Game enabled", game: mapGame(data) });
 }));
 
-router.put("/games/:id/disable", checkAdmin, asyncRoute(async (req, res) => {
+router.put("/games/:id/disable", requireAdmin, asyncRoute(async (req, res) => {
     const { data, error } = await supabaseAdmin
         .from("games")
         .update({ is_active: false })
@@ -212,7 +203,7 @@ router.put("/games/:id/disable", checkAdmin, asyncRoute(async (req, res) => {
     res.json({ message: "Game disabled", game: mapGame(data) });
 }));
 
-router.get("/leaderboards", checkAdmin, asyncRoute(async (req, res) => {
+router.get("/leaderboards", requireAdmin, asyncRoute(async (req, res) => {
     const { game } = req.query;
 
     let query = supabaseAdmin
@@ -230,7 +221,7 @@ router.get("/leaderboards", checkAdmin, asyncRoute(async (req, res) => {
     res.json({ leaderboards, total: leaderboards.length });
 }));
 
-router.delete("/leaderboards/:id", checkAdmin, asyncRoute(async (req, res) => {
+router.delete("/leaderboards/:id", requireAdmin, asyncRoute(async (req, res) => {
     const { data, error } = await supabaseAdmin
         .from("leaderboard")
         .delete()
@@ -244,7 +235,7 @@ router.delete("/leaderboards/:id", checkAdmin, asyncRoute(async (req, res) => {
     res.json({ message: "Score removed" });
 }));
 
-router.delete("/leaderboards/reset/:game", checkAdmin, asyncRoute(async (req, res) => {
+router.delete("/leaderboards/reset/:game", requireAdmin, asyncRoute(async (req, res) => {
     const { data, error } = await supabaseAdmin
         .from("leaderboard")
         .delete()
@@ -259,7 +250,7 @@ router.delete("/leaderboards/reset/:game", checkAdmin, asyncRoute(async (req, re
     });
 }));
 
-router.put("/leaderboards/:id/flag", checkAdmin, asyncRoute(async (req, res) => {
+router.put("/leaderboards/:id/flag", requireAdmin, asyncRoute(async (req, res) => {
     const { data, error } = await supabaseAdmin
         .from("leaderboard")
         .update({ is_flagged: true })
@@ -273,7 +264,7 @@ router.put("/leaderboards/:id/flag", checkAdmin, asyncRoute(async (req, res) => 
     res.json({ message: "Score flagged", entry: mapLeaderboardEntry(data) });
 }));
 
-router.get("/maintenance", checkAdmin, asyncRoute(async (req, res) => {
+router.get("/maintenance", requireAdmin, asyncRoute(async (req, res) => {
     const { data, error } = await supabaseAdmin
         .from("system_settings")
         .select("maintenance_mode")
@@ -285,7 +276,7 @@ router.get("/maintenance", checkAdmin, asyncRoute(async (req, res) => {
     res.json({ maintenanceMode: data.maintenance_mode });
 }));
 
-router.put("/maintenance/enable", checkAdmin, asyncRoute(async (req, res) => {
+router.put("/maintenance/enable", requireAdmin, asyncRoute(async (req, res) => {
     const { error } = await supabaseAdmin
         .from("system_settings")
         .update({ maintenance_mode: true })
@@ -296,7 +287,7 @@ router.put("/maintenance/enable", checkAdmin, asyncRoute(async (req, res) => {
     res.json({ message: "Maintenance mode enabled", maintenanceMode: true });
 }));
 
-router.put("/maintenance/disable", checkAdmin, asyncRoute(async (req, res) => {
+router.put("/maintenance/disable", requireAdmin, asyncRoute(async (req, res) => {
     const { error } = await supabaseAdmin
         .from("system_settings")
         .update({ maintenance_mode: false })

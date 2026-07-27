@@ -230,6 +230,8 @@
         <pre id="terminal" class="terminal-output"></pre>
     </div>
 
+    <script src="../shared/config.js"></script>
+    <script src="../shared/session.js"></script>
     <script>
         const API_BASE_URL = 'https://vtcade.onrender.com/api';
         const terminalEl = document.getElementById("terminal");
@@ -264,7 +266,7 @@
         ];
 
         function checkLogin() {
-            const user = localStorage.getItem("currentUser");
+            const user = VTSession.getUsername();
             if (!user) {
                 window.location.href = "../login/login.html";
                 return null;
@@ -692,7 +694,7 @@ READY: <span class="cursor">_</span>
         function logout() {
             document.getElementById('loadingOverlay').classList.add('active');
             setTimeout(() => {
-                localStorage.removeItem("currentUser");
+                VTSession.clearSession();
                 window.location.href = "../login/login.html";
             }, 800);
         }

@@ -95,7 +95,9 @@ RUNNER v1.0
     <pre id="game"></pre>
     <pre id="ui"></pre>
 </div>
-<script>
+<script src="../../shared/config.js"></script>
+    <script src="../../shared/session.js"></script>
+    <script>
 const gameEl = document.getElementById("game");
 const uiEl = document.getElementById("ui");
 const API_URL = "https://vtcade.onrender.com";
@@ -103,7 +105,7 @@ const WIDTH = 50;
 const HEIGHT = 25;
 const GAME_NAME = "RUNNER";
 
-const currentUser = localStorage.getItem("currentUser");
+const currentUser = VTSession.getUsername();
 
 if (!currentUser) {
     alert("You must be logged in to play!");
@@ -393,14 +395,9 @@ async function loadHighScore() {
 
 async function saveHighscore(finalScore) {
     try {
-        const res = await fetch(`${API_URL}/api/highscore/save`, {
+        const res = await VTSession.authedFetch(`/api/highscore/save`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                username: currentUser,
-                game: GAME_NAME,
-                score: finalScore
-            })
+            body: JSON.stringify({ game: GAME_NAME, score: finalScore })
         });
 
         if (res.ok) {
@@ -418,15 +415,13 @@ async function saveHighscore(finalScore) {
 
 async function saveLeaderboard(finalScore) {
     try {
-        await fetch(`${API_URL}/api/leaderboard/save`, {
+        const res = await VTSession.authedFetch(`/api/leaderboard/save`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                username: currentUser,
-                game: GAME_NAME,
-                score: finalScore
-            })
+            body: JSON.stringify({ game: GAME_NAME, score: finalScore })
         });
+        if (!res.ok) {
+            console.error('Leaderboard save failed:', res.status, await res.text());
+        }
     } catch (err) {
         console.error('Error saving leaderboard:', err);
     }

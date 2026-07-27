@@ -215,6 +215,42 @@ router.post("/resend-verification", async (req, res) => {
     }
 });
 
+// Exchanges a refresh token for a fresh access token so a long play session
+// doesn't silently start failing score submissions after the token expires.
+router.post("/refresh", async (req, res) => {
+    try {
+        const { refresh_token } = req.body;
+
+        if (!refresh_token) {
+            return res.status(400).json({ message: "Missing refresh token" });
+        }
+
+        const { data, error } = await supabasePublic.auth.refreshSession({ refresh_token });
+
+        if (error || !data?.session) {
+            return res.status(401).json({ message: "Session expired. Please sign in again." });
+        }
+
+        const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("username, is_banned")
+            .eq("id", data.user.id)
+            .maybeSingle();
+
+        if (!profile) {
+            return res.status(403).json({ message: "Account not found" });
+        }
+        if (profile.is_banned) {
+            return res.status(403).json({ message: "Your account has been banned.", isBanned: true });
+        }
+
+        res.json({ session: data.session, username: profile.username });
+    } catch (err) {
+        console.error("Refresh error:", err);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
 router.post("/logout", async (req, res) => {
     try {
         const { error } = await supabasePublic.auth.signOut();
