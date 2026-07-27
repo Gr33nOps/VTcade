@@ -166,8 +166,9 @@
         <pre id="terminal" class="terminal-output" role="status" aria-live="polite" aria-atomic="true"></pre>
     </div>
 
+    <script src="../shared/config.js"></script>
     <script>
-        const API_URL = "https://vtcade.onrender.com";
+        const API_URL = window.VTCADE_API_URL;
         const terminalEl = document.getElementById("terminal");
         let selectedIndex = 0;
         let currentPage = 0;

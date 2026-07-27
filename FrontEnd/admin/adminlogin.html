@@ -199,8 +199,9 @@
     <input type="text" id="username-input" tabindex="-1" aria-hidden="true" autocomplete="off" aria-label="username">
     <input type="password" id="password-input" tabindex="-1" aria-hidden="true" autocomplete="off" aria-label="password">
 
+    <script src="../shared/config.js"></script>
     <script>
-        const API_URL = "https://vtcade.onrender.com";
+        const API_URL = window.VTCADE_API_URL;
         const terminalEl = document.getElementById("terminal");
 
         // Values below are composed into innerHTML. The typed field values and

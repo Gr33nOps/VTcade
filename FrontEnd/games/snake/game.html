@@ -106,13 +106,15 @@ SNAKE v1.0
 </div>
 <script src="../../shared/config.js"></script>
     <script src="../../shared/session.js"></script>
+    <script src="../../shared/gameApi.js"></script>
     <script>
 const gameEl = document.getElementById("game");
 const uiEl = document.getElementById("ui");
-const API_URL = "https://vtcade.onrender.com";
+const API_URL = VTSession.API_URL;
 const WIDTH = 50;
 const HEIGHT = 25;
 const GAME_NAME = "SNAKE";
+const gameApi = createGameApi(GAME_NAME);
 
 const currentUser = VTSession.getUsername();
 
@@ -363,71 +365,21 @@ function changeDirection(newDir) {
 }
 
 async function loadHighScore() {
-    try {
-        const res = await fetch(
-            `${API_URL}/api/highscore/${encodeURIComponent(currentUser)}/${encodeURIComponent(GAME_NAME)}`
-        );
-
-        if (res.ok) {
-            const data = await res.json();
-            highScore = data.highscore || 0;
-        } else {
-            highScore = 0;
-        }
-    } catch (err) {
-        highScore = 0;
-    }
+    highScore = await gameApi.loadHighScore(currentUser);
 }
 
 async function saveHighscore(finalScore) {
-    try {
-        const res = await VTSession.authedFetch(`/api/highscore/save`, {
-            method: "POST",
-            body: JSON.stringify({ game: GAME_NAME, score: finalScore })
-        });
-
-        if (res.ok) {
-            const data = await res.json();
-            if (typeof data.highscore === "number") {
-                highScore = data.highscore;
-            }
-        } else {
-            console.error('Highscore save failed:', res.status, await res.text());
-        }
-    } catch (err) {
-        console.error('Error saving highscore:', err);
-    }
+    const stored = await gameApi.saveHighScore(finalScore);
+    if (stored !== null) highScore = stored;
 }
 
 async function saveLeaderboard(finalScore) {
-    try {
-        const res = await VTSession.authedFetch(`/api/leaderboard/save`, {
-            method: "POST",
-            body: JSON.stringify({ game: GAME_NAME, score: finalScore })
-        });
-        if (!res.ok) {
-            console.error('Leaderboard save failed:', res.status, await res.text());
-        }
-    } catch (err) {
-        console.error('Error saving leaderboard:', err);
-    }
+    await gameApi.saveLeaderboard(finalScore);
 }
 
 async function loadLeaderboard() {
-    try {
-        const res = await fetch(`${API_URL}/api/leaderboard/${encodeURIComponent(GAME_NAME)}`);
-
-        if (res.ok) {
-            const data = await res.json();
-            leaderboard = data.leaderboard || [];
-            draw();
-        } else {
-            leaderboard = [];
-        }
-    } catch (err) {
-        console.error('Error loading leaderboard:', err);
-        leaderboard = [];
-    }
+    leaderboard = await gameApi.loadLeaderboard();
+    draw();
 }
 
 document.addEventListener("keydown", (e) => {
