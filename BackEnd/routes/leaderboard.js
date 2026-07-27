@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const Leaderboard = require("../models/leaderboard");
-const User = require("../models/User"); 
+const { supabaseAdmin } = require("../config/supabase");
 
 router.post("/save", async (req, res) => {
     try {
@@ -12,47 +11,38 @@ router.post("/save", async (req, res) => {
         }
 
         const numScore = Number(score);
-        
+
         if (isNaN(numScore) || numScore < 0) {
             return res.status(400).json({ message: "Invalid score" });
         }
 
-        const user = await User.findOne({ username: username.trim() });
-        
+        const { data: user } = await supabaseAdmin
+            .from("profiles")
+            .select("id")
+            .eq("username", username.trim())
+            .maybeSingle();
+
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
 
-        const existing = await Leaderboard.findOne({ 
-            username: username.trim(), 
-            game: game.trim() 
-        });
+        // Atomic "keep the higher score" upsert (submit_leaderboard_score RPC) —
+        // avoids the read-then-maybe-write race the old find/save pattern had.
+        const { data, error } = await supabaseAdmin
+            .rpc("submit_leaderboard_score", {
+                p_user_id: user.id,
+                p_username: username.trim(),
+                p_game: game.trim(),
+                p_score: numScore
+            })
+            .single();
 
-        let isNewHighscore = false;
-        let savedScore = numScore;
+        if (error) throw error;
 
-        if (existing) {
-            if (numScore > existing.score) {
-                existing.score = numScore;
-                await existing.save();
-                isNewHighscore = true;
-            } else {
-                savedScore = existing.score;
-            }
-        } else {
-            await Leaderboard.create({ 
-                userId: user._id, 
-                username: username.trim(), 
-                game: game.trim(), 
-                score: numScore 
-            });
-            isNewHighscore = true;
-        }
-
-        res.json({ 
-            message: isNewHighscore ? "New highscore!" : "Score saved",
-            score: savedScore,
-            isNewHighscore
+        res.json({
+            message: data.is_new_highscore ? "New highscore!" : "Score saved",
+            score: data.score,
+            isNewHighscore: data.is_new_highscore
         });
 
     } catch (err) {
@@ -70,10 +60,14 @@ router.get("/:game", async (req, res) => {
             return res.status(400).json({ message: "Game name is required" });
         }
 
-        const scores = await Leaderboard.find({ game: game.trim() })
-            .sort({ score: -1 })
-            .limit(limit)
-            .select('username score createdAt -_id');
+        const { data: scores, error } = await supabaseAdmin
+            .from("leaderboard")
+            .select("username, score, created_at")
+            .eq("game", game.trim())
+            .order("score", { ascending: false })
+            .limit(limit);
+
+        if (error) throw error;
 
         res.json({
             game: game.trim(),
@@ -81,7 +75,7 @@ router.get("/:game", async (req, res) => {
                 rank: index + 1,
                 username: entry.username,
                 score: entry.score,
-                date: entry.createdAt
+                date: entry.created_at
             })),
             total: scores.length
         });
@@ -99,10 +93,12 @@ router.get("/user/highscore/:username/:game", async (req, res) => {
             return res.status(400).json({ message: "Username and game are required" });
         }
 
-        const entry = await Leaderboard.findOne({ 
-            username: username.trim(), 
-            game: game.trim() 
-        });
+        const { data: entry } = await supabaseAdmin
+            .from("leaderboard")
+            .select("score")
+            .eq("username", username.trim())
+            .eq("game", game.trim())
+            .maybeSingle();
 
         res.json({
             username: username.trim(),
@@ -124,10 +120,12 @@ router.get("/rank/:username/:game", async (req, res) => {
             return res.status(400).json({ message: "Username and game are required" });
         }
 
-        const userEntry = await Leaderboard.findOne({ 
-            username: username.trim(), 
-            game: game.trim() 
-        });
+        const { data: userEntry } = await supabaseAdmin
+            .from("leaderboard")
+            .select("score")
+            .eq("username", username.trim())
+            .eq("game", game.trim())
+            .maybeSingle();
 
         if (!userEntry) {
             return res.json({
@@ -139,19 +137,23 @@ router.get("/rank/:username/:game", async (req, res) => {
             });
         }
 
-        const higherScoresCount = await Leaderboard.countDocuments({
-            game: game.trim(),
-            score: { $gt: userEntry.score }
-        });
+        const { count: higherScoresCount } = await supabaseAdmin
+            .from("leaderboard")
+            .select("*", { count: "exact", head: true })
+            .eq("game", game.trim())
+            .gt("score", userEntry.score);
 
-        const rank = higherScoresCount + 1;
+        const { count: totalPlayers } = await supabaseAdmin
+            .from("leaderboard")
+            .select("*", { count: "exact", head: true })
+            .eq("game", game.trim());
 
         res.json({
             username: username.trim(),
             game: game.trim(),
-            rank,
+            rank: (higherScoresCount || 0) + 1,
             score: userEntry.score,
-            totalPlayers: await Leaderboard.countDocuments({ game: game.trim() })
+            totalPlayers: totalPlayers || 0
         });
 
     } catch (err) {
@@ -161,7 +163,13 @@ router.get("/rank/:username/:game", async (req, res) => {
 
 router.get("/", async (req, res) => {
     try {
-        const games = await Leaderboard.distinct('game');
+        const { data, error } = await supabaseAdmin
+            .from("leaderboard")
+            .select("game");
+
+        if (error) throw error;
+
+        const games = [...new Set(data.map(row => row.game))];
 
         res.json({
             games,

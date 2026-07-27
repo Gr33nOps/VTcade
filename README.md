@@ -59,11 +59,16 @@ This project was developed as part of a Web Technology course, demonstrating ful
    Create a `.env` file in the `backend` directory with:
    ```
    SUPABASE_URL=your_supabase_url
-   SUPABASE_KEY=your_supabase_key
+   SUPABASE_ANON_KEY=your_supabase_anon_key
+   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
    ADMIN_USERNAME=admin
    ADMIN_PASSWORD=your_password
    PORT=3000
    ```
+
+   The service role key bypasses Row Level Security and must never be exposed to
+   the frontend — it's used server-side only. Find it in your Supabase project
+   under Project Settings → API.
 
 4. Run the backend server:
    ```
@@ -81,7 +86,7 @@ This project was developed as part of a Web Technology course, demonstrating ful
 - **Backend (Render.com)**:
   - Push code to GitHub.
   - Connect Render to your repository.
-  - Add environment variables: `SUPABASE_URL`, `SUPABASE_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`.
+  - Add environment variables: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`.
   - Deploy automatically on push.
 
 - **Frontend (Vercel)**:
@@ -197,7 +202,7 @@ async function submitScore(username, game, score) {
 - Files: 25+
 - API Endpoints: 20+
 - Games: 3
-- Database Tables: 4
+- Database Tables: 5
 
 
 ## License

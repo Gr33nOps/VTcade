@@ -1027,7 +1027,7 @@ READY: <span class="cursor">_</span>
                 case "b":
                 case "B":
                     if (currentView === "users" && users.length > 0) {
-                        banUser(users[selectedIndex]._id);
+                        banUser(users[selectedIndex].id);
                     }
                     e.preventDefault();
                     break;
@@ -1035,7 +1035,7 @@ READY: <span class="cursor">_</span>
                 case "u":
                 case "U":
                     if (currentView === "users" && users.length > 0) {
-                        unbanUser(users[selectedIndex]._id);
+                        unbanUser(users[selectedIndex].id);
                     }
                     e.preventDefault();
                     break;
@@ -1043,9 +1043,9 @@ READY: <span class="cursor">_</span>
                 case "d":
                 case "D":
                     if (currentView === "users" && users.length > 0) {
-                        deleteUser(users[selectedIndex]._id);
+                        deleteUser(users[selectedIndex].id);
                     } else if (currentView === "leaderboards" && selectedGame && leaderboards.length > 0) {
-                        deleteScore(leaderboards[selectedIndex]._id);
+                        deleteScore(leaderboards[selectedIndex].id);
                     }
                     e.preventDefault();
                     break;
@@ -1053,7 +1053,7 @@ READY: <span class="cursor">_</span>
                 case "e":
                 case "E":
                     if (currentView === "games" && games.length > 0) {
-                        enableGame(games[selectedIndex]._id);
+                        enableGame(games[selectedIndex].id);
                     }
                     e.preventDefault();
                     break;
@@ -1061,7 +1061,7 @@ READY: <span class="cursor">_</span>
                 case "x":
                 case "X":
                     if (currentView === "games" && games.length > 0) {
-                        disableGame(games[selectedIndex]._id);
+                        disableGame(games[selectedIndex].id);
                     }
                     e.preventDefault();
                     break;
@@ -1069,7 +1069,7 @@ READY: <span class="cursor">_</span>
                 case "f":
                 case "F":
                     if (currentView === "leaderboards" && selectedGame && leaderboards.length > 0) {
-                        flagScore(leaderboards[selectedIndex]._id);
+                        flagScore(leaderboards[selectedIndex].id);
                     }
                     e.preventDefault();
                     break;

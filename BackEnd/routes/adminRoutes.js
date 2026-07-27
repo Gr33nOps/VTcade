@@ -1,16 +1,13 @@
 const express = require("express");
 const router = express.Router();
-const User = require("../models/User");
-const Game = require("../models/Game");
-const Leaderboard = require("../models/leaderboard");
-const SystemSettings = require("../models/SystemSetting");
+const { supabaseAdmin } = require("../config/supabase");
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
 
 function checkAdmin(req, res, next) {
     const { username, password } = req.headers;
-    
+
     if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
         next();
     } else {
@@ -18,12 +15,53 @@ function checkAdmin(req, res, next) {
     }
 }
 
+function mapUser(u) {
+    return {
+        id: u.id,
+        username: u.username,
+        email: u.email,
+        isVerified: u.is_verified,
+        isBanned: u.is_banned,
+        createdAt: u.created_at
+    };
+}
+
+function mapGame(g) {
+    return {
+        id: g.id,
+        title: g.title,
+        genre: g.genre,
+        description: g.description,
+        createdBy: g.created_by,
+        isActive: g.is_active,
+        difficulty: g.difficulty,
+        thumbnail: g.thumbnail,
+        playCount: g.play_count,
+        averageScore: g.average_score,
+        createdAt: g.created_at,
+        updatedAt: g.updated_at
+    };
+}
+
+function mapLeaderboardEntry(e) {
+    return {
+        id: e.id,
+        userId: e.user_id,
+        username: e.username,
+        game: e.game,
+        score: e.score,
+        isFlagged: e.is_flagged,
+        createdAt: e.created_at,
+        updatedAt: e.updated_at
+    };
+}
+
 router.post("/login", async (req, res) => {
     try {
         const { username, password } = req.body;
-        
+
         if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-            res.json({ 
+            res.json({
                 message: "Admin login successful",
                 username: ADMIN_USERNAME
             });
@@ -37,49 +75,73 @@ router.post("/login", async (req, res) => {
 
 router.get("/stats", checkAdmin, async (req, res) => {
     try {
-        const userCount = await User.countDocuments();
-        const gameCount = await Game.countDocuments();
-        
-        let settings = await SystemSettings.findOne();
-        if (!settings) {
-            settings = await SystemSettings.create({ maintenanceMode: false });
-        }
-        
+        const { count: userCount } = await supabaseAdmin
+            .from("profiles")
+            .select("*", { count: "exact", head: true });
+
+        const { count: gameCount } = await supabaseAdmin
+            .from("games")
+            .select("*", { count: "exact", head: true });
+
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+
+        const { count: scoresToday } = await supabaseAdmin
+            .from("leaderboard")
+            .select("*", { count: "exact", head: true })
+            .gte("updated_at", startOfToday.toISOString());
+
+        const { data: settings, error: settingsError } = await supabaseAdmin
+            .from("system_settings")
+            .select("maintenance_mode")
+            .eq("id", 1)
+            .single();
+
+        if (settingsError) throw settingsError;
+
         res.json({
-            users: userCount,
-            games: gameCount,
-            scoresToday: scoresToday,
-            maintenanceMode: settings.maintenanceMode,
-            status: settings.maintenanceMode ? "MAINTENANCE" : "OK"
+            users: userCount || 0,
+            games: gameCount || 0,
+            scoresToday: scoresToday || 0,
+            maintenanceMode: settings.maintenance_mode,
+            status: settings.maintenance_mode ? "MAINTENANCE" : "ONLINE"
         });
     } catch (err) {
+        console.error("Stats error:", err);
         res.status(500).json({ message: "Server error" });
     }
 });
 
 router.get("/users", checkAdmin, async (req, res) => {
     try {
-        const users = await User.find()
-            .select('-password')
-            .sort({ createdAt: -1 });
+        const { data, error } = await supabaseAdmin
+            .from("profiles")
+            .select("id, username, email, is_verified, is_banned, created_at")
+            .order("created_at", { ascending: false });
+
+        if (error) throw error;
+
+        const users = data.map(mapUser);
         res.json({ users, total: users.length });
     } catch (err) {
+        console.error("Users list error:", err);
         res.status(500).json({ message: "Server error" });
     }
 });
 
 router.put("/users/:id/ban", checkAdmin, async (req, res) => {
     try {
-        const user = await User.findByIdAndUpdate(
-            req.params.id,
-            { isBanned: true },
-            { new: true }
-        ).select('-password');
-        
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-        res.json({ message: "User banned", user });
+        const { data, error } = await supabaseAdmin
+            .from("profiles")
+            .update({ is_banned: true })
+            .eq("id", req.params.id)
+            .select("id, username, email, is_verified, is_banned, created_at")
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) return res.status(404).json({ message: "User not found" });
+
+        res.json({ message: "User banned", user: mapUser(data) });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
     }
@@ -87,16 +149,17 @@ router.put("/users/:id/ban", checkAdmin, async (req, res) => {
 
 router.put("/users/:id/unban", checkAdmin, async (req, res) => {
     try {
-        const user = await User.findByIdAndUpdate(
-            req.params.id,
-            { isBanned: false },
-            { new: true }
-        ).select('-password');
-        
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-        res.json({ message: "User unbanned", user });
+        const { data, error } = await supabaseAdmin
+            .from("profiles")
+            .update({ is_banned: false })
+            .eq("id", req.params.id)
+            .select("id, username, email, is_verified, is_banned, created_at")
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) return res.status(404).json({ message: "User not found" });
+
+        res.json({ message: "User unbanned", user: mapUser(data) });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
     }
@@ -104,23 +167,41 @@ router.put("/users/:id/unban", checkAdmin, async (req, res) => {
 
 router.delete("/users/:id", checkAdmin, async (req, res) => {
     try {
-        const user = await User.findByIdAndDelete(req.params.id);
-        if (!user) {
+        const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("username")
+            .eq("id", req.params.id)
+            .maybeSingle();
+
+        if (!profile) {
             return res.status(404).json({ message: "User not found" });
         }
-        
-        await Score.deleteMany({ userId: req.params.id });
-        await Leaderboard.deleteMany({ userId: req.params.id });
-        
+
+        // Deleting the auth user cascades to profiles, which cascades to leaderboard
+        // (both have ON DELETE CASCADE foreign keys). highscores has no such FK
+        // (matches the original schema), so it needs an explicit cleanup below.
+        const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(req.params.id);
+        if (deleteAuthError) throw deleteAuthError;
+
+        await supabaseAdmin.from("highscores").delete().eq("username", profile.username);
+
         res.json({ message: "User deleted successfully" });
     } catch (err) {
+        console.error("Delete user error:", err);
         res.status(500).json({ message: "Server error" });
     }
 });
 
 router.get("/games", checkAdmin, async (req, res) => {
     try {
-        const games = await Game.find().sort({ createdAt: -1 });
+        const { data, error } = await supabaseAdmin
+            .from("games")
+            .select("*")
+            .order("created_at", { ascending: false });
+
+        if (error) throw error;
+
+        const games = data.map(mapGame);
         res.json({ games, total: games.length });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
@@ -129,16 +210,17 @@ router.get("/games", checkAdmin, async (req, res) => {
 
 router.put("/games/:id/enable", checkAdmin, async (req, res) => {
     try {
-        const game = await Game.findByIdAndUpdate(
-            req.params.id,
-            { isActive: true },
-            { new: true }
-        );
-        
-        if (!game) {
-            return res.status(404).json({ message: "Game not found" });
-        }
-        res.json({ message: "Game enabled", game });
+        const { data, error } = await supabaseAdmin
+            .from("games")
+            .update({ is_active: true })
+            .eq("id", req.params.id)
+            .select()
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) return res.status(404).json({ message: "Game not found" });
+
+        res.json({ message: "Game enabled", game: mapGame(data) });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
     }
@@ -146,16 +228,17 @@ router.put("/games/:id/enable", checkAdmin, async (req, res) => {
 
 router.put("/games/:id/disable", checkAdmin, async (req, res) => {
     try {
-        const game = await Game.findByIdAndUpdate(
-            req.params.id,
-            { isActive: false },
-            { new: true }
-        );
-        
-        if (!game) {
-            return res.status(404).json({ message: "Game not found" });
-        }
-        res.json({ message: "Game disabled", game });
+        const { data, error } = await supabaseAdmin
+            .from("games")
+            .update({ is_active: false })
+            .eq("id", req.params.id)
+            .select()
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) return res.status(404).json({ message: "Game not found" });
+
+        res.json({ message: "Game disabled", game: mapGame(data) });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
     }
@@ -164,13 +247,19 @@ router.put("/games/:id/disable", checkAdmin, async (req, res) => {
 router.get("/leaderboards", checkAdmin, async (req, res) => {
     try {
         const { game } = req.query;
-        const filter = game ? { game } : {};
-        
-        const leaderboards = await Leaderboard.find(filter)
-            .populate('userId', 'username')
-            .sort({ score: -1 })
+
+        let query = supabaseAdmin
+            .from("leaderboard")
+            .select("*")
+            .order("score", { ascending: false })
             .limit(100);
-            
+
+        if (game) query = query.eq("game", game);
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const leaderboards = data.map(mapLeaderboardEntry);
         res.json({ leaderboards, total: leaderboards.length });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
@@ -179,10 +268,16 @@ router.get("/leaderboards", checkAdmin, async (req, res) => {
 
 router.delete("/leaderboards/:id", checkAdmin, async (req, res) => {
     try {
-        const entry = await Leaderboard.findByIdAndDelete(req.params.id);
-        if (!entry) {
-            return res.status(404).json({ message: "Entry not found" });
-        }
+        const { data, error } = await supabaseAdmin
+            .from("leaderboard")
+            .delete()
+            .eq("id", req.params.id)
+            .select()
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) return res.status(404).json({ message: "Entry not found" });
+
         res.json({ message: "Score removed" });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
@@ -191,12 +286,17 @@ router.delete("/leaderboards/:id", checkAdmin, async (req, res) => {
 
 router.delete("/leaderboards/reset/:game", checkAdmin, async (req, res) => {
     try {
-        const result = await Leaderboard.deleteMany({ 
-            game: req.params.game 
-        });
-        res.json({ 
-            message: "Leaderboard reset", 
-            deletedCount: result.deletedCount 
+        const { data, error } = await supabaseAdmin
+            .from("leaderboard")
+            .delete()
+            .eq("game", req.params.game)
+            .select("id");
+
+        if (error) throw error;
+
+        res.json({
+            message: "Leaderboard reset",
+            deletedCount: data.length
         });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
@@ -205,16 +305,17 @@ router.delete("/leaderboards/reset/:game", checkAdmin, async (req, res) => {
 
 router.put("/leaderboards/:id/flag", checkAdmin, async (req, res) => {
     try {
-        const entry = await Leaderboard.findByIdAndUpdate(
-            req.params.id,
-            { isFlagged: true },
-            { new: true }
-        );
-        
-        if (!entry) {
-            return res.status(404).json({ message: "Entry not found" });
-        }
-        res.json({ message: "Score flagged", entry });
+        const { data, error } = await supabaseAdmin
+            .from("leaderboard")
+            .update({ is_flagged: true })
+            .eq("id", req.params.id)
+            .select()
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) return res.status(404).json({ message: "Entry not found" });
+
+        res.json({ message: "Score flagged", entry: mapLeaderboardEntry(data) });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
     }
@@ -222,11 +323,15 @@ router.put("/leaderboards/:id/flag", checkAdmin, async (req, res) => {
 
 router.get("/maintenance", checkAdmin, async (req, res) => {
     try {
-        let settings = await SystemSettings.findOne();
-        if (!settings) {
-            settings = await SystemSettings.create({ maintenanceMode: false });
-        }
-        res.json({ maintenanceMode: settings.maintenanceMode });
+        const { data, error } = await supabaseAdmin
+            .from("system_settings")
+            .select("maintenance_mode")
+            .eq("id", 1)
+            .single();
+
+        if (error) throw error;
+
+        res.json({ maintenanceMode: data.maintenance_mode });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
     }
@@ -234,13 +339,13 @@ router.get("/maintenance", checkAdmin, async (req, res) => {
 
 router.put("/maintenance/enable", checkAdmin, async (req, res) => {
     try {
-        let settings = await SystemSettings.findOne();
-        if (!settings) {
-            settings = await SystemSettings.create({ maintenanceMode: true });
-        } else {
-            settings.maintenanceMode = true;
-            await settings.save();
-        }
+        const { error } = await supabaseAdmin
+            .from("system_settings")
+            .update({ maintenance_mode: true })
+            .eq("id", 1);
+
+        if (error) throw error;
+
         res.json({ message: "Maintenance mode enabled", maintenanceMode: true });
     } catch (err) {
         res.status(500).json({ message: "Server error" });
@@ -249,13 +354,13 @@ router.put("/maintenance/enable", checkAdmin, async (req, res) => {
 
 router.put("/maintenance/disable", checkAdmin, async (req, res) => {
     try {
-        let settings = await SystemSettings.findOne();
-        if (!settings) {
-            settings = await SystemSettings.create({ maintenanceMode: false });
-        } else {
-            settings.maintenanceMode = false;
-            await settings.save();
-        }
+        const { error } = await supabaseAdmin
+            .from("system_settings")
+            .update({ maintenance_mode: false })
+            .eq("id", 1);
+
+        if (error) throw error;
+
         res.json({ message: "Maintenance mode disabled", maintenanceMode: false });
     } catch (err) {
         res.status(500).json({ message: "Server error" });

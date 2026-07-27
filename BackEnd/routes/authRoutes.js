@@ -1,13 +1,7 @@
 const express = require("express");
-const { createClient } = require('@supabase/supabase-js');
-const User = require("../models/User");
+const { supabasePublic, supabaseAdmin } = require("../config/supabase");
 
 const router = express.Router();
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
 
 router.post("/signup", async (req, res) => {
     try {
@@ -25,20 +19,20 @@ router.post("/signup", async (req, res) => {
             return res.status(400).json({ message: "Password must be at least 6 characters" });
         }
 
-        const existingUser = await User.findOne({ 
-            $or: [{ email: email.toLowerCase() }, { username }] 
-        });
+        const { data: existingUsername } = await supabaseAdmin
+            .from("profiles")
+            .select("id")
+            .eq("username", username)
+            .maybeSingle();
 
-        if (existingUser) {
-            if (existingUser.email === email.toLowerCase()) {
-                return res.status(400).json({ message: "Email already registered" });
-            }
-            if (existingUser.username === username) {
-                return res.status(400).json({ message: "Username already taken" });
-            }
+        if (existingUsername) {
+            return res.status(400).json({ message: "Username already taken" });
         }
 
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+        // Email uniqueness, is_banned, etc. all fall out of Supabase Auth + the
+        // on_auth_user_created trigger, which creates the profiles row atomically
+        // with the auth user — no more orphaned accounts if this step fails midway.
+        const { data: authData, error: authError } = await supabasePublic.auth.signUp({
             email: email.toLowerCase(),
             password: password,
             options: {
@@ -54,17 +48,6 @@ router.post("/signup", async (req, res) => {
             return res.status(400).json({ message: authError.message });
         }
 
-        const mongoUser = new User({
-            username,
-            email: email.toLowerCase(),
-            password: "SUPABASE_AUTH",
-            isVerified: false,
-            isBanned: false, 
-            supabaseId: authData.user.id
-        });
-
-        await mongoUser.save();
-
         res.status(201).json({
             message: "Registration successful! Please check your email to verify your account.",
             username: username,
@@ -72,6 +55,7 @@ router.post("/signup", async (req, res) => {
         });
 
     } catch (err) {
+        console.error("Signup error:", err);
         res.status(500).json({ message: "Server error during signup" });
     }
 });
@@ -84,27 +68,31 @@ router.post("/login", async (req, res) => {
             return res.status(400).json({ message: "Email and password are required" });
         }
 
-        const mongoUser = await User.findOne({ email: email.toLowerCase() });
-        
-        if (!mongoUser) {
+        const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("*")
+            .eq("email", email.toLowerCase())
+            .maybeSingle();
+
+        if (!profile) {
             return res.status(401).json({ message: "Invalid email or password" });
         }
 
-        if (mongoUser.isBanned) {
-            return res.status(403).json({ 
+        if (profile.is_banned) {
+            return res.status(403).json({
                 message: "Your account has been banned. Please contact support for assistance.",
                 isBanned: true
             });
         }
 
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        const { data: authData, error: authError } = await supabasePublic.auth.signInWithPassword({
             email: email.toLowerCase(),
             password: password
         });
 
         if (authError) {
             if (authError.message.includes('Email not confirmed')) {
-                return res.status(403).json({ 
+                return res.status(403).json({
                     message: "Please verify your email before logging in.",
                     requiresVerification: true
                 });
@@ -112,15 +100,17 @@ router.post("/login", async (req, res) => {
             return res.status(401).json({ message: "Invalid email or password" });
         }
 
-        if (!mongoUser.isVerified && authData.user.email_confirmed_at) {
-            mongoUser.isVerified = true;
-            await mongoUser.save();
+        if (!profile.is_verified && authData.user.email_confirmed_at) {
+            await supabaseAdmin
+                .from("profiles")
+                .update({ is_verified: true })
+                .eq("id", profile.id);
         }
 
         res.json({
             message: "Login successful",
-            username: mongoUser.username,
-            email: mongoUser.email,
+            username: profile.username,
+            email: profile.email,
             session: authData.session
         });
 
@@ -138,16 +128,20 @@ router.post("/resend-verification", async (req, res) => {
             return res.status(400).json({ message: "Email is required" });
         }
 
-        const mongoUser = await User.findOne({ email: email.toLowerCase() });
-        
-        if (mongoUser && mongoUser.isBanned) {
-            return res.status(403).json({ 
+        const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("is_banned")
+            .eq("email", email.toLowerCase())
+            .maybeSingle();
+
+        if (profile && profile.is_banned) {
+            return res.status(403).json({
                 message: "Your account has been banned. Please contact support.",
                 isBanned: true
             });
         }
 
-        const { error } = await supabase.auth.resend({
+        const { error } = await supabasePublic.auth.resend({
             type: 'signup',
             email: email.toLowerCase()
         });
@@ -155,22 +149,23 @@ router.post("/resend-verification", async (req, res) => {
         if (error) {
             return res.status(500).json({ message: error.message });
         }
-        
+
         res.json({ message: "Verification email sent. Please check your inbox." });
 
     } catch (err) {
+        console.error("Resend verification error:", err);
         res.status(500).json({ message: "Server error" });
     }
 });
 
 router.post("/logout", async (req, res) => {
     try {
-        const { error } = await supabase.auth.signOut();
-        
+        const { error } = await supabasePublic.auth.signOut();
+
         if (error) {
             return res.status(500).json({ message: error.message });
         }
-        
+
         res.json({ message: "Logged out successfully" });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -180,13 +175,12 @@ router.post("/logout", async (req, res) => {
 router.post("/webhook/email-verified", async (req, res) => {
     try {
         const { email } = req.body;
-        
-        await User.findOneAndUpdate(
-            { email: email.toLowerCase() },
-            { isVerified: true },
-            { new: true }
-        );
-        
+
+        await supabaseAdmin
+            .from("profiles")
+            .update({ is_verified: true })
+            .eq("email", email.toLowerCase());
+
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });

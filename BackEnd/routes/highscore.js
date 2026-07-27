@@ -1,5 +1,5 @@
 const router = require("express").Router();
-const UserHighscore = require("../models/Highscore");
+const { supabaseAdmin } = require("../config/supabase");
 
 router.post("/save", async (req, res) => {
     try {
@@ -10,20 +10,24 @@ router.post("/save", async (req, res) => {
         }
 
         const numScore = Number(score);
-        
+
         if (isNaN(numScore) || numScore < 0) {
             return res.status(400).json({ message: "Invalid score" });
         }
 
-        const doc = await UserHighscore.findOneAndUpdate(
-            { username: username.trim(), game: game.trim() },
-            { $max: { highscore: numScore } },
-            { upsert: true, new: true }
-        );
+        const { data, error } = await supabaseAdmin
+            .rpc("submit_highscore", {
+                p_username: username.trim(),
+                p_game: game.trim(),
+                p_score: numScore
+            })
+            .single();
 
-        res.json({ 
-            highscore: doc.highscore,
-            isNewRecord: doc.highscore === numScore,
+        if (error) throw error;
+
+        res.json({
+            highscore: data.highscore,
+            isNewRecord: data.is_new_record,
             message: "Highscore saved successfully"
         });
 
@@ -41,15 +45,15 @@ router.get("/user/:username", async (req, res) => {
             return res.status(400).json({ message: "Username is required" });
         }
 
-        console.log('Fetching all scores for user:', username);
+        const { data: scores, error } = await supabaseAdmin
+            .from("highscores")
+            .select("game, highscore")
+            .eq("username", username.trim())
+            .order("highscore", { ascending: false });
 
-        const scores = await UserHighscore.find({ 
-            username: username.trim() 
-        }).sort({ highscore: -1 });
+        if (error) throw error;
 
-        console.log('Found scores:', scores);
-
-        res.json({ 
+        res.json({
             username: username.trim(),
             scores: scores.map(s => ({
                 game: s.game,
@@ -72,12 +76,14 @@ router.get("/:username/:game", async (req, res) => {
             return res.status(400).json({ message: "Username and game are required" });
         }
 
-        const data = await UserHighscore.findOne({ 
-            username: username.trim(), 
-            game: game.trim() 
-        });
+        const { data } = await supabaseAdmin
+            .from("highscores")
+            .select("highscore")
+            .eq("username", username.trim())
+            .eq("game", game.trim())
+            .maybeSingle();
 
-        res.json({ 
+        res.json({
             highscore: data?.highscore || 0,
             username: username.trim(),
             game: game.trim(),
