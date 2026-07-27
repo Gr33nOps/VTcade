@@ -215,6 +215,60 @@ router.post("/resend-verification", async (req, res) => {
     }
 });
 
+// Password recovery. Without this a user who forgot their password had no way
+// back into their account at all.
+router.post("/forgot-password", async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email || typeof email !== "string") {
+            return res.status(400).json({ message: "Email is required" });
+        }
+
+        await supabasePublic.auth.resetPasswordForEmail(email.toLowerCase(), {
+            redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login/reset-password.html`
+        });
+
+        // Always report success. Distinguishing "sent" from "no such account"
+        // would let anyone enumerate which emails are registered.
+        res.json({ message: "If that email is registered, a reset link has been sent." });
+    } catch (err) {
+        console.error("Forgot password error:", err);
+        res.json({ message: "If that email is registered, a reset link has been sent." });
+    }
+});
+
+// Completes the reset using the recovery token from the emailed link.
+router.post("/reset-password", async (req, res) => {
+    try {
+        const { access_token, password } = req.body;
+
+        if (!access_token || !password) {
+            return res.status(400).json({ message: "Token and new password are required" });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({ message: "Password must be at least 6 characters" });
+        }
+
+        const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(access_token);
+        if (userError || !userData?.user) {
+            return res.status(401).json({ message: "Reset link is invalid or has expired" });
+        }
+
+        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+            userData.user.id,
+            { password }
+        );
+        if (updateError) throw updateError;
+
+        res.json({ message: "Password updated. You can now sign in." });
+    } catch (err) {
+        console.error("Reset password error:", err);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
 // Exchanges a refresh token for a fresh access token so a long play session
 // doesn't silently start failing score submissions after the token expires.
 router.post("/refresh", async (req, res) => {

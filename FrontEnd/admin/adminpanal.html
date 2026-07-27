@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VTcade - ADMIN PANEL</title>
+    <meta name="description" content="VTcade administrator control panel.">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#000000">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="VTcade">
+    <meta property="og:title" content="VTcade - ADMIN PANEL">
+    <meta property="og:description" content="VTcade administrator control panel.">
+    <meta name="twitter:card" content="summary">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -133,7 +142,7 @@
     </style>
 </head>
 <body>
-    <div class="loading-overlay active" id="loadingOverlay">
+    <div class="loading-overlay active" id="loadingOverlay" role="status" aria-live="assertive" aria-label="Loading">
         <div class="loading-content">
             <pre>
 ================================================================================
@@ -146,7 +155,7 @@
     </div>
     
     <div class="container">
-        <pre class="logo">
+        <pre class="logo" aria-hidden="true">
 ██╗   ██╗████████╗ ██████╗ █████╗ ██████╗ ███████╗
 ██║   ██║╚══██╔══╝██╔════╝██╔══██╗██╔══██╗██╔════╝
 ██║   ██║   ██║   ██║     ███████║██║  ██║█████╗  
@@ -154,7 +163,7 @@
  ╚████╔╝    ██║   ╚██████╗██║  ██║██████╔╝███████╗
   ╚═══╝     ╚═╝    ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝
                     <span class="subtitle">ADMIN CONTROL PANEL</span></pre>
-        <pre id="terminal" class="terminal-output"></pre>
+        <pre id="terminal" class="terminal-output" role="status" aria-live="polite" aria-atomic="true"></pre>
     </div>
 
     <script>

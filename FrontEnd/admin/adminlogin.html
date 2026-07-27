@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VTcade - ADMIN LOGIN</title>
+    <meta name="description" content="VTcade administrator sign-in.">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#000000">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="VTcade">
+    <meta property="og:title" content="VTcade - ADMIN LOGIN">
+    <meta property="og:description" content="VTcade administrator sign-in.">
+    <meta name="twitter:card" content="summary">
     <style>
         * {
             margin: 0;
@@ -162,7 +171,7 @@
     </style>
 </head>
 <body>
-    <div class="loading-overlay active" id="loadingOverlay">
+    <div class="loading-overlay active" id="loadingOverlay" role="status" aria-live="assertive" aria-label="Loading">
         <div class="loading-content">
             <pre>
 ================================================================================
@@ -176,7 +185,7 @@
     </div>
     
     <div class="container">
-        <pre class="logo">
+        <pre class="logo" aria-hidden="true">
 ██╗   ██╗████████╗ ██████╗ █████╗ ██████╗ ███████╗
 ██║   ██║╚══██╔══╝██╔════╝██╔══██╗██╔══██╗██╔════╝
 ██║   ██║   ██║   ██║     ███████║██║  ██║█████╗  
@@ -184,11 +193,11 @@
  ╚████╔╝    ██║   ╚██████╗██║  ██║██████╔╝███████╗
   ╚═══╝     ╚═╝    ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝
                     <span class="subtitle">Play Like It's 1985</span></pre>
-        <pre id="terminal" class="terminal-output"></pre>
+        <pre id="terminal" class="terminal-output" role="status" aria-live="polite" aria-atomic="true"></pre>
     </div>
     
-    <input type="text" id="username-input">
-    <input type="password" id="password-input">
+    <input type="text" id="username-input" tabindex="-1" aria-hidden="true" autocomplete="off" aria-label="username">
+    <input type="password" id="password-input" tabindex="-1" aria-hidden="true" autocomplete="off" aria-label="password">
 
     <script>
         const API_URL = "https://vtcade.onrender.com";

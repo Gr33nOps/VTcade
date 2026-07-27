@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /$
+Allow: /login/login.html
+Allow: /signup/signup.html
+
+# Nothing behind the login is useful to a search engine, and the admin area
+# should not be discoverable at all.
+Disallow: /dashboard/
+Disallow: /games/
+Disallow: /admin/
+Disallow: /login/oauth-callback.html
+
+Sitemap: https://vtcade.vercel.app/sitemap.xml

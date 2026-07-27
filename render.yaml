@@ -1,0 +1,43 @@
+# Render blueprint for the VTcade backend.
+# Secrets are intentionally marked sync:false so they are set in the Render
+# dashboard and never committed to this repository.
+
+services:
+  - type: web
+    name: vtcade
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: BackEnd
+    buildCommand: npm ci
+    startCommand: npm start
+
+    # Lets Render detect a hung or crashed process and restart it, instead of
+    # leaving a dead instance serving errors.
+    healthCheckPath: /health
+
+    autoDeploy: true
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+      - key: FRONTEND_URL
+        value: https://vtcade.vercel.app
+      - key: BACKEND_URL
+        value: https://vtcade.onrender.com
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_JWT_SECRET
+        sync: false
+      - key: ADMIN_TOKEN_TTL
+        value: 2h

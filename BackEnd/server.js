@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
+const compression = require("compression");
 const rateLimit = require("express-rate-limit");
 const checkMaintenance = require("./routes/maintenance");
 const { logError, logInfo, logWarn } = require("./config/logger");
@@ -28,6 +29,7 @@ const app = express();
 app.set("trust proxy", 1);
 
 app.use(helmet());
+app.use(compression());
 app.use(express.json({ limit: "16kb" }));
 
 // Lock CORS to the known frontend origins instead of the previous bare cors(),
@@ -71,6 +73,8 @@ const writeLimiter = rateLimit({
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/signup", authLimiter);
 app.use("/api/auth/resend-verification", authLimiter);
+app.use("/api/auth/forgot-password", authLimiter);
+app.use("/api/auth/reset-password", authLimiter);
 app.use("/api/admin/login", authLimiter);
 app.use("/api/highscore/save", writeLimiter);
 app.use("/api/leaderboard/save", writeLimiter);

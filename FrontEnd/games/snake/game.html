@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SNAKE</title>
+    <meta name="description" content="Play Snake in the VTcade retro terminal arcade.">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#000000">
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="VTcade">
+    <meta property="og:title" content="SNAKE">
+    <meta property="og:description" content="Play Snake in the VTcade retro terminal arcade.">
+    <meta name="twitter:card" content="summary">
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body {
@@ -84,7 +93,7 @@
     </style>
 </head>
 <body>
-<div class="loading-overlay active" id="loadingOverlay">
+<div class="loading-overlay active" id="loadingOverlay" role="status" aria-live="assertive" aria-label="Loading">
     <pre style="font-size: 14px; line-height: 1.5;">
 SNAKE v1.0
 
@@ -92,8 +101,8 @@ SNAKE v1.0
     </pre>
 </div>
 <div class="container">
-    <pre id="game"></pre>
-    <pre id="ui"></pre>
+    <pre id="game" role="img" aria-label="Game board rendered as text art"></pre>
+    <pre id="ui" role="status" aria-live="polite"></pre>
 </div>
 <script src="../../shared/config.js"></script>
     <script src="../../shared/session.js"></script>
@@ -122,6 +131,7 @@ let gameStarted = false;
 // Set while the end-of-game save is in flight, so a restart can't reset `score`
 // out from under the pending save (or start a second game loop).
 let isSaving = false;
+let wasPausedByHide = false;
 let speed = 150;
 let snake = [];
 let direction = { x: 1, y: 0 };
@@ -439,6 +449,20 @@ document.addEventListener("keydown", (e) => {
         setTimeout(() => {
             window.location.href = "../../dashboard/dashboard.html";
         }, 800);
+    }
+});
+
+// Pause when the tab is hidden. setTimeout-driven loops keep running in
+// background tabs (throttled and jittery), which desynced the game and burned
+// battery for a player who wasn't even looking.
+document.addEventListener("visibilitychange", () => {
+    if (document.hidden && gameRunning) {
+        gameRunning = false;
+        wasPausedByHide = true;
+        draw();
+    } else if (!document.hidden && wasPausedByHide) {
+        wasPausedByHide = false;
+        if (gameStarted && !isSaving) startGame();
     }
 });
 

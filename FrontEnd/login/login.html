@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VTcade - MAINFRAME LOGIN</title>
+    <meta name="description" content="Sign in to VTcade, a retro terminal arcade. Play classic games and compete on global leaderboards.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#000000">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="VTcade">
+    <meta property="og:title" content="VTcade - MAINFRAME LOGIN">
+    <meta property="og:description" content="Sign in to VTcade, a retro terminal arcade. Play classic games and compete on global leaderboards.">
+    <meta name="twitter:card" content="summary">
     <style>
         * {
             margin: 0;
@@ -158,7 +167,7 @@
     </style>
 </head>
 <body>
-    <div class="loading-overlay active" id="loadingOverlay">
+    <div class="loading-overlay active" id="loadingOverlay" role="status" aria-live="assertive" aria-label="Loading">
         <div class="loading-content">
             <pre>
 ================================================================================
@@ -171,7 +180,7 @@
     </div>
     
     <div class="container">
-        <pre class="logo">
+        <pre class="logo" aria-hidden="true">
 ██╗   ██╗████████╗ ██████╗ █████╗ ██████╗ ███████╗
 ██║   ██║╚══██╔══╝██╔════╝██╔══██╗██╔══██╗██╔════╝
 ██║   ██║   ██║   ██║     ███████║██║  ██║█████╗  
@@ -179,11 +188,11 @@
  ╚████╔╝    ██║   ╚██████╗██║  ██║██████╔╝███████╗
   ╚═══╝     ╚═╝    ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝
                     <span class="subtitle">Play Like It's 1985</span></pre>
-        <pre id="terminal" class="terminal-output"></pre>
+        <pre id="terminal" class="terminal-output" role="status" aria-live="polite" aria-atomic="true"></pre>
     </div>
     
-    <input type="email" id="email-input">
-    <input type="password" id="password-input">
+    <input type="email" id="email-input" tabindex="-1" aria-hidden="true" autocomplete="off" aria-label="email">
+    <input type="password" id="password-input" tabindex="-1" aria-hidden="true" autocomplete="off" aria-label="password">
 
     <script src="../shared/config.js"></script>
     <script src="../shared/session.js"></script>
@@ -254,6 +263,16 @@
                 output += googleLine + '\n';
             }
 
+            const forgotSelected = currentField === 4;
+            const forgotPrefix = forgotSelected ? '>>>' : '   ';
+            const forgotLine = `${forgotPrefix} [ FORGOT PASSWORD ]`;
+
+            if (forgotSelected) {
+                output += `<span class="highlight">${forgotLine}</span>\n`;
+            } else {
+                output += forgotLine + '\n';
+            }
+
             output += '\n';
 
             if (errorMessage) {
@@ -275,16 +294,16 @@
             successMessage = "";
             
             if (direction === 'next') {
-                currentField = currentField < 3 ? currentField + 1 : 0;
+                currentField = currentField < 4 ? currentField + 1 : 0;
             } else if (direction === 'prev') {
-                currentField = currentField > 0 ? currentField - 1 : 3;
+                currentField = currentField > 0 ? currentField - 1 : 4;
             }
             render();
         }
 
         function handleTyping(key) {
             if (isSubmitting) return;
-            if (currentField === 2 || currentField === 3) return;
+            if (currentField >= 2) return;
 
             errorMessage = "";
             successMessage = "";
@@ -357,6 +376,37 @@
             }
         }
 
+        async function requestPasswordReset() {
+            if (isSubmitting) return;
+
+            errorMessage = "";
+            successMessage = "";
+
+            if (!email) {
+                errorMessage = "Enter your email address first, then select this option";
+                render();
+                return;
+            }
+
+            isSubmitting = true;
+            render();
+
+            try {
+                const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+                successMessage = data?.message || "If that email is registered, a reset link has been sent.";
+            } catch (err) {
+                errorMessage = "Network error";
+            }
+
+            isSubmitting = false;
+            render();
+        }
+
         function continueWithGoogle() {
             if (isSubmitting) return;
             if (currentField !== 3) return;
@@ -397,6 +447,8 @@
                     submitForm();
                 } else if (currentField === 3) {
                     continueWithGoogle();
+                } else if (currentField === 4) {
+                    requestPasswordReset();
                 }
             } else if (e.key === "Backspace" || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
                 e.preventDefault();

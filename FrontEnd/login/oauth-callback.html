@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VTcade - AUTHENTICATING</title>
+    <meta name="description" content="Completing sign-in to VTcade.">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#000000">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="VTcade">
+    <meta property="og:title" content="VTcade - AUTHENTICATING">
+    <meta property="og:description" content="Completing sign-in to VTcade.">
+    <meta name="twitter:card" content="summary">
     <style>
         * {
             margin: 0;
@@ -111,7 +120,7 @@
 </head>
 <body>
     <div class="container">
-        <pre class="logo">
+        <pre class="logo" aria-hidden="true">
 ██╗   ██╗████████╗ ██████╗ █████╗ ██████╗ ███████╗
 ██║   ██║╚══██╔══╝██╔════╝██╔══██╗██╔══██╗██╔════╝
 ██║   ██║   ██║   ██║     ███████║██║  ██║█████╗
@@ -119,7 +128,7 @@
  ╚████╔╝    ██║   ╚██████╗██║  ██║██████╔╝███████╗
   ╚═══╝     ╚═╝    ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝
                     <span class="subtitle">Play Like It's 1985</span></pre>
-        <pre id="terminal" class="terminal-output"></pre>
+        <pre id="terminal" class="terminal-output" role="status" aria-live="polite" aria-atomic="true"></pre>
     </div>
 
     <script src="../shared/config.js"></script>
