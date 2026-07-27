@@ -89,7 +89,7 @@ router.post("/signup", async (req, res) => {
         // Email uniqueness, is_banned, etc. all fall out of Supabase Auth + the
         // on_auth_user_created trigger, which creates the profiles row atomically
         // with the auth user — no more orphaned accounts if this step fails midway.
-        const { data: authData, error: authError } = await supabasePublic.auth.signUp({
+        const { error: authError } = await supabasePublic.auth.signUp({
             email: email.toLowerCase(),
             password: password,
             options: {

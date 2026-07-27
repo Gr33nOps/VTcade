@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend lint and tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: BackEnd
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: BackEnd/package-lock.json
+
+      - run: npm ci
+
+      - name: Lint
+        run: npx eslint .
+
+      # Tests mock Supabase entirely; no real credentials are needed or used.
+      - name: Test
+        run: npm test
+
+  frontend:
+    name: Frontend syntax check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # The pages are plain HTML with inline scripts and no build step, so parse
+      # each inline script to catch syntax errors that would otherwise only show
+      # up as a blank page in the browser.
+      - name: Parse inline scripts
+        run: |
+          node -e "
+          const fs = require('fs');
+          const path = require('path');
+          let failed = 0, checked = 0;
+          function walk(dir) {
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              const p = path.join(dir, entry.name);
+              if (entry.isDirectory()) { walk(p); continue; }
+              if (!entry.name.endsWith('.html')) continue;
+              const html = fs.readFileSync(p, 'utf8');
+              const scripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)];
+              for (const m of scripts) {
+                checked++;
+                try { new Function(m[1]); }
+                catch (e) { failed++; console.error('SYNTAX ERROR in ' + p + ': ' + e.message); }
+              }
+            }
+          }
+          walk('FrontEnd');
+          for (const f of fs.readdirSync('FrontEnd/shared')) {
+            if (!f.endsWith('.js')) continue;
+            checked++;
+            try { new Function(fs.readFileSync(path.join('FrontEnd/shared', f), 'utf8')); }
+            catch (e) { failed++; console.error('SYNTAX ERROR in shared/' + f + ': ' + e.message); }
+          }
+          console.log('Checked ' + checked + ' scripts, ' + failed + ' failed.');
+          process.exit(failed ? 1 : 0);
+          "
