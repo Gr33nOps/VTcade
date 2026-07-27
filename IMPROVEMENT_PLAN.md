@@ -8,6 +8,14 @@
 > to `BackEnd/.env` (placeholder is there — grab the real value from Supabase
 > dashboard → Project Settings → API) before the backend will run, and update the
 > same var on Render before the next deploy.
+>
+> **2026-07-27, later same day:** Discovered the old Render backend (still on Mongo
+> at push time) had 8 real registered users with real leaderboard/highscore data
+> that had never been migrated. Pulled it via the still-live old API and backfilled
+> it into the new Supabase tables (8 profiles, 15 leaderboard rows, 15 highscore
+> rows) before Render could redeploy the new code out from under them. Excluded two
+> stale test entries (`BlockFlap`, and a `SnakeGame` score for a space-containing
+> username that the app's own validation would reject) as clearly abandoned dev data.
 
 Living roadmap to take VTcade from "student project" to "solid small production app."
 Organized into phases. Each phase maps to one or more of the 20 quality pillars we're
