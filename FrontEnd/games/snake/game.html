@@ -98,21 +98,28 @@ SNAKE v1.0
 <script>
 const gameEl = document.getElementById("game");
 const uiEl = document.getElementById("ui");
+const API_URL = "https://vtcade.onrender.com";
 const WIDTH = 50;
 const HEIGHT = 25;
-const GAME_NAME = "SNAKE";  
+const GAME_NAME = "SNAKE";
 
 const currentUser = localStorage.getItem("currentUser");
 
 if (!currentUser) {
     alert("You must be logged in to play!");
-    window.location.href = "../../login/login.html";
+    window.location.replace("../../login/login.html");
+    // Halt the rest of the script. Without this the redirect is merely queued
+    // and initGame() still runs, firing requests for the literal user "null".
+    throw new Error("Not authenticated");
 }
 
 let score = 0;
 let highScore = 0;
 let gameRunning = false;
 let gameStarted = false;
+// Set while the end-of-game save is in flight, so a restart can't reset `score`
+// out from under the pending save (or start a second game loop).
+let isSaving = false;
 let speed = 150;
 let snake = [];
 let direction = { x: 1, y: 0 };
@@ -131,15 +138,36 @@ function initSnake() {
 }
 
 function spawnFood() {
-    let validPosition = false;
-    while (!validPosition) {
-        food.x = Math.floor(Math.random() * (WIDTH - 2)) + 1;
-        food.y = Math.floor(Math.random() * HEIGHT);
-        
-        validPosition = !snake.some(segment => 
-            segment.x === food.x && segment.y === food.y
-        );
+    // Random probing is fine while the board is mostly empty, but it degrades
+    // (and, on a full board, never terminates) as the snake grows. Fall back to
+    // scanning the free cells once random attempts stop paying off.
+    const MAX_ATTEMPTS = 100;
+
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+        const x = Math.floor(Math.random() * (WIDTH - 2)) + 1;
+        const y = Math.floor(Math.random() * HEIGHT);
+        if (!snake.some(s => s.x === x && s.y === y)) {
+            food.x = x;
+            food.y = y;
+            return;
+        }
     }
+
+    const freeCells = [];
+    for (let y = 0; y < HEIGHT; y++) {
+        for (let x = 1; x < WIDTH - 1; x++) {
+            if (!snake.some(s => s.x === x && s.y === y)) freeCells.push({ x, y });
+        }
+    }
+
+    if (freeCells.length === 0) {
+        // Board is completely full — the player has won; leave food where it is.
+        return;
+    }
+
+    const cell = freeCells[Math.floor(Math.random() * freeCells.length)];
+    food.x = cell.x;
+    food.y = cell.y;
 }
 
 function draw() {
@@ -265,12 +293,21 @@ function checkCollision() {
 
 async function gameOver() {
     gameRunning = false;
-    
-    await saveHighscore();
-    await saveLeaderboard();
-    await loadLeaderboard();
-    
-    draw();
+    isSaving = true;
+
+    // Snapshot the score up front. These awaits can take seconds on a cold
+    // backend, and reading the global `score` afterwards risked submitting 0
+    // if the player had already restarted.
+    const finalScore = score;
+
+    try {
+        await saveHighscore(finalScore);
+        await saveLeaderboard(finalScore);
+        await loadLeaderboard();
+    } finally {
+        isSaving = false;
+        draw();
+    }
 }
 
 function restartGame() {
@@ -284,34 +321,39 @@ function restartGame() {
 }
 
 function startGame() {
+    // Without this guard two rapid keypresses could start two concurrent
+    // gameLoop() timers, doubling the speed and firing gameOver() twice.
+    if (gameRunning) return;
     gameRunning = true;
     gameStarted = true;
     gameLoop();
 }
 
 function changeDirection(newDir) {
+    if (isSaving) return;
+
     if (newDir.x === -direction.x && newDir.y === -direction.y) {
         return;
     }
-    
+
     if (!gameStarted) {
         nextDirection = newDir;
         startGame();
     } else if (gameRunning) {
         nextDirection = newDir;
-    } else if (!gameRunning && gameStarted) {
+    } else {
+        // Restart synchronously; the old deferred restart left a 100ms window
+        // in which another keypress could start a second loop.
         restartGame();
-        setTimeout(() => {
-            nextDirection = newDir;
-            startGame();
-        }, 100);
+        nextDirection = newDir;
+        startGame();
     }
 }
 
 async function loadHighScore() {
     try {
         const res = await fetch(
-            `https://vtcade.onrender.com/api/highscore/${currentUser}/${GAME_NAME}`
+            `${API_URL}/api/highscore/${encodeURIComponent(currentUser)}/${encodeURIComponent(GAME_NAME)}`
         );
 
         if (res.ok) {
@@ -325,48 +367,40 @@ async function loadHighScore() {
     }
 }
 
-async function saveHighscore() {
+async function saveHighscore(finalScore) {
     try {
-        console.log('Saving highscore with data:', {
-            username: currentUser,
-            game: GAME_NAME,
-            score: score
-        });
-        
-        const res = await fetch("https://vtcade.onrender.com/api/highscore/save", {
+        const res = await fetch(`${API_URL}/api/highscore/save`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 username: currentUser,
                 game: GAME_NAME,
-                score: score
+                score: finalScore
             })
         });
 
-        console.log('Save response status:', res.status);
-        
         if (res.ok) {
             const data = await res.json();
-            console.log('Save response data:', data);
-            highScore = data.highscore;
+            if (typeof data.highscore === "number") {
+                highScore = data.highscore;
+            }
         } else {
-            const errorText = await res.text();
-            console.error('Save error response:', errorText);
+            console.error('Highscore save failed:', res.status, await res.text());
         }
     } catch (err) {
         console.error('Error saving highscore:', err);
     }
 }
 
-async function saveLeaderboard() {
+async function saveLeaderboard(finalScore) {
     try {
-        await fetch("https://vtcade.onrender.com/api/leaderboard/save", {
+        await fetch(`${API_URL}/api/leaderboard/save`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 username: currentUser,
                 game: GAME_NAME,
-                score
+                score: finalScore
             })
         });
     } catch (err) {
@@ -376,8 +410,8 @@ async function saveLeaderboard() {
 
 async function loadLeaderboard() {
     try {
-        const res = await fetch(`https://vtcade.onrender.com/api/leaderboard/${GAME_NAME}`);
-        
+        const res = await fetch(`${API_URL}/api/leaderboard/${encodeURIComponent(GAME_NAME)}`);
+
         if (res.ok) {
             const data = await res.json();
             leaderboard = data.leaderboard || [];

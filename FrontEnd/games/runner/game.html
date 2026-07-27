@@ -98,6 +98,7 @@ RUNNER v1.0
 <script>
 const gameEl = document.getElementById("game");
 const uiEl = document.getElementById("ui");
+const API_URL = "https://vtcade.onrender.com";
 const WIDTH = 50;
 const HEIGHT = 25;
 const GAME_NAME = "RUNNER";
@@ -106,7 +107,10 @@ const currentUser = localStorage.getItem("currentUser");
 
 if (!currentUser) {
     alert("You must be logged in to play!");
-    window.location.href = "../../login/login.html";
+    window.location.replace("../../login/login.html");
+    // Halt the rest of the script. Without this the redirect is merely queued
+    // and initGame() still runs, firing requests for the literal user "null".
+    throw new Error("Not authenticated");
 }
 
 let score = 0;
@@ -115,6 +119,9 @@ let frame = 0;
 let gameRunning = false;
 let gameStarted = false;
 let gameSpeed = 1;
+// Set while the end-of-game save is in flight, so a restart can't reset `score`
+// out from under the pending save (or start a second game loop).
+let isSaving = false;
 
 const player = {
     x: 8,
@@ -308,12 +315,21 @@ function gameLoop() {
 
 async function gameOver() {
     gameRunning = false;
+    isSaving = true;
 
-    await saveHighscore();
-    await saveLeaderboard();
-    await loadLeaderboard();
-    
-    draw();
+    // Snapshot the score up front. These awaits can take seconds on a cold
+    // backend, and reading the global `score` afterwards risked submitting 0
+    // if the player had already restarted.
+    const finalScore = score;
+
+    try {
+        await saveHighscore(finalScore);
+        await saveLeaderboard(finalScore);
+        await loadLeaderboard();
+    } finally {
+        isSaving = false;
+        draw();
+    }
 }
 
 function restartGame() {
@@ -334,18 +350,25 @@ function restartGame() {
 }
 
 function jump() {
+    if (isSaving) return;
+
     if (!gameStarted) {
         startGame();
     } else if (gameRunning && !player.isJumping) {
         player.velocityY = player.jumpPower;
         player.isJumping = true;
-    } else if (!gameRunning && gameStarted) {
+    } else if (!gameRunning) {
+        // Restart synchronously; the old deferred restart left a 100ms window
+        // in which another input could start a second loop.
         restartGame();
-        setTimeout(() => startGame(), 100);
+        startGame();
     }
 }
 
 function startGame() {
+    // Without this guard two rapid inputs could start two concurrent gameLoop()
+    // timers, doubling the speed and firing gameOver() twice.
+    if (gameRunning) return;
     gameStarted = true;
     gameRunning = true;
     gameLoop();
@@ -354,7 +377,7 @@ function startGame() {
 async function loadHighScore() {
     try {
         const res = await fetch(
-            `https://vtcade.onrender.com/api/highscore/${currentUser}/${GAME_NAME}`
+            `${API_URL}/api/highscore/${encodeURIComponent(currentUser)}/${encodeURIComponent(GAME_NAME)}`
         );
 
         if (res.ok) {
@@ -368,36 +391,40 @@ async function loadHighScore() {
     }
 }
 
-async function saveHighscore() {
+async function saveHighscore(finalScore) {
     try {
-        const res = await fetch("https://vtcade.onrender.com/api/highscore/save", {
+        const res = await fetch(`${API_URL}/api/highscore/save`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 username: currentUser,
                 game: GAME_NAME,
-                score: score
+                score: finalScore
             })
         });
 
         if (res.ok) {
             const data = await res.json();
-            highScore = data.highscore;
+            if (typeof data.highscore === "number") {
+                highScore = data.highscore;
+            }
+        } else {
+            console.error('Highscore save failed:', res.status, await res.text());
         }
     } catch (err) {
         console.error('Error saving highscore:', err);
     }
 }
 
-async function saveLeaderboard() {
+async function saveLeaderboard(finalScore) {
     try {
-        await fetch("https://vtcade.onrender.com/api/leaderboard/save", {
+        await fetch(`${API_URL}/api/leaderboard/save`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 username: currentUser,
                 game: GAME_NAME,
-                score
+                score: finalScore
             })
         });
     } catch (err) {
@@ -407,7 +434,7 @@ async function saveLeaderboard() {
 
 async function loadLeaderboard() {
     try {
-        const res = await fetch(`https://vtcade.onrender.com/api/leaderboard/${GAME_NAME}`);
+        const res = await fetch(`${API_URL}/api/leaderboard/${encodeURIComponent(GAME_NAME)}`);
         
         if (res.ok) {
             const data = await res.json();

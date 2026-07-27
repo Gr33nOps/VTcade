@@ -193,6 +193,16 @@
     <script>
         const API_URL = "https://vtcade.onrender.com";
         const terminalEl = document.getElementById("terminal");
+
+        // Values below are composed into innerHTML. The typed field values and
+        // server-supplied messages must be escaped so a value like
+        // <img src=x onerror=...> renders as text instead of executing.
+        function esc(value) {
+            return String(value ?? "").replace(/[&<>"']/g, c => ({
+                "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+            }[c]));
+        }
+
         let currentField = 0;
         let username = "";
         let password = "";
@@ -218,7 +228,7 @@ ADMIN LOGIN
                 const displayValue = index === 1 && value ? '*'.repeat(value.length) : value;
                 const cursor = isSelected ? '<span class="cursor">_</span>' : '';
                 
-                let line = `${prefix} ${field}: ${displayValue}${cursor}`;
+                let line = `${prefix} ${field}: ${esc(displayValue)}${cursor}`;
                 
                 if (isSelected) {
                     output += `<span class="highlight">${line}</span>\n`;
@@ -253,10 +263,10 @@ ADMIN LOGIN
             output += '\n';
 
             if (errorMessage) {
-                output += `<span class="error-text">ERROR: ${errorMessage}</span>\n\n`;
+                output += `<span class="error-text">ERROR: ${esc(errorMessage)}</span>\n\n`;
             }
             if (successMessage) {
-                output += `<span class="success-text">${successMessage}</span>\n\n`;
+                output += `<span class="success-text">${esc(successMessage)}</span>\n\n`;
             }
 
             output += `

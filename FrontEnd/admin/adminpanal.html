@@ -177,13 +177,31 @@
         let leaderboards = [];
         let selectedGame = null;
 
+        // Any value rendered through innerHTML that originated from a user
+        // (usernames, emails, game titles, server messages) must be escaped.
+        function esc(value) {
+            return String(value ?? "").replace(/[&<>"']/g, c => ({
+                "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+            }[c]));
+        }
+
         function checkAuth() {
             const authData = localStorage.getItem("adminAuth");
             if (!authData) {
                 window.location.href = "adminlogin.html";
                 return null;
             }
-            return JSON.parse(authData);
+            try {
+                const parsed = JSON.parse(authData);
+                if (!parsed || !parsed.username || !parsed.password) throw new Error("incomplete");
+                return parsed;
+            } catch (err) {
+                // Corrupt/partial value used to throw here and leave a blank,
+                // frozen page with no way out. Clear it and start over.
+                localStorage.removeItem("adminAuth");
+                window.location.href = "adminlogin.html";
+                return null;
+            }
         }
 
         function getDateTime() {
@@ -202,8 +220,12 @@
             return { date, time };
         }
 
-        function apiCall(endpoint, options = {}) {
-            return fetch(`${API_URL}/api/admin${endpoint}`, {
+        // Returns the parsed body, or throws. The previous version returned the
+        // raw Response and every caller went straight to .json(), so a 401 or
+        // 500 still produced valid JSON and ran the success path — failed bans,
+        // deletes and maintenance toggles all looked like they had worked.
+        async function apiCall(endpoint, options = {}) {
+            const res = await fetch(`${API_URL}/api/admin${endpoint}`, {
                 ...options,
                 headers: {
                     'Content-Type': 'application/json',
@@ -212,6 +234,24 @@
                     ...options.headers
                 }
             });
+
+            let data = null;
+            try {
+                data = await res.json();
+            } catch (err) {
+                // Non-JSON response (proxy error page, empty body, ...).
+            }
+
+            if (!res.ok) {
+                if (res.status === 401) {
+                    localStorage.removeItem("adminAuth");
+                    alert("Session rejected. Please sign in again.");
+                    window.location.href = "adminlogin.html";
+                }
+                throw new Error(data?.message || `Request failed (HTTP ${res.status})`);
+            }
+
+            return data;
         }
 
         // ==================== RENDER HOME ====================
@@ -224,7 +264,7 @@
 ================================================================================
 
 SYSTEM STATUS: ${statusColor}${stats.status}${statusEnd}
-ADMIN: ${adminUsername}
+ADMIN: ${esc(adminUsername)}
 DATE: ${date}
 TIME: ${time}
 
@@ -290,7 +330,7 @@ READY: <span class="cursor">_</span>
 ================================================================================
 
 SYSTEM STATUS: ${stats.status}
-ADMIN: ${adminUsername}
+ADMIN: ${esc(adminUsername)}
 DATE: ${date}
 TIME: ${time}
 
@@ -310,7 +350,7 @@ USER CONTROL - ${users.length} USERS (Page ${currentPage + 1}/${totalPages})
                     const bannedTag = user.isBanned ? '<span class="red">[BANNED]</span>' : '';
                     const verifiedTag = user.isVerified ? '<span class="yellow">[VERIFIED]</span>' : '';
                     
-                    const line = `${prefix} [${globalIndex + 1}] ${user.username.padEnd(15)} ${user.email.padEnd(30)}`;
+                    const line = `${prefix} [${globalIndex + 1}] ${esc(user.username.padEnd(15))} ${esc(user.email.padEnd(30))}`;
                     
                     if (isSelected) {
                         output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span>\n`;
@@ -353,7 +393,7 @@ READY: <span class="cursor">_</span>
 ================================================================================
 
 SYSTEM STATUS: ${stats.status}
-ADMIN: ${adminUsername}
+ADMIN: ${esc(adminUsername)}
 DATE: ${date}
 TIME: ${time}
 
@@ -372,7 +412,7 @@ GAME CONTROL - ${games.length} GAMES (Page ${currentPage + 1}/${totalPages})
                     const prefix = isSelected ? '>>>' : '   ';
                     const statusTag = game.isActive ? '<span class="yellow">[ENABLED]</span>' : '<span class="red">[DISABLED]</span>';
                     
-                    const line = `${prefix} [${globalIndex + 1}] ${game.title.padEnd(25)} ${game.genre.padEnd(15)}`;
+                    const line = `${prefix} [${globalIndex + 1}] ${esc(game.title.padEnd(25))} ${esc(game.genre.padEnd(15))}`;
                     
                     if (isSelected) {
                         output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span>\n`;
@@ -410,7 +450,7 @@ READY: <span class="cursor">_</span>
 ================================================================================
 
 SYSTEM STATUS: ${stats.status}
-ADMIN: ${adminUsername}
+ADMIN: ${esc(adminUsername)}
 DATE: ${date}
 TIME: ${time}
 
@@ -432,7 +472,7 @@ LEADERBOARD CONTROL
                     const globalIndex = start + idx;
                     const isSelected = globalIndex === selectedIndex;
                     const prefix = isSelected ? '>>>' : '   ';
-                    const line = `${prefix} [${globalIndex + 1}] ${game.title}`;
+                    const line = `${prefix} [${globalIndex + 1}] ${esc(game.title)}`;
                     
                     if (isSelected) {
                         output += `<span class="highlight">${line}</span>\n`;
@@ -457,7 +497,7 @@ COMMANDS
                 const visibleEntries = leaderboards.slice(start, end);
                 const totalPages = Math.ceil(leaderboards.length / ITEMS_PER_PAGE) || 1;
                 
-                output += `GAME: ${selectedGame.toUpperCase()} (Page ${currentPage + 1}/${totalPages})\n`;
+                output += `GAME: ${esc(selectedGame.toUpperCase())} (Page ${currentPage + 1}/${totalPages})\n`;
                 output += `SHOWING SCORES ${start + 1}-${end} OF ${leaderboards.length}\n`;
 
                 if (leaderboards.length === 0) {
@@ -470,7 +510,7 @@ COMMANDS
                         const flagTag = entry.isFlagged ? '<span class="yellow">[FLAGGED]</span>' : '';
                         const username = entry.userId?.username || entry.username || 'UNKNOWN';
                         
-                        const line = `${prefix} [${globalIndex + 1}] ${username.padEnd(15)} SCORE: ${String(entry.score).padStart(8)}`;
+                        const line = `${prefix} [${globalIndex + 1}] ${esc(username.padEnd(15))} SCORE: ${String(entry.score).padStart(8)}`;
                         
                         if (isSelected) {
                             output += `<span class="highlight">${line.replace(/<span[^>]*>|<\/span>/g, '')}</span> ${flagTag}\n`;
@@ -510,7 +550,7 @@ READY: <span class="cursor">_</span>
 ================================================================================
 
 SYSTEM STATUS: ${stats.status}
-ADMIN: ${adminUsername}
+ADMIN: ${esc(adminUsername)}
 DATE: ${date}
 TIME: ${time}
 
@@ -573,7 +613,6 @@ READY: <span class="cursor">_</span>
         // ==================== DATA LOADERS ====================
         function loadUsers() {
             apiCall('/users')
-                .then(res => res.json())
                 .then(data => {
                     users = data.users || [];
                     stats.users = users.length;
@@ -583,6 +622,7 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     console.error('Error loading users:', err);
+                    alert('ERROR: Failed to load users: ' + err.message);
                     users = [];
                     stats.users = 0;
                     currentPage = 0;
@@ -593,7 +633,6 @@ READY: <span class="cursor">_</span>
 
         function loadGames() {
             apiCall('/games')
-                .then(res => res.json())
                 .then(data => {
                     games = data.games || [];
                     stats.games = games.length;
@@ -603,6 +642,7 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     console.error('Error loading games:', err);
+                    alert('ERROR: Failed to load games: ' + err.message);
                     games = [];
                     stats.games = 3;
                     currentPage = 0;
@@ -614,7 +654,6 @@ READY: <span class="cursor">_</span>
         function loadLeaderboards(game) {
             const query = game ? `?game=${encodeURIComponent(game)}` : '';
             apiCall(`/leaderboards${query}`)
-                .then(res => res.json())
                 .then(data => {
                     leaderboards = data.leaderboards || [];
                     currentPage = 0;
@@ -623,6 +662,7 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     console.error('Error loading leaderboards:', err);
+                    alert('ERROR: Failed to load leaderboards: ' + err.message);
                     leaderboards = [];
                     currentPage = 0;
                     selectedIndex = 0;
@@ -636,28 +676,26 @@ READY: <span class="cursor">_</span>
             
             showLoading();
             apiCall(`/users/${userId}/ban`, { method: 'PUT' })
-                .then(res => res.json())
                 .then(() => {
                     hideLoading();
                     loadUsers();
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to ban user");
+                    alert("ERROR: Failed to ban user: " + err.message);
                 });
         }
 
         function unbanUser(userId) {
             showLoading();
             apiCall(`/users/${userId}/unban`, { method: 'PUT' })
-                .then(res => res.json())
                 .then(() => {
                     hideLoading();
                     loadUsers();
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to unban user");
+                    alert("ERROR: Failed to unban user: " + err.message);
                 });
         }
 
@@ -666,7 +704,6 @@ READY: <span class="cursor">_</span>
             
             showLoading();
             apiCall(`/users/${userId}`, { method: 'DELETE' })
-                .then(res => res.json())
                 .then(() => {
                     hideLoading();
                     selectedIndex = Math.max(0, selectedIndex - 1);
@@ -674,49 +711,46 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to delete user");
+                    alert("ERROR: Failed to delete user: " + err.message);
                 });
         }
 
         function enableGame(gameId) {
             showLoading();
             apiCall(`/games/${gameId}/enable`, { method: 'PUT' })
-                .then(res => res.json())
                 .then(() => {
                     hideLoading();
                     loadGames();
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to enable game");
+                    alert("ERROR: Failed to enable game: " + err.message);
                 });
         }
 
         function disableGame(gameId) {
             showLoading();
             apiCall(`/games/${gameId}/disable`, { method: 'PUT' })
-                .then(res => res.json())
                 .then(() => {
                     hideLoading();
                     loadGames();
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to disable game");
+                    alert("ERROR: Failed to disable game: " + err.message);
                 });
         }
 
         function flagScore(entryId) {
             showLoading();
             apiCall(`/leaderboards/${entryId}/flag`, { method: 'PUT' })
-                .then(res => res.json())
                 .then(() => {
                     hideLoading();
                     loadLeaderboards(selectedGame);
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to flag score");
+                    alert("ERROR: Failed to flag score: " + err.message);
                 });
         }
 
@@ -725,7 +759,6 @@ READY: <span class="cursor">_</span>
             
             showLoading();
             apiCall(`/leaderboards/${entryId}`, { method: 'DELETE' })
-                .then(res => res.json())
                 .then(() => {
                     hideLoading();
                     selectedIndex = Math.max(0, selectedIndex - 1);
@@ -733,7 +766,7 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to delete score");
+                    alert("ERROR: Failed to delete score: " + err.message);
                 });
         }
 
@@ -742,7 +775,6 @@ READY: <span class="cursor">_</span>
             
             showLoading();
             apiCall(`/leaderboards/reset/${encodeURIComponent(game)}`, { method: 'DELETE' })
-                .then(res => res.json())
                 .then(() => {
                     hideLoading();
                     selectedIndex = 0;
@@ -750,7 +782,7 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to reset leaderboard");
+                    alert("ERROR: Failed to reset leaderboard: " + err.message);
                 });
         }
 
@@ -759,30 +791,24 @@ READY: <span class="cursor">_</span>
             
             showLoading();
             apiCall('/maintenance/enable', { method: 'PUT' })
-                .then(res => res.json())
-                .then(() => {
-                    hideLoading();
-                    stats.maintenanceMode = true;
-                    render();
-                })
+                // Re-read from the server rather than assuming, so the header
+                // status line and the toggle agree with reality.
+                .then(loadStats)
+                .then(hideLoading)
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to enable maintenance mode");
+                    alert("ERROR: Failed to enable maintenance mode: " + err.message);
                 });
         }
 
         function disableMaintenance() {
             showLoading();
             apiCall('/maintenance/disable', { method: 'PUT' })
-                .then(res => res.json())
-                .then(() => {
-                    hideLoading();
-                    stats.maintenanceMode = false;
-                    render();
-                })
+                .then(loadStats)
+                .then(hideLoading)
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to disable maintenance mode");
+                    alert("ERROR: Failed to disable maintenance mode: " + err.message);
                 });
         }
 
@@ -838,7 +864,6 @@ READY: <span class="cursor">_</span>
             }
 
             if (direction === 'left') {
-                const totalPages = Math.ceil((maxIndex + 1) / ITEMS_PER_PAGE);
                 if (currentPage > 0) {
                     currentPage--;
                     selectedIndex = currentPage * ITEMS_PER_PAGE;
@@ -1097,33 +1122,45 @@ READY: <span class="cursor">_</span>
         }, { passive: false });
 
         // ==================== INITIALIZATION ====================
+        // Pull the real dashboard numbers and, critically, the true maintenance
+        // state. It used to be hardcoded to false on every load, which meant
+        // that when maintenance was actually ON the panel showed OFF and the
+        // DISABLE option was unreachable — an admin could not turn it back off.
+        async function loadStats() {
+            try {
+                const data = await apiCall('/stats');
+                stats = {
+                    users: data.users ?? 0,
+                    games: data.games ?? 0,
+                    status: data.status || "ONLINE",
+                    maintenanceMode: !!data.maintenanceMode
+                };
+            } catch (err) {
+                console.error('Error loading stats:', err);
+                stats.status = "DEGRADED";
+            }
+            render();
+        }
+
+        let clockTimer = null;
+
         adminAuth = checkAuth();
         if (adminAuth) {
             adminUsername = adminAuth.username.toUpperCase();
-            
-            // Initialize stats with defaults
-            stats = {
-                users: 0,
-                games: 3,
-                status: "ONLINE",
-                maintenanceMode: false
-            };
-            
-            // Load users to update stats.users
+
             showLoading();
-            loadUsers();
-            
-            // Update clock every second on home screen
-            setInterval(() => {
-                if (currentView === "home") {
+            loadStats().finally(hideLoading);
+
+            clockTimer = setInterval(() => {
+                if (currentView === "home" && !document.hidden) {
                     render();
                 }
             }, 1000);
-            
-            setTimeout(() => {
-                hideLoading();
-            }, 1000);
         }
+
+        window.addEventListener("pagehide", () => {
+            if (clockTimer) clearInterval(clockTimer);
+        });
     </script>
 </body>
 </html>

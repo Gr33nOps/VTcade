@@ -1,4 +1,5 @@
 const { supabaseAdmin } = require("../config/supabase");
+const { logError } = require("../config/logger");
 
 async function checkMaintenance(req, res, next) {
     try {
@@ -21,8 +22,17 @@ async function checkMaintenance(req, res, next) {
 
         next();
     } catch (err) {
-        console.error("Maintenance check error:", err);
-        next();
+        // Deliberate fail-CLOSED. The previous version called next() here, so a
+        // database problem silently served traffic as though maintenance were
+        // off. Since every downstream route needs the same database anyway,
+        // letting requests through only converts one clear 503 into a pile of
+        // confusing 500s. The settings row is guaranteed by migration, so
+        // reaching this branch means the database is genuinely unreachable.
+        logError("checkMaintenance", err, { path: req.originalUrl });
+        return res.status(503).json({
+            message: "Service temporarily unavailable. Please try again later.",
+            maintenanceMode: true
+        });
     }
 }
 

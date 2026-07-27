@@ -233,6 +233,16 @@
     <script>
         const API_BASE_URL = 'https://vtcade.onrender.com/api';
         const terminalEl = document.getElementById("terminal");
+
+        // Everything below is composed into innerHTML, so any value that came
+        // from a user (our own username, other players' names off the
+        // leaderboard, server error strings) must be escaped first.
+        function esc(value) {
+            return String(value ?? "").replace(/[&<>"']/g, c => ({
+                "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+            }[c]));
+        }
+
         let selectedIndex = 0;
         let currentPage = 0;
         const ITEMS_PER_PAGE_GAMES = 5;
@@ -265,7 +275,7 @@
         async function fetchUserHighscores() {
             try {
                 errorMessage = "";
-                const response = await fetch(`${API_BASE_URL}/highscore/user/${username}`);
+                const response = await fetch(`${API_BASE_URL}/highscore/user/${encodeURIComponent(username)}`);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
 
@@ -321,7 +331,7 @@
 ================================================================================
 
 SYSTEM STATUS: ONLINE
-USER: ${username}
+USER: ${esc(username)}
 DATE: ${date}
 TIME: ${time}
 
@@ -371,7 +381,7 @@ READY: <span class="cursor">_</span>
 ================================================================================
 
 SYSTEM STATUS: ONLINE
-USER: ${username}
+USER: ${esc(username)}
 DATE: ${date}
 TIME: ${time}
 
@@ -414,7 +424,7 @@ READY: <span class="cursor">_</span>
 ================================================================================
 
 SYSTEM STATUS: ONLINE
-USER: ${username}
+USER: ${esc(username)}
 DATE: ${date}
 TIME: ${time}
 
@@ -425,7 +435,7 @@ MY HIGH SCORES
 `;
 
             if (errorMessage) {
-                output += `    <span class="red">ERROR: ${errorMessage}</span>\n\n`;
+                output += `    <span class="red">ERROR: ${esc(errorMessage)}</span>\n\n`;
             }
 
             const availableGames = ['FLAPPY BIRD', 'RUNNER', 'SNAKE'];
@@ -445,7 +455,7 @@ MY HIGH SCORES
             const avgScore = gamesWithScores > 0 ? Math.round(totalScore / gamesWithScores) : 0;
 
             output += `
-    <span class="dim">Total Games Played: ${totalGamesPlayed}</span>
+    <span class="dim">Games With Scores: ${totalGamesPlayed}</span>
     <span class="dim">Average Score: ${avgScore.toLocaleString()} PTS</span>
 
 ================================================================================
@@ -473,7 +483,7 @@ READY: <span class="cursor">_</span>
 ================================================================================
 
 SYSTEM STATUS: ONLINE
-USER: ${username}
+USER: ${esc(username)}
 DATE: ${date}
 TIME: ${time}
 
@@ -517,7 +527,7 @@ READY: <span class="cursor">_</span>
 ================================================================================
 
 SYSTEM STATUS: ONLINE
-USER: ${username}
+USER: ${esc(username)}
 DATE: ${date}
 TIME: ${time}
 
@@ -528,7 +538,7 @@ LEADERBOARD - ${selectedGame.toUpperCase()} (Page ${currentPage + 1}/${totalPage
 `;
 
             if (errorMessage) {
-                output += `    <span class="red">ERROR: ${errorMessage}</span>\n`;
+                output += `    <span class="red">ERROR: ${esc(errorMessage)}</span>\n`;
             } else if (leaderboardData.length === 0) {
                 output += `    <span class="dim">NO SCORES FOUND</span>\n`;
             } else {
@@ -538,7 +548,7 @@ LEADERBOARD - ${selectedGame.toUpperCase()} (Page ${currentPage + 1}/${totalPage
                 visibleScores.forEach((entry, idx) => {
                     const globalRank = start + idx + 1;
                     const rank = `#${globalRank}`.padEnd(6);
-                    const player = entry.username.substring(0, 15).padEnd(19);
+                    const player = esc(entry.username.substring(0, 15).padEnd(19));
                     const score = entry.score.toLocaleString().padStart(8);
                     output += `    ${rank}${player}${score}\n`;
                 });
@@ -734,17 +744,25 @@ READY: <span class="cursor">_</span>
 
         document.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
 
+        let clockTimer = null;
+
         async function init() {
             username = checkLogin();
             if (username) {
                 await fetchUserHighscores();
                 render();
-                setInterval(() => {
-                    if (currentView === "menu") render();
+                clockTimer = setInterval(() => {
+                    // Skip re-rendering while the tab is hidden — there's nobody
+                    // to see the clock tick, and it kept running forever.
+                    if (currentView === "menu" && !document.hidden) render();
                 }, 1000);
                 setTimeout(() => document.getElementById('loadingOverlay').classList.remove('active'), 500);
             }
         }
+
+        window.addEventListener("pagehide", () => {
+            if (clockTimer) clearInterval(clockTimer);
+        });
 
         init();
     </script>
