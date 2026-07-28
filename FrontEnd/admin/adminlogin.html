@@ -360,24 +360,28 @@ READY: <span class="cursor">_</span>
             try {
                 const res = await fetch(`${API_URL}/api/admin/login`, {
                     method: "POST",
+                    // Required for the browser to accept the session cookie.
+                    credentials: "include",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ username, password })
                 });
-                
+
                 const data = await res.json();
-                
+
                 if (!res.ok) {
                     errorMessage = data?.message || "Login failed";
                     isSubmitting = false;
                     render();
                     return;
                 }
-                
-                // Store only the short-lived token the server issued. The old
-                // code kept the admin password in localStorage in plaintext and
-                // replayed it as a header on every request.
-                localStorage.setItem("adminToken", data.token);
+
+                // Nothing secret is stored here any more. The session itself is
+                // an httpOnly cookie this page cannot read — which is the whole
+                // point, since a script injected into the panel can't read it
+                // either. These two values are display state only, and the
+                // server re-checks the real session on every request.
                 localStorage.setItem("adminUsername", data.username);
+                localStorage.setItem("adminSessionExpiresAt", String(data.expiresAt));
                 
                 successMessage = "Access granted";
                 isSubmitting = false;
@@ -429,13 +433,31 @@ READY: <span class="cursor">_</span>
             e.preventDefault();
         }, { passive: false });
 
-        const existingAuth = localStorage.getItem("adminToken");
-        if (existingAuth) {
+        // The session cookie is httpOnly, so this page genuinely cannot tell
+        // whether it is still valid. It only knows when the server said the
+        // session would run out, which is enough to avoid bouncing the browser
+        // to a panel that would immediately 401 and bounce it back here.
+        // The server remains the only authority on whether the session is live.
+        function sessionLooksLive() {
+            const expiresAt = Number(localStorage.getItem("adminSessionExpiresAt") || 0);
+            return !!localStorage.getItem("adminUsername") && expiresAt > Date.now();
+        }
+
+        function clearAdminSession() {
+            localStorage.removeItem("adminUsername");
+            localStorage.removeItem("adminSessionExpiresAt");
+            // Left over from when the token itself lived here. Drop it so an
+            // old browser profile isn't still carrying one around.
+            localStorage.removeItem("adminToken");
+        }
+
+        if (sessionLooksLive()) {
             document.getElementById('loadingOverlay').classList.add('active');
             setTimeout(() => {
                 window.location.href = "adminpanal.html";
             }, 500);
         } else {
+            clearAdminSession();
             render();
             setTimeout(() => {
                 document.getElementById('loadingOverlay').classList.remove('active');

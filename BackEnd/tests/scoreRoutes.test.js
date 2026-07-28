@@ -199,29 +199,42 @@ describe("game management authorization", () => {
         expect(res.status).toBe(200);
     });
 
-    test("an authenticated admin can create a game", async () => {
-        const login = await request(app)
+    // These two routes live outside /api/admin, and the session cookie is
+    // deliberately scoped to /api/admin so it is never attached to a player or
+    // public request. That means a browser session cannot reach them — they are
+    // API-only, for scripts holding a token. The admin panel never calls them;
+    // everything it does goes through /api/admin/*.
+    //
+    // So these exercise the Authorization header path on purpose.
+    async function adminBearer() {
+        const res = await request(app)
             .post("/api/admin/login")
             .send({ username: "admin", password: "test-admin-password" });
+
+        const cookie = (res.headers["set-cookie"] || [])
+            .find((c) => c.startsWith("vtcade_admin="));
+        return decodeURIComponent(cookie.split(";")[0].slice("vtcade_admin=".length));
+    }
+
+    test("an authenticated admin can create a game", async () => {
+        const token = await adminBearer();
 
         mock.setTable("games", { data: { id: "g1", title: "NEW GAME" }, error: null });
 
         const res = await request(app)
             .post("/api/game/add")
-            .set("Authorization", `Bearer ${login.body.token}`)
+            .set("Authorization", `Bearer ${token}`)
             .send({ title: "NEW GAME" });
 
         expect(res.status).toBe(201);
     });
 
     test("game creation requires a title", async () => {
-        const login = await request(app)
-            .post("/api/admin/login")
-            .send({ username: "admin", password: "test-admin-password" });
+        const token = await adminBearer();
 
         const res = await request(app)
             .post("/api/game/add")
-            .set("Authorization", `Bearer ${login.body.token}`)
+            .set("Authorization", `Bearer ${token}`)
             .send({ genre: "arcade" });
 
         expect(res.status).toBe(400);

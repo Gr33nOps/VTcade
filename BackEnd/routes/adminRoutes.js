@@ -2,7 +2,22 @@ const express = require("express");
 const router = express.Router();
 const { supabaseAdmin } = require("../config/supabase");
 const asyncRoute = require("../config/asyncRoute");
-const { ADMIN_USERNAME, signAdminToken, verifyAdminCredentials, requireAdmin } = require("../config/auth");
+const {
+    ADMIN_USERNAME,
+    verifyAdminCredentials,
+    issueAdminSession,
+    endAdminSession,
+    requireAdmin
+} = require("../config/auth");
+const { logAudit, logWarn } = require("../config/logger");
+
+// Who did what, from where. Called on every route below that changes state.
+function audit(req, action, detail = {}) {
+    logAudit(action, (req.admin && req.admin.username) || "unknown", {
+        ip: req.ip,
+        ...detail
+    });
+}
 
 function mapUser(u) {
     return {
@@ -51,15 +66,53 @@ router.post("/login", asyncRoute(async (req, res) => {
     const { username, password } = req.body;
 
     if (!verifyAdminCredentials(username, password)) {
+        // Log the attempt, never the password. Without this a brute-force run
+        // against the one password guarding every destructive endpoint on the
+        // site was completely invisible.
+        logWarn("admin.login", "failed admin login", {
+            ip: req.ip,
+            username: typeof username === "string" ? username.slice(0, 64) : null
+        });
         return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // Hand back a short-lived signed token. The password never leaves this
-    // request and is never stored client-side.
+    // The session goes back as an httpOnly cookie and nothing else. The token
+    // itself is never in the response body, so there is no point at which the
+    // browser's JavaScript has ever held it — which is what makes an XSS on
+    // this page unable to walk off with an admin session.
+    //
+    // expiresAt is not sensitive: it is only so the panel can show a timeout
+    // and stop rendering a session the server has already stopped honouring.
+    const { expiresAt } = issueAdminSession(res);
+
+    logAudit("admin.login", typeof username === "string" ? username : "unknown", { ip: req.ip });
     res.json({
         message: "Admin login successful",
         username: ADMIN_USERNAME,
-        token: signAdminToken()
+        expiresAt
+    });
+}));
+
+// Signing out now actually ends the session: the token is revoked server-side
+// AND the cookie is cleared. The panel used to just drop the token from
+// localStorage, which left it valid for the rest of its TTL — so "log out" on
+// a shared machine was cosmetic.
+router.post("/logout", requireAdmin, asyncRoute(async (req, res) => {
+    endAdminSession(req, res);
+    audit(req, "admin.logout");
+    res.json({ message: "Signed out" });
+}));
+
+// Confirms what the server believes the client's address is. The Vercel rewrite
+// puts an extra proxy in front of Render's, and if `trust proxy` is set too low
+// every request looks like it came from one address — which silently collapses
+// the per-IP rate limiter into a global one and locks everybody out together.
+// Admin-gated, and it reveals nothing the caller doesn't already know.
+router.get("/diagnostics/ip", requireAdmin, asyncRoute(async (req, res) => {
+    res.json({
+        seenIp: req.ip,
+        forwardedFor: req.headers["x-forwarded-for"] || null,
+        trustProxyHops: Number(process.env.TRUST_PROXY_HOPS || 2)
     });
 }));
 
@@ -120,6 +173,7 @@ router.put("/users/:id/ban", requireAdmin, asyncRoute(async (req, res) => {
     if (error) throw error;
     if (!data) return res.status(404).json({ message: "User not found" });
 
+    audit(req, "user.ban", { userId: data.id, username: data.username });
     res.json({ message: "User banned", user: mapUser(data) });
 }));
 
@@ -134,6 +188,7 @@ router.put("/users/:id/unban", requireAdmin, asyncRoute(async (req, res) => {
     if (error) throw error;
     if (!data) return res.status(404).json({ message: "User not found" });
 
+    audit(req, "user.unban", { userId: data.id, username: data.username });
     res.json({ message: "User unbanned", user: mapUser(data) });
 }));
 
@@ -155,6 +210,7 @@ router.delete("/users/:id", requireAdmin, asyncRoute(async (req, res) => {
     const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(req.params.id);
     if (deleteAuthError) throw deleteAuthError;
 
+    audit(req, "user.delete", { userId: req.params.id, username: profile.username });
     res.json({ message: "User deleted successfully" });
 }));
 
@@ -181,6 +237,7 @@ router.put("/games/:id/enable", requireAdmin, asyncRoute(async (req, res) => {
     if (error) throw error;
     if (!data) return res.status(404).json({ message: "Game not found" });
 
+    audit(req, "game.enable", { gameId: data.id, title: data.title });
     res.json({ message: "Game enabled", game: mapGame(data) });
 }));
 
@@ -195,6 +252,7 @@ router.put("/games/:id/disable", requireAdmin, asyncRoute(async (req, res) => {
     if (error) throw error;
     if (!data) return res.status(404).json({ message: "Game not found" });
 
+    audit(req, "game.disable", { gameId: data.id, title: data.title });
     res.json({ message: "Game disabled", game: mapGame(data) });
 }));
 
@@ -227,6 +285,7 @@ router.delete("/leaderboards/:id", requireAdmin, asyncRoute(async (req, res) => 
     if (error) throw error;
     if (!data) return res.status(404).json({ message: "Entry not found" });
 
+    audit(req, "score.delete", { entryId: data.id, username: data.username, game: data.game, score: data.score });
     res.json({ message: "Score removed" });
 }));
 
@@ -239,6 +298,9 @@ router.delete("/leaderboards/reset/:game", requireAdmin, asyncRoute(async (req, 
 
     if (error) throw error;
 
+    // The single most destructive thing in the panel: it wipes every score for
+    // a game with no undo. It must never happen without a record.
+    audit(req, "leaderboard.reset", { game: req.params.game, deletedCount: data.length });
     res.json({
         message: "Leaderboard reset",
         deletedCount: data.length
@@ -256,6 +318,7 @@ router.put("/leaderboards/:id/flag", requireAdmin, asyncRoute(async (req, res) =
     if (error) throw error;
     if (!data) return res.status(404).json({ message: "Entry not found" });
 
+    audit(req, "score.flag", { entryId: data.id, username: data.username, game: data.game });
     res.json({ message: "Score flagged", entry: mapLeaderboardEntry(data) });
 }));
 
@@ -279,6 +342,7 @@ router.put("/maintenance/enable", requireAdmin, asyncRoute(async (req, res) => {
 
     if (error) throw error;
 
+    audit(req, "maintenance.enable");
     res.json({ message: "Maintenance mode enabled", maintenanceMode: true });
 }));
 
@@ -290,6 +354,7 @@ router.put("/maintenance/disable", requireAdmin, asyncRoute(async (req, res) => 
 
     if (error) throw error;
 
+    audit(req, "maintenance.disable");
     res.json({ message: "Maintenance mode disabled", maintenanceMode: false });
 }));
 

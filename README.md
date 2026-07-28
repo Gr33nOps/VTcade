@@ -22,7 +22,7 @@ Live at [vtcade.vercel.app](https://vtcade.vercel.app).
 
 ## Features
 
-* Three games: Snake, Runner, and Flappy Bird
+* Three games: Snake, Tetris, and Flappy Bird
 * Accounts with email and password, or sign in with Google
 * Email verification and password recovery
 * Personal bests and per game leaderboards
@@ -51,7 +51,7 @@ BackEnd/          Express API
   tests/          Jest and Supertest route tests
 FrontEnd/         Static site, served as is
   shared/         config, session, game API, game UI, game CSS
-  games/          snake, runner, flappyBird
+  games/          snake, tetris, flappyBird
   dashboard/      player menu
   admin/          admin login and panel
   login/ signup/  auth screens
@@ -96,12 +96,20 @@ tests/            Game logic and consistency tests
    ADMIN_PASSWORD=choose_a_strong_password
    ADMIN_JWT_SECRET=a_long_random_string
    ADMIN_TOKEN_TTL=2h
+   TRUST_PROXY_HOPS=2
    ```
 
    The server checks for `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
    `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, and `ADMIN_JWT_SECRET` at
    startup and exits with a message naming whatever is missing, rather than
    failing later on the first request.
+
+   It also refuses to start on values that are present but weak: an
+   `ADMIN_JWT_SECRET` under 32 characters, an `ADMIN_PASSWORD` under 12, or a
+   password that is a known default. Note that the placeholder printed above is
+   itself rejected — replace it. A weak signing secret is not a degraded state
+   to run in, it is an unlocked door, so this is fatal rather than a warning
+   that scrolls past in a log.
 
    The service role key bypasses Row Level Security and is used only on the
    server. Never ship it to the browser. Find it in Supabase under Project
@@ -132,8 +140,8 @@ tests/            Game logic and consistency tests
 ### Running the tests
 
 ```
-cd BackEnd && npm test     # 31 route tests, Supabase fully mocked
-node tests/game-logic.js   # 55 game logic and consistency checks
+cd BackEnd && npm test     # 57 route tests, Supabase fully mocked
+node tests/game-logic.js   # 93 game logic and consistency checks
 ```
 
 The game tests execute the real game scripts against a stubbed DOM instead of
@@ -164,9 +172,10 @@ password, or continue with Google. Confirm your email, then sign in.
 **Playing.** From the dashboard, select GAMES, pick a title, and play. Scores
 save on their own when a run ends.
 
-**Controls.** Arrow keys or WASD to move, Space to jump or flap, P to pause,
-Escape to return to the dashboard. Tab switches between login and signup, and F1
-opens admin access from the login screen.
+**Controls.** Arrow keys or WASD to move, Up to rotate in Tetris, Space to jump,
+flap or hard drop, P to pause, M to mute, Escape to return to the dashboard. Tab
+switches between login and signup, and F1 opens admin access from the login
+screen.
 
 **Leaderboards.** Select LEADERBOARD from the dashboard and choose a game. The
 top ten scores are shown.
@@ -178,7 +187,9 @@ game hides it from the dashboard for every player.
 
 ## API
 
-Base URL in production is `https://vtcade.onrender.com`.
+Browsers reach the API at `/api` on the frontend's own origin; Vercel rewrites
+that through to `https://vtcade.onrender.com`, which is also the base URL for
+anything calling the API directly. See Deployment for why the proxy exists.
 
 **Auth**
 
@@ -207,7 +218,14 @@ Base URL in production is `https://vtcade.onrender.com`.
 | POST | `/api/highscore/save` | Submit a score, requires a session |
 
 **Admin.** Everything under `/api/admin` other than `/api/admin/login` requires
-a bearer token issued by that login route.
+the session issued by that login route. In a browser that is the httpOnly cookie
+it sets; scripts may send the same token as a bearer header instead.
+`POST /api/admin/logout` revokes it.
+
+Note the cookie is scoped to `/api/admin`, so it is never attached to a player
+or public request. `POST /api/game/add` and `DELETE /api/game/:id` sit outside
+that path and are therefore reachable only with a bearer header, not from a
+browser session. The admin panel does not use them.
 
 **Health.** `GET /health` returns `{"ok":true}` and is what Render polls.
 
@@ -234,8 +252,19 @@ attaches the token and refreshes it when it expires.
 
 * Player identity comes from a Supabase access token that the server verifies on
   every score submission
-* The admin panel authenticates once and then uses a short lived signed token.
-  The password is never stored in the browser.
+* The admin session is an httpOnly, `SameSite=Strict` cookie scoped to
+  `/api/admin`. The token is never in a response body and never in
+  `localStorage`, so a script injected into the panel has nothing to read. This
+  is why `/api` is proxied through the frontend origin — see Deployment.
+* Signing out revokes the token server side, not just in the browser
+* Admin tokens pin the algorithm, issuer and audience, and carry a unique id
+* Cross origin state changing admin requests are refused, behind `SameSite`
+* Every admin action that changes or destroys something is written to an audit
+  log with the actor, the target and the source address
+* The server refuses to start on a weak `ADMIN_PASSWORD` or `ADMIN_JWT_SECRET`
+* Admin password comparison is constant time over fixed length digests, so it
+  does not leak the password's length through response timing
+* Failed admin logins are rate limited per address and, on top of that, globally
 * Helmet security headers, gzip compression, and CORS limited to known origins
 * Rate limits on every credential endpoint and on score submission
 * All user supplied text is escaped before it reaches the page
@@ -253,10 +282,30 @@ must be registered to appear.
 **Frontend on Vercel.** Root directory is `FrontEnd`. It deploys on every push
 to `main`. There is no build step.
 
+`FrontEnd/vercel.json` rewrites `/api/*` through to the Render backend. This is
+load bearing, not a convenience. `vercel.app` and `onrender.com` are both on the
+Public Suffix List, so `vtcade.vercel.app` and `vtcade.onrender.com` are
+entirely separate *sites*. Without the rewrite the admin session cookie would be
+third party, which Safari blocks and Firefox partitions, and the panel would
+stop working in both. Proxying keeps every request same origin, so the cookie is
+first party and can be `SameSite=Strict`. It also takes CORS out of the request
+path and stops exposing the backend's real origin.
+
+If you ever point the frontend somewhere without that rewrite, set
+`window.VTCADE_API_URL` in `FrontEnd/shared/config.js` back to an absolute URL —
+and understand that the admin cookie will not survive the change.
+
 **Backend on Render.** Root directory is `BackEnd`, start command `npm start`,
 health check path `/health`. Set the environment variables listed above in the
 Render dashboard. `render.yaml` describes the service, with every secret marked
 so it is never committed.
+
+`TRUST_PROXY_HOPS` is `2` because Vercel's rewrite sits in front of Render's own
+router, so the client address is two entries deep in `X-Forwarded-For`. Set it
+too low and every request resolves to the proxy, which quietly turns the per
+address rate limiter into one shared bucket for the whole internet. After any
+hosting change, confirm it with `GET /api/admin/diagnostics/ip` — if `seenIp` is
+not your own address, the number is wrong.
 
 **Database on Supabase.** Enable the Google provider under Authentication if you
 want Google sign in, and add your callback page to the redirect allow list.

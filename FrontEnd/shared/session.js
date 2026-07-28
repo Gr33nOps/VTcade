@@ -6,7 +6,13 @@
 // refreshes, and attaches it.
 
 (function (global) {
-    const API_URL = global.VTCADE_API_URL || "https://vtcade.onrender.com";
+    // Note the explicit string test rather than `||`. In production
+    // VTCADE_API_URL is the empty string on purpose (requests go to our own
+    // origin and Vercel rewrites them onward), and `||` would treat that as
+    // "unset" and send every request straight back to the cross-site URL.
+    const API_URL = typeof global.VTCADE_API_URL === "string"
+        ? global.VTCADE_API_URL
+        : "https://vtcade.onrender.com";
     const SESSION_KEY = "vtcadeSession";
     const LEGACY_USER_KEY = "currentUser";
 

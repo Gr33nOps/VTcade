@@ -22,4 +22,12 @@ function logInfo(context, message) {
     console.log(`[${ts()}] INFO  ${context}: ${message}`);
 }
 
-module.exports = { logError, logWarn, logInfo };
+// Every admin action that changes or destroys something goes through here.
+// Bans, deletions and leaderboard resets previously left no trace at all, so
+// there was no way to answer "who did this, and when" after the fact. Tagged
+// AUDIT rather than INFO so it can be grepped and shipped somewhere separate.
+function logAudit(action, actor, detail = {}) {
+    console.log(`[${ts()}] AUDIT ${action} actor=${actor} ${JSON.stringify(detail)}`);
+}
+
+module.exports = { logError, logWarn, logInfo, logAudit };

@@ -41,3 +41,10 @@ services:
         sync: false
       - key: ADMIN_TOKEN_TTL
         value: 2h
+      # Vercel's /api rewrite sits in front of Render's own router, so the
+      # client address is two hops deep in X-Forwarded-For. Too low and every
+      # request looks like it came from the proxy, which turns the per-IP rate
+      # limiter into one shared bucket for the whole internet.
+      # Verify with GET /api/admin/diagnostics/ip after deploying.
+      - key: TRUST_PROXY_HOPS
+        value: "2"

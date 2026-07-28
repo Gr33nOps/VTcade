@@ -58,20 +58,20 @@
             text-align: center;
             margin-top: 5px;
             display: block;
-            color: #ff0000;
+            color: #00ff00;
         }
         .highlight {
             background: #00ff00;
             color: black;
         }
         .red {
-            color: #ff0000;
+            color: #00ff00;
         }
         .yellow {
-            color: #ffff00;
+            color: #00ff00;
         }
         .dim {
-            color: #006600;
+            color: #00aa00;
         }
         body::after {
             content: "";
@@ -205,14 +205,30 @@
             }[c]));
         }
 
+        // The session is an httpOnly cookie the browser attaches by itself, so
+        // this page never holds a token and cannot check one. All it has is the
+        // expiry the server reported at login, which is enough to stop
+        // rendering a session that has certainly run out. Anything that matters
+        // is decided by the server, which 401s and is handled in apiCall().
+        function sessionLooksLive() {
+            const expiresAt = Number(localStorage.getItem("adminSessionExpiresAt") || 0);
+            return !!localStorage.getItem("adminUsername") && expiresAt > Date.now();
+        }
+
+        function clearAdminSession() {
+            localStorage.removeItem("adminUsername");
+            localStorage.removeItem("adminSessionExpiresAt");
+            // Left over from when the token itself lived here.
+            localStorage.removeItem("adminToken");
+        }
+
         function checkAuth() {
-            const token = localStorage.getItem("adminToken");
-            if (!token) {
+            if (!sessionLooksLive()) {
+                clearAdminSession();
                 window.location.href = "adminlogin.html";
                 return null;
             }
             return {
-                token,
                 username: localStorage.getItem("adminUsername") || "ADMIN"
             };
         }
@@ -238,11 +254,14 @@
         // 500 still produced valid JSON and ran the success path — failed bans,
         // deletes and maintenance toggles all looked like they had worked.
         async function apiCall(endpoint, options = {}) {
+            // No Authorization header: the session rides in an httpOnly cookie
+            // the browser attaches on its own. `credentials` is what tells
+            // fetch to send it.
             const res = await fetch(`${API_URL}/api/admin${endpoint}`, {
                 ...options,
+                credentials: "include",
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${adminAuth.token}`,
                     ...options.headers
                 }
             });
@@ -256,8 +275,7 @@
 
             if (!res.ok) {
                 if (res.status === 401) {
-                    localStorage.removeItem("adminToken");
-                    localStorage.removeItem("adminUsername");
+                    clearAdminSession();
                     alert("Session rejected. Please sign in again.");
                     window.location.href = "adminlogin.html";
                 }
@@ -828,11 +846,21 @@ READY: <span class="cursor">_</span>
 
         function logout() {
             showLoading();
-            setTimeout(() => {
-                localStorage.removeItem("adminToken");
-                localStorage.removeItem("adminUsername");
-                window.location.href = "adminlogin.html";
-            }, 800);
+
+            // Revoke the token server-side first. Dropping it from localStorage
+            // alone left it valid for the rest of its lifetime, so signing out
+            // on a shared machine did nothing an attacker would notice.
+            //
+            // A failed revoke must never trap the admin in the panel, so the
+            // local clear and the redirect happen either way.
+            apiCall('/logout', { method: 'POST' })
+                .catch(err => console.error('Logout revoke failed:', err))
+                .finally(() => {
+                    clearAdminSession();
+                    setTimeout(() => {
+                        window.location.href = "adminlogin.html";
+                    }, 400);
+                });
         }
 
         // ==================== RENDER & NAVIGATION ====================
@@ -1183,6 +1211,17 @@ READY: <span class="cursor">_</span>
             loadStats().finally(hideLoading);
 
             clockTimer = setInterval(() => {
+                // The token expires on a timer whether or not anyone touches the
+                // keyboard. Without this the panel sits there looking live until
+                // the admin tries to ban someone and gets a 401 instead.
+                if (!sessionLooksLive()) {
+                    clearInterval(clockTimer);
+                    clearAdminSession();
+                    showLoading();
+                    window.location.href = "adminlogin.html";
+                    return;
+                }
+
                 // Every view draws the header clock, so refresh on all of them —
                 // it previously only ticked on the home screen.
                 if (!document.hidden) {
