@@ -93,12 +93,50 @@ VTGameUI.GROUND_ROW   // 24 — floor line for side-scrollers
 Anything that rests on the floor sits at `GROUND_ROW - spriteHeight`. Runner's
 player and Flappy's bird both do this, which is why they line up.
 
-Paint through `VTGameUI.paintRect()` rather than writing into the grid yourself.
+Paint through `VTGameUI.paintRect()` rather than writing into the grid yourself,
+and pass the role as the last argument:
+
+```js
+VTGameUI.paintRect(grid, x, y, w, h, GLYPH.PLAYER, VTGameUI.ROLE.PLAYER);
+```
+
 It clips to the playable area so a sprite halfway off the edge cannot bleed into
-the border, and it counts any cell where one sprite lands on top of another.
-`VTGameUI.getPaintConflicts()` must read zero after every frame: one cell holds
-one thing, so two sprites in a cell means the spawn logic let them intersect.
-The test suite asserts this over thousands of frames per game.
+the border, and it counts any cell claimed by two different roles. The role
+matters: every sprite draws the same block, so comparing glyphs cannot tell a
+player sitting inside a hazard from the hazard itself.
+
+`VTGameUI.getPaintConflicts()` must read zero after every frame.
+
+### Never render the frame that detected the collision
+
+A collision is only noticed after the sprite has already moved into the hazard.
+Drawing the current positions at that moment puts the player visibly inside the
+obstacle, which is not something a terminal game should ever show. Keep the last
+frame that rendered cleanly and display that instead:
+
+```js
+function buildGrid() { /* paint everything, return the grid */ }
+
+function draw(gridOverride) {
+    const grid = gridOverride || buildGrid();
+    /* frameBoard + panel */
+}
+
+function gameLoop() {
+    if (!gameRunning) return;
+    update();
+    if (checkCollision()) { gameOver(); return; }   // no draw here
+    lastSafeGrid = buildGrid();                     // this frame was clean
+    draw(lastSafeGrid);
+    setTimeout(gameLoop, TICK);
+}
+
+// in gameOver(), and in the repaint after the score save
+draw(lastSafeGrid);
+```
+
+Reset `lastSafeGrid` to null in `restartGame()`. The result is that the player
+comes to rest flush against whatever it hit.
 
 ### 3. Sprite scale
 - **Grid games** (Snake-like): 1×1 cells.

@@ -49,10 +49,21 @@
             || (cp >= 0x2580 && cp <= 0x259F);    // Block Elements
     }
 
-    // Counts cells that were painted over by a *different* glyph in the current
-    // frame. Should always be zero: in a terminal grid a cell holds one thing,
-    // so two sprites sharing a cell means the game let them intersect.
+    // Roles are tracked separately from glyphs. Every sprite draws the same
+    // block, so comparing glyphs cannot tell a bird sitting inside a pipe from
+    // the pipe itself. Comparing roles can.
+    const ROLE = {
+        PLAYER: "player",
+        HAZARD: "hazard",
+        PICKUP: "pickup",
+        GROUND: "ground"
+    };
+
+    // Cells claimed by two different roles in the current frame. Must always be
+    // zero: one cell holds one thing, so a shared cell means two sprites were
+    // allowed to intersect and the frame would render them on top of each other.
     let paintConflicts = 0;
+    let occupancy = null;
 
     // ---- Board geometry, identical everywhere --------------------------------
     const BOARD_W = 50;               // including both border columns
@@ -75,13 +86,21 @@
         for (let y = 0; y < BOARD_H; y++) {
             grid[y] = new Array(BOARD_W).fill(GLYPH.BLANK);
         }
-        paintConflicts = 0;   // a fresh grid starts a fresh frame
+        // A fresh grid starts a fresh frame.
+        paintConflicts = 0;
+        occupancy = new Array(BOARD_H);
+        for (let y = 0; y < BOARD_H; y++) {
+            occupancy[y] = new Array(BOARD_W).fill(null);
+        }
         return grid;
     }
 
     // Paint a rectangle, clipped to the playable area so a sprite half off the
-    // edge can never bleed into the border.
-    function paintRect(grid, x, y, w, h, glyph) {
+    // edge can never bleed into the border. `role` is what the overlap guard
+    // compares; pass one of ROLE.*.
+    function paintRect(grid, x, y, w, h, glyph, role) {
+        const claim = role || glyph;
+
         for (let dy = 0; dy < h; dy++) {
             const gy = Math.floor(y) + dy;
             if (gy < 0 || gy >= BOARD_H) continue;
@@ -89,13 +108,14 @@
                 const gx = Math.floor(x) + dx;
                 if (gx < PLAY_X_MIN || gx > PLAY_X_MAX) continue;
 
-                // The ground is a backdrop; anything may stand on it. Two solid
-                // sprites claiming one cell is a genuine intersection though.
-                const existing = grid[gy][gx];
-                if (existing !== GLYPH.BLANK && existing !== GLYPH.GROUND && existing !== glyph) {
+                // The ground is a backdrop, so anything may stand on it. Two
+                // sprites claiming the same cell is a genuine intersection.
+                const held = occupancy && occupancy[gy][gx];
+                if (held && held !== ROLE.GROUND && held !== claim) {
                     paintConflicts++;
                 }
 
+                if (occupancy) occupancy[gy][gx] = claim;
                 grid[gy][gx] = glyph;
             }
         }
@@ -107,6 +127,7 @@
 
     function paintGround(grid) {
         for (let x = PLAY_X_MIN; x <= PLAY_X_MAX; x++) {
+            if (occupancy) occupancy[GROUND_ROW][x] = ROLE.GROUND;
             grid[GROUND_ROW][x] = GLYPH.GROUND;
         }
     }
@@ -180,6 +201,7 @@
     global.VTGameUI = {
         GLYPH: GLYPH,
         SPRITE_GLYPH: SPRITE_GLYPH,
+        ROLE: ROLE,
         STATE: STATE,
         BOARD_W: BOARD_W,
         BOARD_H: BOARD_H,

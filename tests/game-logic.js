@@ -389,32 +389,128 @@ console.log("\n=== GLYPH SAFETY AND OVERLAP ===");
 }
 
 {
+    // These play the games the way a player would, and restart on a collision
+    // rather than continuing through the obstacle. An earlier version of this
+    // block forced the bird to a fixed altitude to "keep the run alive", which
+    // drove it straight through solid pipes and produced overlaps that no real
+    // game could ever reach.
     const scenarios = [
         ["snake", (c) => c.updateSnake()],
-        ["runner", (c) => { c.updatePlayer(); c.updateObstacles(); }],
-        ["flappyBird", (c) => { c.updateBird(); c.updatePipes(); }]
+        ["runner", (c) => {
+            const near = c.obstacles.find(o => o.x > c.player.x && o.x - c.player.x < 9);
+            if (near && !c.player.isJumping) {
+                c.player.velocityY = c.player.jumpPower;
+                c.player.isJumping = true;
+            }
+            c.updatePlayer();
+            c.updateObstacles();
+        }],
+        ["flappyBird", (c) => {
+            const next = c.pipes
+                .filter(p => p.x + 3 >= c.bird.x)
+                .sort((a, b) => a.x - b.x)[0];
+            const target = next ? next.topHeight + 3 : 11;
+            if (c.bird.y > target) c.bird.velocity = c.bird.jump;
+            c.updateBird();
+            c.updatePipes();
+        }]
     ];
 
     scenarios.forEach(([dir, step]) => {
         const { ctx } = loadGame(dir);
-        let conflicts = 0, frames = 0;
-        for (let run = 0; run < 3; run++) {
-            ctx.restartGame();
-            ctx.gameStarted = true;
-            ctx.gameRunning = true;
-            for (let i = 0; i < 1200; i++) {
-                step(ctx);
-                // Keep the run alive: this is testing rendering, not survival.
-                if (dir === "flappyBird") { ctx.bird.y = 11; ctx.bird.velocity = 0; }
-                if (dir === "snake" && ctx.checkCollision()) { ctx.restartGame(); continue; }
-                ctx.draw();
-                conflicts += ctx.VTGameUI.getPaintConflicts();
-                frames++;
+        let conflicts = 0, frames = 0, deaths = 0;
+        ctx.restartGame();
+        ctx.gameStarted = true;
+        ctx.gameRunning = true;
+
+        for (let i = 0; i < 3000; i++) {
+            step(ctx);
+            if (ctx.checkCollision()) {
+                deaths++;
+                ctx.restartGame();
+                ctx.gameStarted = true;
+                ctx.gameRunning = true;
+                continue;
             }
+            ctx.draw();
+            conflicts += ctx.VTGameUI.getPaintConflicts();
+            frames++;
         }
-        check(dir + ": no two sprites shared a cell across " + frames + " frames",
+
+        check(dir + ": no two sprites shared a cell across " + frames +
+              " frames and " + deaths + " runs",
             conflicts === 0, conflicts + " conflicting cells");
     });
+}
+
+// ============ THE GAME OVER FRAME MUST NOT SHOW AN INTERSECTION ============
+// A collision is only detected after the sprite has already moved into the
+// hazard, so drawing the current positions at that moment renders the player
+// buried inside the obstacle. Play each game until it really ends and check the
+// frame that is actually on screen afterwards.
+//
+// Note this is invisible to a glyph comparison, because every sprite draws the
+// same block. The guard compares roles for exactly this reason.
+console.log("\n=== GAME OVER FRAME ===");
+{
+    const runs = [
+        // Hold a fixed altitude near the ceiling so the crash is into a pipe
+        // body rather than the floor. Dying on the floor proves nothing here,
+        // because there is no hazard sprite to be drawn inside.
+        ["flappyBird", (c) => {
+            if (c.bird.y > 3) c.bird.velocity = c.bird.jump;
+            c.updateBird();
+            c.updatePipes();
+        }],
+        // Never jump, so an obstacle runs into the player.
+        ["runner", (c) => { c.updatePlayer(); c.updateObstacles(); }],
+        // Drive straight into the right hand wall.
+        ["snake", (c) => { c.updateSnake(); }]
+    ];
+
+    runs.forEach(([dir, step]) => {
+        const { ctx } = loadGame(dir);
+        ctx.restartGame();
+        ctx.gameStarted = true;
+        ctx.gameRunning = true;
+
+        // Mirror gameLoop() exactly, then hand off to the game's real
+        // gameOver(). Calling draw() directly here would test this file rather
+        // than the game, and would pass even with the bug present.
+        let died = false;
+        for (let i = 0; i < 4000; i++) {
+            step(ctx);
+            if (ctx.checkCollision()) { died = true; break; }
+            ctx.lastSafeGrid = ctx.buildGrid();
+            ctx.draw(ctx.lastSafeGrid);
+        }
+
+        check(dir + ": the run actually ended in a collision", died,
+            "never collided, so the rest of this check proves nothing");
+
+        if (!died) return;
+
+        // gameOver() paints before its first await, so the frame is on screen
+        // by the time this returns.
+        ctx.gameOver();
+
+        check(dir + ": game over frame draws no sprite inside a hazard",
+            ctx.VTGameUI.getPaintConflicts() === 0,
+            ctx.VTGameUI.getPaintConflicts() + " intersecting cells on screen");
+    });
+}
+
+// And prove the guard would actually catch it, so a passing result above means
+// something. Painting a player on top of a hazard must be reported.
+{
+    const { ctx } = loadGame("runner");
+    const UI = ctx.VTGameUI;
+    const grid = UI.createGrid();
+    UI.paintRect(grid, 10, 10, 2, 2, UI.GLYPH.HAZARD, UI.ROLE.HAZARD);
+    UI.paintRect(grid, 10, 10, 2, 2, UI.GLYPH.PLAYER, UI.ROLE.PLAYER);
+    check("the overlap guard reports an intersection when one is staged",
+        UI.getPaintConflicts() === 4,
+        "expected 4 cells, got " + UI.getPaintConflicts());
 }
 
 console.log("\n" + (failures === 0 ? "ALL CHECKS PASSED" : failures + " CHECK(S) FAILED"));

@@ -67,6 +67,9 @@ let runCounter = 0;
 let wasPausedByHide = false;
 let paused = false;
 let isNewRecord = false;
+// The last frame drawn while nothing was intersecting. Shown on game
+// over so the board never displays the sprite buried in the hazard.
+let lastSafeGrid = null;
 let pipesCleared = 0;
 // Distance travelled since the last pipe, in columns, so difficulty scaling
 // tightens the spacing instead of leaving it fixed.
@@ -99,7 +102,7 @@ function currentState() {
     return paused ? STATE.PAUSED : STATE.GAME_OVER;
 }
 
-function draw() {
+function buildGrid() {
     const grid = VTGameUI.createGrid();
 
     // A visible floor. The bird used to die at an invisible boundary below the
@@ -107,12 +110,20 @@ function draw() {
     VTGameUI.paintGround(grid);
 
     pipes.forEach(pipe => {
-        VTGameUI.paintRect(grid, pipe.x, 0, pipeWidth, pipe.topHeight, GLYPH.HAZARD);
+        VTGameUI.paintRect(grid, pipe.x, 0, pipeWidth, pipe.topHeight, GLYPH.HAZARD, VTGameUI.ROLE.HAZARD);
         const bottomStart = pipe.topHeight + pipeGap;
-        VTGameUI.paintRect(grid, pipe.x, bottomStart, pipeWidth, SKY_ROWS - bottomStart, GLYPH.HAZARD);
+        VTGameUI.paintRect(grid, pipe.x, bottomStart, pipeWidth, SKY_ROWS - bottomStart, GLYPH.HAZARD, VTGameUI.ROLE.HAZARD);
     });
 
-    VTGameUI.paintRect(grid, bird.x, bird.y, bird.width, bird.height, GLYPH.PLAYER);
+    VTGameUI.paintRect(grid, bird.x, bird.y, bird.width, bird.height, GLYPH.PLAYER, VTGameUI.ROLE.PLAYER);
+
+    return grid;
+}
+
+// Draws a grid. Pass one explicitly to render a frame other than the current
+// positions, which is how the game over screen avoids showing the impact.
+function draw(gridOverride) {
+    const grid = gridOverride || buildGrid();
 
     gameEl.textContent = VTGameUI.frameBoard(
         grid,
@@ -146,7 +157,8 @@ function gameLoop() {
         return;
     }
     
-    draw();
+    lastSafeGrid = buildGrid();
+    draw(lastSafeGrid);
     setTimeout(gameLoop, 80);
 }
 
@@ -218,10 +230,14 @@ async function gameOver() {
     // Compare against the best we knew *before* the save overwrites it.
     isNewRecord = finalScore > highScore;
 
-    // Paint GAME OVER immediately. The three calls below hit a free-tier
-    // backend that can take seconds to wake up, and the player used to stare
-    // at a frozen board that whole time with no sign the run had ended.
-    draw();
+    // Paint GAME OVER immediately: the three calls below hit a free-tier
+    // backend that can take seconds to wake, and the player used to stare at a
+    // frozen board with no sign the run had ended.
+    //
+    // Render the last non-intersecting frame rather than the current positions.
+    // By the time a collision is detected the sprite has already moved into the
+    // hazard, so drawing it now would show it buried inside the obstacle.
+    draw(lastSafeGrid);
 
     await saveHighscore(finalScore);
     await saveLeaderboard(finalScore);
@@ -231,7 +247,7 @@ async function gameOver() {
     // repaint a live game with stale end-of-run state.
     if (runCounter === runAtDeath) {
         leaderboard = freshLeaderboard;
-        draw();
+        draw(lastSafeGrid);
     }
 }
 
@@ -239,6 +255,7 @@ function restartGame() {
     runCounter++;
     paused = false;
     isNewRecord = false;
+    lastSafeGrid = null;
     bird.y = Math.floor(SKY_ROWS / 2);
     bird.velocity = 0;
     pipes = [];
