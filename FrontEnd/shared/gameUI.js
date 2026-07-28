@@ -22,14 +22,24 @@
     //    exactly one character cell. Geometric Shapes (U+25A0-25FF) are not,
     //    so they render wider than a cell and shove the board's right border
     //    out of line on whatever row they appear. A diamond pickup did exactly
-    //    that. Everything here is a square or a rectangle for the same reason.
+    //    that.
+    //
+    // 3. ONE SIZE. Every sprite is the same full square. Half blocks such as
+    //    U+2584 fill only part of their cell, so a pickup drawn with one came
+    //    out visibly smaller than a snake segment sitting next to it. Sprites
+    //    are told apart by position and movement, the way Snake has always
+    //    worked: the snake is a connected line that moves, the food is a single
+    //    stationary square.
     const GLYPH = {
         PLAYER: "█",  // U+2588 full block       - the thing you control
         HAZARD: "█",  // U+2588 full block       - the thing that kills you
-        PICKUP: "▄",  // U+2584 lower half block - the thing you want
-        GROUND: "─",  // U+2500 light horizontal - the floor
+        PICKUP: "█",  // U+2588 full block       - the thing you want
+        GROUND: "─",  // U+2500 light horizontal - the floor, a backdrop not a sprite
         BLANK:  " "
     };
+
+    // The three sprite roles must stay the same single full square.
+    const SPRITE_GLYPH = "█";
 
     // A glyph is only safe if it is drawn to fill exactly one cell.
     function isMonospaceSafe(ch) {
@@ -169,6 +179,7 @@
 
     global.VTGameUI = {
         GLYPH: GLYPH,
+        SPRITE_GLYPH: SPRITE_GLYPH,
         STATE: STATE,
         BOARD_W: BOARD_W,
         BOARD_H: BOARD_H,

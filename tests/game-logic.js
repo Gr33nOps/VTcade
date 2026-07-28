@@ -108,15 +108,17 @@ console.log("\n=== SNAKE ===");
         lines.slice(0, 27).every(l => l.length === 50),
         JSON.stringify(lines.slice(0, 27).map(l => l.length).filter((v, i, a) => a.indexOf(v) === i)));
 
-    // Assert the property rather than one specific character, so this survives
-    // a change to the glyph set instead of failing on it.
     const body = lines.slice(1, 26).join("");
     const SNAKE_G = ctx.VTGameUI.GLYPH;
-    check("food and snake are drawn with different glyphs",
-        body.includes(SNAKE_G.PICKUP) && body.includes(SNAKE_G.PLAYER)
-            && SNAKE_G.PICKUP !== SNAKE_G.PLAYER,
-        "pickup drawn=" + body.includes(SNAKE_G.PICKUP) +
-        " player drawn=" + body.includes(SNAKE_G.PLAYER));
+    check("both the snake and the food are on the board",
+        body.includes(SNAKE_G.PLAYER) && body.includes(SNAKE_G.PICKUP));
+
+    // The food must be exactly one square, the same size as a snake segment.
+    // A half block pickup rendered visibly shorter than the segment beside it.
+    check("food is drawn the same size as one snake segment",
+        SNAKE_G.PICKUP === SNAKE_G.PLAYER,
+        "pickup=" + SNAKE_G.PICKUP.codePointAt(0).toString(16) +
+        " player=" + SNAKE_G.PLAYER.codePointAt(0).toString(16));
 
     // eat a piece of food
     ctx.food.x = ctx.snake[0].x + 1;
@@ -369,7 +371,21 @@ console.log("\n=== GLYPH SAFETY AND OVERLAP ===");
         }),
         "U+2591-2593 do not tile cleanly and look like overlapping sprites");
 
-    check("pickup is visually distinct from the player", G.PICKUP !== G.PLAYER);
+    // Every sprite is the same full square. Half blocks (U+2584 and friends)
+    // fill only part of a cell, so a pickup drawn with one came out smaller
+    // than the player block sitting next to it.
+    ["PLAYER", "HAZARD", "PICKUP"].forEach(role => {
+        check("sprite " + role + " is the one full square",
+            G[role] === UI.SPRITE_GLYPH,
+            "got U+" + G[role].codePointAt(0).toString(16).toUpperCase());
+    });
+
+    check("no sprite uses a partial cell block",
+        ["PLAYER", "HAZARD", "PICKUP"].every(r => {
+            const cp = G[r].codePointAt(0);
+            return cp === 0x2588;   // only FULL BLOCK fills the whole cell
+        }),
+        "half and quarter blocks render smaller than a full square");
 }
 
 {

@@ -48,10 +48,20 @@ actually work today, not how they were originally written.
 |---|---|---|---|
 | Player | `GLYPH.PLAYER` | `█` U+2588 | the thing you control |
 | Hazard | `GLYPH.HAZARD` | `█` U+2588 | anything that ends the run |
-| Pickup | `GLYPH.PICKUP` | `▄` U+2584 | anything you want to touch |
-| Ground | `GLYPH.GROUND` | `─` U+2500 | the floor |
+| Pickup | `GLYPH.PICKUP` | `█` U+2588 | anything you want to touch |
+| Ground | `GLYPH.GROUND` | `─` U+2500 | the floor, a backdrop rather than a sprite |
 
 Use the constants, never the characters directly.
+
+**Every sprite is the same full square.** All three sprite roles are U+2588, and
+`tests/game-logic.js` fails if any of them is anything else. Do not reach for a
+half block such as U+2584 to make something look different: it fills only part
+of its cell, so it renders visibly smaller than the block beside it. A pickup
+drawn that way looked like a shrunken version of a snake segment.
+
+Sprites are told apart by position and movement, not by shape. That is how Snake
+has always worked: the snake is a connected line that moves, the food is a lone
+stationary square.
 
 **Squares and rectangles only, and only from two Unicode ranges: Box Drawing
 (U+2500 to U+257F) and Block Elements (U+2580 to U+259F).** Two separate bugs
@@ -67,11 +77,6 @@ came from breaking this:
 
 `VTGameUI.isMonospaceSafe(ch)` is the check, and `tests/game-logic.js` enforces
 it for every glyph.
-
-Player and hazard deliberately share the same solid block. In a one colour
-terminal they are told apart by position and size, not by fill, and they can
-never touch without the run ending anyway. Only Snake needs a second glyph,
-because the food sits inside the same playfield as the snake body.
 
 ### 2. Board geometry
 Fixed at 50×25 (48 playable columns) for every game, so all games sit
