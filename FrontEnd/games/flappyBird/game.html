@@ -148,15 +148,36 @@ function draw(gridOverride) {
 
 function gameLoop() {
     if (!gameRunning) return;
-    
+
+    const preY = bird.y;
     updateBird();
     updatePipes();
-    
+
     if (checkCollision()) {
+        // Gravity accumulates, so the bird can fall several rows in one tick.
+        // Falling straight back to preY can leave a gap of multiple rows with
+        // nothing touching, which looks like the run ended for no reason. Find
+        // the exact row where it made contact instead.
+        const contactY = VTGameUI.findContactPoint(preY, bird.y, (y) => {
+            const saved = bird.y;
+            bird.y = y;
+            const hit = checkCollision();
+            bird.y = saved;
+            return hit;
+        });
+        // If a contact point was found, rebuild the frame at that exact,
+        // non-colliding position. If not (rare: the pipe itself moved onto an
+        // already-stationary bird this tick), do NOT rebuild — that would
+        // paint the grid from the still-colliding position and reintroduce the
+        // overlap. lastSafeGrid already holds the last tick that was clean.
+        if (contactY !== null) {
+            bird.y = contactY;
+            lastSafeGrid = buildGrid();
+        }
         gameOver();
         return;
     }
-    
+
     lastSafeGrid = buildGrid();
     draw(lastSafeGrid);
     setTimeout(gameLoop, 80);

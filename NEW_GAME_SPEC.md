@@ -107,12 +107,26 @@ player sitting inside a hazard from the hazard itself.
 
 `VTGameUI.getPaintConflicts()` must read zero after every frame.
 
-### Never render the frame that detected the collision
+### Never render the frame that detected the collision — but land on contact, not on a gap
 
 A collision is only noticed after the sprite has already moved into the hazard.
 Drawing the current positions at that moment puts the player visibly inside the
-obstacle, which is not something a terminal game should ever show. Keep the last
-frame that rendered cleanly and display that instead:
+obstacle, which is not something a terminal game should ever show.
+
+The naive fix — fall back to whatever the previous tick looked like — has its
+own bug if the game has gravity. Velocity accumulates, so a falling sprite can
+move several rows in a single tick. Showing "the previous tick" can then leave
+a gap of multiple rows between the sprite and whatever ended the run, with
+nothing touching on screen. That looks like the run ended for no reason, which
+is worse than the overlap it replaces. Both of these are real bugs this project
+shipped, one right after fixing the other — check for the second one
+specifically, don't assume "no overlap" is the whole fix.
+
+The correct behavior: land exactly on the point of contact. Binary-search
+between the last known-safe position and the colliding one, using the game's
+own `checkCollision()` as the oracle, along whichever coordinate is continuous
+(a falling bird's `y`, a jumping player's `y`). `VTGameUI.findContactPoint` does
+this generically:
 
 ```js
 function buildGrid() { /* paint everything, return the grid */ }
@@ -124,9 +138,36 @@ function draw(gridOverride) {
 
 function gameLoop() {
     if (!gameRunning) return;
-    update();
-    if (checkCollision()) { gameOver(); return; }   // no draw here
-    lastSafeGrid = buildGrid();                     // this frame was clean
+
+    const preY = sprite.y;          // known safe: last tick was clean
+    update();                       // moves sprite.y and every hazard
+
+    if (checkCollision()) {
+        const contactY = VTGameUI.findContactPoint(preY, sprite.y, (y) => {
+            const saved = sprite.y;
+            sprite.y = y;
+            const hit = checkCollision();
+            sprite.y = saved;
+            return hit;
+        });
+
+        // Rebuild the frame at the exact contact point — but ONLY if one was
+        // found. A null result means even preY collides once the hazards have
+        // moved to their new positions this tick (the sprite was standing
+        // still and an obstacle simply reached it — no y exists that avoids
+        // it). In that case do NOT rebuild: painting from the still-colliding
+        // sprite.y reintroduces the overlap this whole mechanism exists to
+        // prevent. lastSafeGrid already holds the last tick that was genuinely
+        // clean, so just leave it alone.
+        if (contactY !== null) {
+            sprite.y = contactY;
+            lastSafeGrid = buildGrid();
+        }
+        gameOver();
+        return;
+    }
+
+    lastSafeGrid = buildGrid();     // this frame was clean
     draw(lastSafeGrid);
     setTimeout(gameLoop, TICK);
 }
@@ -135,8 +176,10 @@ function gameLoop() {
 draw(lastSafeGrid);
 ```
 
-Reset `lastSafeGrid` to null in `restartGame()`. The result is that the player
-comes to rest flush against whatever it hit.
+Reset `lastSafeGrid` to null in `restartGame()`. Test both outcomes, not just
+the common one: a fast fall that needs the bisection, and a stationary sprite
+that forces the `null` fallback — the second one is exactly where the overlap
+bug can silently come back if the rebuild guard is missing.
 
 ### 3. Sprite scale
 - **Grid games** (Snake-like): 1×1 cells.

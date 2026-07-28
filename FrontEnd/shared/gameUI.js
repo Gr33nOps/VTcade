@@ -125,6 +125,32 @@
         return paintConflicts;
     }
 
+    // Finds the boundary between a known-safe value and a known-colliding one
+    // along a single continuous coordinate (a falling bird's y, a jumping
+    // player's y), using the game's own collision check as the oracle.
+    //
+    // Why this exists: gravity accumulates, so a sprite can move several rows
+    // in one tick. Falling back to "the previous tick's position" on collision
+    // can leave a multi-row gap with nothing touching, which looks like the run
+    // ended for no reason. This finds the actual point of contact instead.
+    //
+    // isCollidingAt(value) must be a pure check: set the coordinate, call the
+    // game's checkCollision(), restore the coordinate, return the result.
+    function findContactPoint(safeValue, deadValue, isCollidingAt) {
+        if (isCollidingAt(safeValue)) {
+            // The "safe" endpoint is not actually safe (a hazard moved into it
+            // this same tick). No boundary exists to find; the caller should
+            // fall back to its own last-known-good frame instead.
+            return null;
+        }
+        let lo = safeValue, hi = deadValue;
+        for (let i = 0; i < 30 && Math.abs(hi - lo) > 0.02; i++) {
+            const mid = (lo + hi) / 2;
+            if (isCollidingAt(mid)) hi = mid; else lo = mid;
+        }
+        return lo;
+    }
+
     function paintGround(grid) {
         for (let x = PLAY_X_MIN; x <= PLAY_X_MAX; x++) {
             if (occupancy) occupancy[GROUND_ROW][x] = ROLE.GROUND;
@@ -212,6 +238,7 @@
         paintRect: paintRect,
         isMonospaceSafe: isMonospaceSafe,
         getPaintConflicts: getPaintConflicts,
+        findContactPoint: findContactPoint,
         paintGround: paintGround,
         statusLines: statusLines,
         frameBoard: frameBoard,

@@ -513,5 +513,79 @@ console.log("\n=== GAME OVER FRAME ===");
         "expected 4 cells, got " + UI.getPaintConflicts());
 }
 
+// ============ THE GAME OVER FRAME MUST SHOW CONTACT, NOT A GAP ============
+// Gravity accumulates, so a falling sprite can move several rows in one tick.
+// Falling back to "wherever it was the previous tick" can leave a multi-row
+// gap between the sprite and whatever killed it, on screen, with the run
+// simply ending — which looks like it ended for no reason. A player must be
+// able to see what they hit.
+console.log("\n=== GAME OVER FRAME SHOWS CONTACT ===");
+{
+    // Free fall, no input at all: the largest possible per-tick drop, and
+    // exactly what happened in the reported bug (a 3.5-row fall in one tick).
+    const { ctx, els } = loadGame("flappyBird");
+    ctx.restartGame();
+    ctx.gameStarted = true;
+    ctx.gameRunning = true;
+
+    let ticks = 0;
+    while (ctx.gameRunning && ticks < 4000) {
+        ctx.gameLoop();
+        ticks++;
+    }
+
+    check("free fall actually ends the run", !ctx.gameRunning);
+    check("free-fall game over frame has no overlap",
+        ctx.VTGameUI.getPaintConflicts() === 0);
+
+    // The bird's row range, floored the same way checkCollision() does.
+    const by = Math.floor(ctx.bird.y);
+    const byEnd = by + ctx.bird.height; // exclusive
+
+    // Distance in rows from the bird to the ground.
+    const groundGap = ctx.SKY_ROWS - byEnd;
+
+    // Distance in rows from the bird to the nearer edge of whichever pipe
+    // shares its columns, if any.
+    let pipeGap = Infinity;
+    ctx.pipes.forEach(p => {
+        const px = Math.floor(p.x);
+        if (ctx.bird.x >= px + 3 || ctx.bird.x + ctx.bird.width <= px) return; // no x overlap
+        const gapTop = p.topHeight, gapBottom = p.topHeight + 9;
+        if (by < gapTop) pipeGap = Math.min(pipeGap, gapTop - byEnd);
+        if (byEnd > gapBottom) pipeGap = Math.min(pipeGap, by - gapBottom);
+    });
+
+    const nearestGap = Math.min(groundGap, pipeGap === Infinity ? groundGap : pipeGap);
+
+    check("the bird sits touching (0 rows from) what ended the run, not floating away",
+        nearestGap === 0,
+        "nearest hazard is " + nearestGap + " rows away — a player would see no cause of death");
+}
+
+// The fallback (no valid contact point this tick) must not resurrect the old
+// bug by painting from the still-colliding position. Force it: freeze the
+// bird in place so a pipe arrives while preY === postY.
+{
+    const { ctx } = loadGame("flappyBird");
+    ctx.restartGame();
+    ctx.gameStarted = true;
+    ctx.gameRunning = true;
+    ctx.bird.y = 12;
+    ctx.updateBird = function () {}; // frozen: never moves
+
+    let ticks = 0;
+    while (ctx.gameRunning && ticks < 3000) {
+        ctx.gameLoop();
+        ticks++;
+    }
+
+    check("frozen-bird fallback also ends the run", !ctx.gameRunning);
+    check("frozen-bird fallback frame has no overlap",
+        ctx.VTGameUI.getPaintConflicts() === 0,
+        "the null-contact-point fallback must keep the prior safe frame, " +
+        "not rebuild from the still-colliding position");
+}
+
 console.log("\n" + (failures === 0 ? "ALL CHECKS PASSED" : failures + " CHECK(S) FAILED"));
 process.exit(failures ? 1 : 0);

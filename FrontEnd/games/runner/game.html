@@ -202,10 +202,33 @@ function checkCollision() {
 function gameLoop() {
     if (!gameRunning) return;
 
+    const preY = player.y;
     updatePlayer();
     updateObstacles();
 
     if (checkCollision()) {
+        // Gravity accumulates, so the player can fall several rows in one
+        // tick. Falling straight back to preY can leave a gap with nothing
+        // touching, which looks like the run ended for no reason. Find the
+        // exact row of contact instead. If no such row exists this tick (the
+        // player was standing still and an obstacle simply reached it), this
+        // returns null and the previous frame is shown, same as before.
+        const contactY = VTGameUI.findContactPoint(preY, player.y, (y) => {
+            const saved = player.y;
+            player.y = y;
+            const hit = checkCollision();
+            player.y = saved;
+            return hit;
+        });
+        // If a contact point was found, rebuild the frame at that exact,
+        // non-colliding position. If not (the player was standing still and an
+        // obstacle simply reached it this tick), do NOT rebuild — that would
+        // paint the grid from the still-colliding position and reintroduce the
+        // overlap. lastSafeGrid already holds the last tick that was clean.
+        if (contactY !== null) {
+            player.y = contactY;
+            lastSafeGrid = buildGrid();
+        }
         gameOver();
         return;
     }
