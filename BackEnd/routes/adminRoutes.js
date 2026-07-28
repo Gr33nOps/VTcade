@@ -112,7 +112,7 @@ router.get("/diagnostics/ip", requireAdmin, asyncRoute(async (req, res) => {
     res.json({
         seenIp: req.ip,
         forwardedFor: req.headers["x-forwarded-for"] || null,
-        trustProxyHops: Number(process.env.TRUST_PROXY_HOPS || 2)
+        trustProxyHops: Number(process.env.TRUST_PROXY_HOPS || 4)
     });
 }));
 

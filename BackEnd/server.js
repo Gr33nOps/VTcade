@@ -47,7 +47,7 @@ const app = express();
 //
 // Verify after any hosting change with GET /api/admin/diagnostics/ip — if
 // `seenIp` is not your own address, this number is wrong.
-app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS || 2));
+app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS || 4));
 
 app.use(helmet());
 app.use(compression());
@@ -143,6 +143,23 @@ app.use((req, res) => {
 // still reached despite being registered after the 404 handler above
 // (verified, not assumed).
 app.use((err, req, res, next) => {
+  // express.json() and friends attach a status to malformed input: a body that
+  // isn't valid JSON, or one over the 16kb cap. Those are the caller's fault,
+  // and calling them 500 does two bad things — it tells the client the server
+  // broke when it didn't, and it buries genuine faults in a log full of noise
+  // nobody caused. Answer them honestly and log them as warnings.
+  const status = err.status || err.statusCode;
+  if (status >= 400 && status < 500) {
+    logWarn("badRequest", err.type || "malformed request", {
+      method: req.method,
+      path: req.originalUrl,
+      status
+    });
+    return res.status(status).json({
+      message: status === 413 ? "Request body too large" : "Malformed request"
+    });
+  }
+
   logError("unhandled", err, { method: req.method, path: req.originalUrl });
   res.status(500).json({ message: "Server error" });
 });

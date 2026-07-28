@@ -41,10 +41,12 @@ services:
         sync: false
       - key: ADMIN_TOKEN_TTL
         value: 2h
-      # Vercel's /api rewrite sits in front of Render's own router, so the
-      # client address is two hops deep in X-Forwarded-For. Too low and every
-      # request looks like it came from the proxy, which turns the per-IP rate
-      # limiter into one shared bucket for the whole internet.
-      # Verify with GET /api/admin/diagnostics/ip after deploying.
+      # Measured, not guessed: X-Forwarded-For arrives four deep through the
+      # Vercel rewrite and Render's own router, so the client address is the
+      # 4th entry from the socket. This was set to 2 initially and req.ip
+      # resolved to a shared Cloudflare edge address, which meant every visitor
+      # behind that edge shared one rate-limit bucket.
+      # Re-check with GET /api/admin/diagnostics/ip after any hosting change:
+      # if seenIp is not your own address, this number is wrong.
       - key: TRUST_PROXY_HOPS
-        value: "2"
+        value: "4"

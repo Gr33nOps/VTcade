@@ -340,6 +340,46 @@ describe("admin credential comparison", () => {
     });
 });
 
+// Regression: a body that wasn't valid JSON came back as 500 "Server error".
+// That tells the caller the server broke when it didn't, and it buries real
+// faults in an error log full of noise nobody caused. Uses the real app so the
+// actual error handler is the thing under test.
+describe("malformed request bodies", () => {
+    let realApp;
+    beforeAll(() => {
+        mock.reset();
+        realApp = require("../server");
+    });
+
+    test("a body that is not JSON is a 400, not a 500", async () => {
+        const res = await request(realApp)
+            .post("/api/admin/login")
+            .set("Content-Type", "application/json")
+            .send("this is not json at all");
+
+        expect(res.status).toBe(400);
+        expect(res.body.message).toBe("Malformed request");
+    });
+
+    test("an oversized body is a 413, not a 500", async () => {
+        const res = await request(realApp)
+            .post("/api/admin/login")
+            .set("Content-Type", "application/json")
+            .send(JSON.stringify({ username: "admin", password: "x".repeat(20000) }));
+
+        expect(res.status).toBe(413);
+        expect(res.body.message).toBe("Request body too large");
+    });
+
+    test("a valid body still reaches the route", async () => {
+        const res = await request(realApp)
+            .post("/api/admin/login")
+            .send({ username: "admin", password: "definitely-wrong" });
+
+        expect(res.status).toBe(401);
+    });
+});
+
 describe("admin secret strength check", () => {
     // adminSecretProblems reads env once at module load, so each case needs a
     // fresh module registry rather than a reassignment.

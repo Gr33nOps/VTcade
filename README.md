@@ -96,7 +96,7 @@ tests/            Game logic and consistency tests
    ADMIN_PASSWORD=choose_a_strong_password
    ADMIN_JWT_SECRET=a_long_random_string
    ADMIN_TOKEN_TTL=2h
-   TRUST_PROXY_HOPS=2
+   TRUST_PROXY_HOPS=4
    ```
 
    The server checks for `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
@@ -140,7 +140,7 @@ tests/            Game logic and consistency tests
 ### Running the tests
 
 ```
-cd BackEnd && npm test     # 57 route tests, Supabase fully mocked
+cd BackEnd && npm test     # 60 route tests, Supabase fully mocked
 node tests/game-logic.js   # 93 game logic and consistency checks
 ```
 
@@ -300,12 +300,19 @@ health check path `/health`. Set the environment variables listed above in the
 Render dashboard. `render.yaml` describes the service, with every secret marked
 so it is never committed.
 
-`TRUST_PROXY_HOPS` is `2` because Vercel's rewrite sits in front of Render's own
-router, so the client address is two entries deep in `X-Forwarded-For`. Set it
-too low and every request resolves to the proxy, which quietly turns the per
-address rate limiter into one shared bucket for the whole internet. After any
-hosting change, confirm it with `GET /api/admin/diagnostics/ip` — if `seenIp` is
-not your own address, the number is wrong.
+`TRUST_PROXY_HOPS` is `4`. Vercel's rewrite sits in front of Render's own router
+and `X-Forwarded-For` arrives four deep, so the client address is the fourth
+entry from the socket. This is measured, not guessed: it was set to `2` at first
+and `req.ip` resolved to a shared Cloudflare edge address, which meant every
+visitor behind that edge shared a single rate limit bucket. After any hosting
+change, confirm it with `GET /api/admin/diagnostics/ip` — if `seenIp` is not your
+own address, the number is wrong.
+
+Note that a fixed hop count is only correct for traffic arriving through Vercel.
+Anything hitting the Render URL directly has a shorter chain and could therefore
+forge `X-Forwarded-For` to change its apparent address and dodge the per address
+limits. The global cap on failed admin logins is not keyed by address and is
+what covers that case.
 
 **Database on Supabase.** Enable the Google provider under Authentication if you
 want Google sign in, and add your callback page to the redirect allow list.
