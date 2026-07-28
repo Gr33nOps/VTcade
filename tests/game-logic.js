@@ -108,10 +108,15 @@ console.log("\n=== SNAKE ===");
         lines.slice(0, 27).every(l => l.length === 50),
         JSON.stringify(lines.slice(0, 27).map(l => l.length).filter((v, i, a) => a.indexOf(v) === i)));
 
+    // Assert the property rather than one specific character, so this survives
+    // a change to the glyph set instead of failing on it.
     const body = lines.slice(1, 26).join("");
-    check("food glyph is distinct from snake glyph",
-        body.includes("\u25C6") && body.includes("\u2588"),
-        "diamond=" + body.includes("\u25C6") + " block=" + body.includes("\u2588"));
+    const SNAKE_G = ctx.VTGameUI.GLYPH;
+    check("food and snake are drawn with different glyphs",
+        body.includes(SNAKE_G.PICKUP) && body.includes(SNAKE_G.PLAYER)
+            && SNAKE_G.PICKUP !== SNAKE_G.PLAYER,
+        "pickup drawn=" + body.includes(SNAKE_G.PICKUP) +
+        " player drawn=" + body.includes(SNAKE_G.PLAYER));
 
     // eat a piece of food
     ctx.food.x = ctx.snake[0].x + 1;
@@ -329,6 +334,71 @@ console.log("\n=== CONSISTENCY ACROSS ALL THREE ===");
     const panels = games.map(g => g.els.ui.textContent);
     check("all three panels list PAUSE and BACK TO HOME",
         panels.every(p => p.includes("[P]   PAUSE") && p.includes("[ESC] BACK TO HOME")));
+}
+
+// ============ GLYPH SAFETY AND SPRITE OVERLAP ============
+// The "every line is exactly 50 wide" check above measures STRING length, which
+// a diamond pickup passed happily while rendering wider than one character cell
+// and shoving the board's right border out of line on its row. These check the
+// two properties that actually decide how the board looks on screen.
+console.log("\n=== GLYPH SAFETY AND OVERLAP ===");
+{
+    const { ctx } = loadGame("snake");
+    const UI = ctx.VTGameUI;
+    const G = UI.GLYPH;
+
+    Object.entries(G).forEach(([name, ch]) => {
+        const cp = ch.codePointAt(0);
+        check("glyph " + name + " (U+" + cp.toString(16).toUpperCase().padStart(4, "0") +
+              ") occupies exactly one cell",
+              UI.isMonospaceSafe(ch),
+              "only Box Drawing and Block Elements are reliably fixed-width");
+    });
+
+    check("no glyph comes from Geometric Shapes",
+        Object.values(G).every(ch => {
+            const cp = ch.codePointAt(0);
+            return !(cp >= 0x25A0 && cp <= 0x25FF);
+        }),
+        "that range is not fixed-width and breaks the border");
+
+    check("solid fills only, no dither patterns",
+        Object.values(G).every(ch => {
+            const cp = ch.codePointAt(0);
+            return cp < 0x2591 || cp > 0x2593;
+        }),
+        "U+2591-2593 do not tile cleanly and look like overlapping sprites");
+
+    check("pickup is visually distinct from the player", G.PICKUP !== G.PLAYER);
+}
+
+{
+    const scenarios = [
+        ["snake", (c) => c.updateSnake()],
+        ["runner", (c) => { c.updatePlayer(); c.updateObstacles(); }],
+        ["flappyBird", (c) => { c.updateBird(); c.updatePipes(); }]
+    ];
+
+    scenarios.forEach(([dir, step]) => {
+        const { ctx } = loadGame(dir);
+        let conflicts = 0, frames = 0;
+        for (let run = 0; run < 3; run++) {
+            ctx.restartGame();
+            ctx.gameStarted = true;
+            ctx.gameRunning = true;
+            for (let i = 0; i < 1200; i++) {
+                step(ctx);
+                // Keep the run alive: this is testing rendering, not survival.
+                if (dir === "flappyBird") { ctx.bird.y = 11; ctx.bird.velocity = 0; }
+                if (dir === "snake" && ctx.checkCollision()) { ctx.restartGame(); continue; }
+                ctx.draw();
+                conflicts += ctx.VTGameUI.getPaintConflicts();
+                frames++;
+            }
+        }
+        check(dir + ": no two sprites shared a cell across " + frames + " frames",
+            conflicts === 0, conflicts + " conflicting cells");
+    });
 }
 
 console.log("\n" + (failures === 0 ? "ALL CHECKS PASSED" : failures + " CHECK(S) FAILED"));

@@ -10,200 +10,267 @@ Play Like It's 1985
 
 ## Description
 
-VTcade is a web-based arcade gaming platform that emulates the look and feel of an old 1980s computer terminal. Featuring green text on a black screen, keyboard-only controls, and classic games, it's built with modern web technologies for a nostalgic experience.
+VTcade is a browser arcade styled like a 1980s computer terminal. Green text on
+black, scanlines, a blinking cursor, and keyboard driven menus. Three games run
+inside a fixed character grid, and scores are stored server side with global
+leaderboards.
 
-This project was developed as part of a Web Technology course, demonstrating full-stack web development skills including authentication, database integration, real-time features, and deployment.
+Every screen is drawn as monospaced text. The games use a 50 by 25 character
+board, and all sprites are solid blocks so the grid stays aligned.
+
+Live at [vtcade.vercel.app](https://vtcade.vercel.app).
 
 ## Features
 
-- **Three Arcade Games**: Flappy Bird, Runner, Snake
-- **User Accounts**: Login/registration with email verification
-- **High Score Tracking**: Personal bests and global leaderboards
-- **Admin Dashboard**: Manage users, games, and system health
-- **Retro Aesthetic**: Pure CSS terminal effects (glow, scanlines, blinking cursor)
-- **Keyboard-Only Controls**: Arrow keys and Enter for navigation
-- **Security**: Input validation, XSS prevention, secure password handling via Supabase
-- **Responsive Design**: Adjusts for smaller screens (though optimized for desktop; mobile requires keyboard input)
+* Three games: Snake, Runner, and Flappy Bird
+* Accounts with email and password, or sign in with Google
+* Email verification and password recovery
+* Personal bests and per game leaderboards
+* Admin panel for users, games, scores, and maintenance mode
+* Pure CSS terminal effects with no images and no build step
+* Keyboard first controls with arrow keys, WASD, P to pause, and Escape to exit
+* Scores are submitted with a verified session token, so a player cannot post a
+  score under someone else's name
 
 ## Built With
 
-- **Frontend**: HTML, CSS, JavaScript
-- **Backend**: Node.js + Express
-- **Database**: Supabase (for data storage, auth, and email verification)
-- **Hosting**: Backend on Render.com, Frontend on Vercel
+* Frontend: plain HTML, CSS, and JavaScript with no framework and no bundler
+* Backend: Node.js and Express
+* Database and auth: Supabase Postgres
+* Hosting: Vercel for the frontend, Render for the backend
+
+## Project Layout
+
+```
+BackEnd/          Express API
+  config/         Supabase clients, auth, logging, route wrapper
+  routes/         auth, admin, game, leaderboard, highscore, maintenance
+  tests/          Jest and Supertest route tests
+FrontEnd/         Static site, served as is
+  shared/         config, session, game API, game UI, game CSS
+  games/          snake, runner, flappyBird
+  dashboard/      player menu
+  admin/          admin login and panel
+  login/ signup/  auth screens
+tests/            Game logic and consistency tests
+```
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v14+)
-- npm
-- Supabase account (for database and auth)
-- GitHub account (for deployment integration)
+* Node.js 18 or newer
+* A Supabase project
 
 ### Installation
 
-1. Clone the repository:
+1. Clone the repository.
+
    ```
-   git clone https://github.com/your-username/vtcade.git
-   cd vtcade
+   git clone https://github.com/Gr33nOps/VTcade.git
+   cd VTcade
    ```
 
-2. Install backend dependencies:
+2. Install backend dependencies.
+
    ```
-   cd backend
+   cd BackEnd
    npm install
    ```
 
-3. Configure environment variables:
-   Create a `.env` file in the `backend` directory with:
+3. Create `BackEnd/.env`. Copy `BackEnd/.env.example` and fill it in.
+
    ```
+   PORT=5000
+   NODE_ENV=development
+   FRONTEND_URL=http://localhost:3000
+
    SUPABASE_URL=your_supabase_url
-   SUPABASE_ANON_KEY=your_supabase_anon_key
-   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+   SUPABASE_ANON_KEY=your_publishable_anon_key
+   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
    ADMIN_USERNAME=admin
-   ADMIN_PASSWORD=your_password
-   PORT=3000
+   ADMIN_PASSWORD=choose_a_strong_password
+   ADMIN_JWT_SECRET=a_long_random_string
+   ADMIN_TOKEN_TTL=2h
    ```
 
-   The service role key bypasses Row Level Security and must never be exposed to
-   the frontend — it's used server-side only. Find it in your Supabase project
-   under Project Settings → API.
+   The server checks for `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+   `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, and `ADMIN_JWT_SECRET` at
+   startup and exits with a message naming whatever is missing, rather than
+   failing later on the first request.
 
-4. Run the backend server:
+   The service role key bypasses Row Level Security and is used only on the
+   server. Never ship it to the browser. Find it in Supabase under Project
+   Settings, then API.
+
+   Generate the JWT secret with:
+
+   ```
+   node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+   ```
+
+4. Start the backend.
+
    ```
    npm start
    ```
 
-5. For the frontend, open in a browser or use a local server:
+5. Serve the frontend from the `FrontEnd` directory with any static server.
+
    ```
-   cd ../frontend
+   cd ../FrontEnd
    npx live-server
    ```
 
-### Deployment
+   The API base URL lives in `FrontEnd/shared/config.js`. Point it at your own
+   backend when running locally.
 
-- **Backend (Render.com)**:
-  - Push code to GitHub.
-  - Connect Render to your repository.
-  - Add environment variables: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`.
-  - Deploy automatically on push.
+### Running the tests
 
-- **Frontend (Vercel)**:
-  - Push code to GitHub.
-  - Connect Vercel to your repository.
-  - Update API URL in JavaScript files to point to your backend (e.g., `https://your-backend.onrender.com`).
-  - Deploy.
+```
+cd BackEnd && npm test     # 31 route tests, Supabase fully mocked
+node tests/game-logic.js   # 55 game logic and consistency checks
+```
 
-- **Database (Supabase)**:
-  - Create a free project in Supabase.
-  - Set up tables: `users`, `games`, `highscores`, `leaderboard`.
-  - Get your Supabase URL and anon key for the `.env`.
+The game tests execute the real game scripts against a stubbed DOM instead of
+reimplementing the rules, so they fail when a game actually regresses. Both
+suites run in GitHub Actions on every push.
+
+## Database
+
+Four tables in Supabase Postgres, with `auth.users` as the single source of
+identity.
+
+| Table | Purpose |
+|---|---|
+| `profiles` | One row per account, created automatically by a trigger on signup |
+| `games` | Game catalogue, including the flag the admin panel toggles |
+| `leaderboard` | Best score per player per game |
+| `system_settings` | Single row holding the maintenance mode flag |
+
+Scores are written through a Postgres function that upserts the higher of the
+old and new value in one statement, so two submissions racing each other cannot
+lose a score.
 
 ## Usage
 
-### User Flow
+**First visit.** Land on the login screen. Register with a username, email, and
+password, or continue with Google. Confirm your email, then sign in.
 
-- **First Time Visit**:
-  - Land on the login page.
-  - Register a new account (username, email, password).
-  - Login to access the dashboard.
+**Playing.** From the dashboard, select GAMES, pick a title, and play. Scores
+save on their own when a run ends.
 
-- **Playing Games**:
-  - From dashboard, use arrow keys to select "GAMES".
-  - Press Enter, choose a game.
-  - Play using keyboard controls.
-  - Scores save automatically.
+**Controls.** Arrow keys or WASD to move, Space to jump or flap, P to pause,
+Escape to return to the dashboard. Tab switches between login and signup, and F1
+opens admin access from the login screen.
 
-- **Checking Leaderboards**:
-  - Select "LEADERBOARD" from dashboard.
-  - View top 50 players; your rank highlighted.
+**Leaderboards.** Select LEADERBOARD from the dashboard and choose a game. The
+top ten scores are shown.
 
-- **Admin Access**:
-  - Login with admin credentials.
-  - Manage users (ban/unban/delete), games (enable/disable), scoreboards, and maintenance mode.
+**Admin.** Sign in at `/admin/adminlogin.html`. From there you can ban, unban,
+and delete users, enable and disable games, flag or remove individual scores,
+reset a whole leaderboard, and turn maintenance mode on and off. Disabling a
+game hides it from the dashboard for every player.
 
-## API Endpoints
+## API
 
-All communication via REST API:
+Base URL in production is `https://vtcade.onrender.com`.
 
-- **Auth**:
-  - POST `/api/auth/register` - Create account
-  - POST `/api/auth/login` - Sign in
+**Auth**
 
-- **Games**:
-  - GET `/api/games` - List available games
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/api/auth/signup` | Create an account |
+| POST | `/api/auth/login` | Returns a Supabase session |
+| GET | `/api/auth/google` | Redirects into Google sign in |
+| POST | `/api/auth/google/session` | Verifies the token Google returned |
+| POST | `/api/auth/refresh` | Exchanges a refresh token for a new session |
+| POST | `/api/auth/forgot-password` | Sends a reset link |
+| POST | `/api/auth/reset-password` | Sets a new password |
+| POST | `/api/auth/resend-verification` | Resends the confirmation email |
+| POST | `/api/auth/logout` | Ends the session |
 
-- **Scores**:
-  - GET `/api/highscore/user/:username` - Get user's high scores
-  - POST `/api/highscore/submit` - Save new score
+**Games and scores**
 
-- **Leaderboard**:
-  - GET `/api/leaderboard/:game` - Get top scores
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/game` | List games, public |
+| GET | `/api/leaderboard/:game` | Top scores, public |
+| GET | `/api/leaderboard/rank/:username/:game` | A player's rank |
+| GET | `/api/highscore/user/:username` | A player's bests |
+| GET | `/api/highscore/:username/:game` | One best score |
+| POST | `/api/leaderboard/save` | Submit a score, requires a session |
+| POST | `/api/highscore/save` | Submit a score, requires a session |
 
-- **Admin**:
-  - GET `/api/admin/stats` - System statistics
-  - GET `/api/admin/users` - List all users
-  - PUT `/api/admin/users/:id/ban` - Ban a user
+**Admin.** Everything under `/api/admin` other than `/api/admin/login` requires
+a bearer token issued by that login route.
 
-Example API Call (Submit Score):
+**Health.** `GET /health` returns `{"ok":true}` and is what Render polls.
+
+### Submitting a score
+
+The username is never taken from the request body. The server reads it from the
+verified token, so naming another player in the payload has no effect.
 
 ```javascript
-async function submitScore(username, game, score) {
-    const response = await fetch('https://vtcade.onrender.com/api/highscore/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, game, score })
-    });
-    const data = await response.json();
-    return data;
-}
+const res = await fetch('https://vtcade.onrender.com/api/leaderboard/save', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`
+    },
+    body: JSON.stringify({ game: 'SNAKE', score: 120 })
+});
 ```
 
-## Screenshots
+In the frontend this is handled for you by `FrontEnd/shared/gameApi.js`, which
+attaches the token and refreshes it when it expires.
 
-- **User Dashboard**:
-  <img width="867" height="877" alt="image" src="https://github.com/user-attachments/assets/00096284-599e-40dc-9e85-870cf406724c" />
+## Security
 
+* Player identity comes from a Supabase access token that the server verifies on
+  every score submission
+* The admin panel authenticates once and then uses a short lived signed token.
+  The password is never stored in the browser.
+* Helmet security headers, gzip compression, and CORS limited to known origins
+* Rate limits on every credential endpoint and on score submission
+* All user supplied text is escaped before it reaches the page
+* Scores are validated as bounded whole numbers on the server
 
-- **Admin Dashboard**:
-  <img width="848" height="1018" alt="image" src="https://github.com/user-attachments/assets/ab1070fa-496a-4155-bfa2-8b71a5379087" />
+## Adding a Game
 
+`NEW_GAME_SPEC.md` documents the conventions a new game has to follow, including
+the shared glyph set, board geometry, sprite sizes, the ordering that keeps a
+score from being lost when a player restarts mid save, and the two places a game
+must be registered to appear.
 
-- **Game Example (Flappy Bird)**:
-  <img width="903" height="655" alt="image" src="https://github.com/user-attachments/assets/8e192918-3f02-44e4-8692-d0fd8841ae38" />
+## Deployment
 
-## Challenges Solved
+**Frontend on Vercel.** Root directory is `FrontEnd`. It deploys on every push
+to `main`. There is no build step.
 
-- **Retro Terminal Look**: Achieved with CSS text-shadow, gradients, and animations.
-- **Keyboard Navigation**: Manual tracking of selected indices with keydown events.
-- **Leaderboard Updates**: Efficient Supabase queries and indexing.
-- **Screen Readability**: Media queries for font scaling.
+**Backend on Render.** Root directory is `BackEnd`, start command `npm start`,
+health check path `/health`. Set the environment variables listed above in the
+Render dashboard. `render.yaml` describes the service, with every secret marked
+so it is never committed.
+
+**Database on Supabase.** Enable the Google provider under Authentication if you
+want Google sign in, and add your callback page to the redirect allow list.
 
 ## Roadmap
 
-**Soon**:
-- Sound effects
-- User profiles
-- Achievement badges
-- Friend lists
+**Soon**
 
-**Later**:
-- Real-time multiplayer
-- Mobile apps
-- Tournament mode
-- More games
-- Chat system
+* Sound effects
+* User profiles
+* Achievement badges
 
-## Project Stats
+**Later**
 
-- Code Lines: ~8,000
-- Development Time: 3 months
-- Files: 25+
-- API Endpoints: 20+
-- Games: 3
-- Database Tables: 5
-
+* Real time multiplayer
+* Tournament mode
+* More games
 
 ## License
 

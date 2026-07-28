@@ -123,12 +123,12 @@ function currentState() {
 function draw() {
     const grid = VTGameUI.createGrid();
 
-    // Food first, so the snake is drawn over it if they ever overlap.
-    grid[food.y][food.x] = GLYPH.PICKUP;
+    // Painted through paintRect so the shared overlap guard sees these cells
+    // too. Food is drawn first; spawnFood() never places it on the snake, so
+    // the guard should never report a conflict here.
+    VTGameUI.paintRect(grid, food.x, food.y, 1, 1, GLYPH.PICKUP);
     snake.forEach(seg => {
-        if (seg.y >= 0 && seg.y < HEIGHT && seg.x >= X_MIN && seg.x <= X_MAX) {
-            grid[seg.y][seg.x] = GLYPH.PLAYER;
-        }
+        VTGameUI.paintRect(grid, seg.x, seg.y, 1, 1, GLYPH.PLAYER);
     });
 
     gameEl.textContent = VTGameUI.frameBoard(

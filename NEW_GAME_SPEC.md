@@ -44,16 +44,34 @@ actually work today, not how they were originally written.
 
 ### 1. Visual language — never deviate
 
-| Role | Constant | Meaning |
-|---|---|---|
-| Player | `GLYPH.PLAYER` | the thing you control |
-| Hazard | `GLYPH.HAZARD` | anything that ends the run |
-| Pickup | `GLYPH.PICKUP` | anything you want to touch |
-| Ground | `GLYPH.GROUND` | the floor |
+| Role | Constant | Character | Meaning |
+|---|---|---|---|
+| Player | `GLYPH.PLAYER` | `█` U+2588 | the thing you control |
+| Hazard | `GLYPH.HAZARD` | `█` U+2588 | anything that ends the run |
+| Pickup | `GLYPH.PICKUP` | `▄` U+2584 | anything you want to touch |
+| Ground | `GLYPH.GROUND` | `─` U+2500 | the floor |
 
-One glyph = one meaning, across every game. Snake originally used the same
-character for the snake *and* the food, which made the food invisible; that is
-the exact class of bug this rule exists to prevent.
+Use the constants, never the characters directly.
+
+**Squares and rectangles only, and only from two Unicode ranges: Box Drawing
+(U+2500 to U+257F) and Block Elements (U+2580 to U+259F).** Two separate bugs
+came from breaking this:
+
+- A diamond pickup from Geometric Shapes (U+25A0 to U+25FF). Those characters
+  are not drawn to fill exactly one character cell, so on every row the pickup
+  appeared the board was one cell too wide and its right border visibly stepped
+  out of line. The board looked broken.
+- Shaded fills (U+2591 to U+2593) for hazards. Those are dither patterns, and
+  they do not tile cleanly across cell boundaries, so a wall built from them
+  showed seams and steps that read as sprites overlapping each other.
+
+`VTGameUI.isMonospaceSafe(ch)` is the check, and `tests/game-logic.js` enforces
+it for every glyph.
+
+Player and hazard deliberately share the same solid block. In a one colour
+terminal they are told apart by position and size, not by fill, and they can
+never touch without the run ending anyway. Only Snake needs a second glyph,
+because the food sits inside the same playfield as the snake body.
 
 ### 2. Board geometry
 Fixed at 50×25 (48 playable columns) for every game, so all games sit
@@ -69,6 +87,13 @@ VTGameUI.GROUND_ROW   // 24 — floor line for side-scrollers
 
 Anything that rests on the floor sits at `GROUND_ROW - spriteHeight`. Runner's
 player and Flappy's bird both do this, which is why they line up.
+
+Paint through `VTGameUI.paintRect()` rather than writing into the grid yourself.
+It clips to the playable area so a sprite halfway off the edge cannot bleed into
+the border, and it counts any cell where one sprite lands on top of another.
+`VTGameUI.getPaintConflicts()` must read zero after every frame: one cell holds
+one thing, so two sprites in a cell means the spawn logic let them intersect.
+The test suite asserts this over thousands of frames per game.
 
 ### 3. Sprite scale
 - **Grid games** (Snake-like): 1×1 cells.

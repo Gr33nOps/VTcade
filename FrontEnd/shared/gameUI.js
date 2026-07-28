@@ -11,13 +11,38 @@
 (function (global) {
 
     // ---- One glyph, one meaning, in every game -------------------------------
+    //
+    // Two hard rules, both learned the hard way:
+    //
+    // 1. SOLID ONLY, NO SHADED FILLS. The dither patterns (U+2591-2593) do not
+    //    tile cleanly across cell boundaries, so a wall built from them shows
+    //    seams and steps that look like sprites overlapping each other.
+    //
+    // 2. BLOCK ELEMENTS / BOX DRAWING ONLY. Those ranges are drawn to occupy
+    //    exactly one character cell. Geometric Shapes (U+25A0-25FF) are not,
+    //    so they render wider than a cell and shove the board's right border
+    //    out of line on whatever row they appear. A diamond pickup did exactly
+    //    that. Everything here is a square or a rectangle for the same reason.
     const GLYPH = {
-        PLAYER: "█",  // █  full block   - the thing you control
-        HAZARD: "▓",  // ▓  dark shade   - the thing that kills you
-        PICKUP: "◆",  // ◆  diamond      - the thing you want
-        GROUND: "─",  // ─  light horiz. - the floor
+        PLAYER: "█",  // U+2588 full block       - the thing you control
+        HAZARD: "█",  // U+2588 full block       - the thing that kills you
+        PICKUP: "▄",  // U+2584 lower half block - the thing you want
+        GROUND: "─",  // U+2500 light horizontal - the floor
         BLANK:  " "
     };
+
+    // A glyph is only safe if it is drawn to fill exactly one cell.
+    function isMonospaceSafe(ch) {
+        const cp = ch.codePointAt(0);
+        return cp === 0x20                        // space
+            || (cp >= 0x2500 && cp <= 0x257F)     // Box Drawing
+            || (cp >= 0x2580 && cp <= 0x259F);    // Block Elements
+    }
+
+    // Counts cells that were painted over by a *different* glyph in the current
+    // frame. Should always be zero: in a terminal grid a cell holds one thing,
+    // so two sprites sharing a cell means the game let them intersect.
+    let paintConflicts = 0;
 
     // ---- Board geometry, identical everywhere --------------------------------
     const BOARD_W = 50;               // including both border columns
@@ -40,6 +65,7 @@
         for (let y = 0; y < BOARD_H; y++) {
             grid[y] = new Array(BOARD_W).fill(GLYPH.BLANK);
         }
+        paintConflicts = 0;   // a fresh grid starts a fresh frame
         return grid;
     }
 
@@ -52,9 +78,21 @@
             for (let dx = 0; dx < w; dx++) {
                 const gx = Math.floor(x) + dx;
                 if (gx < PLAY_X_MIN || gx > PLAY_X_MAX) continue;
+
+                // The ground is a backdrop; anything may stand on it. Two solid
+                // sprites claiming one cell is a genuine intersection though.
+                const existing = grid[gy][gx];
+                if (existing !== GLYPH.BLANK && existing !== GLYPH.GROUND && existing !== glyph) {
+                    paintConflicts++;
+                }
+
                 grid[gy][gx] = glyph;
             }
         }
+    }
+
+    function getPaintConflicts() {
+        return paintConflicts;
     }
 
     function paintGround(grid) {
@@ -139,6 +177,8 @@
         GROUND_ROW: GROUND_ROW,
         createGrid: createGrid,
         paintRect: paintRect,
+        isMonospaceSafe: isMonospaceSafe,
+        getPaintConflicts: getPaintConflicts,
         paintGround: paintGround,
         statusLines: statusLines,
         frameBoard: frameBoard,
