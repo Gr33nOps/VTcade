@@ -111,8 +111,8 @@ describe("identity comes from the token, not the request body", () => {
     });
 
     test("highscore save ignores a username supplied in the body", async () => {
-        mock.setRpc("submit_highscore", {
-            data: { highscore: 50, is_new_record: true },
+        mock.setRpc("submit_leaderboard_score", {
+            data: { score: 50, is_new_highscore: true },
             error: null
         });
 
@@ -123,7 +123,7 @@ describe("identity comes from the token, not the request body", () => {
 
         expect(res.status).toBe(200);
         expect(mock.client.rpc).toHaveBeenCalledWith(
-            "submit_highscore",
+            "submit_leaderboard_score",
             expect.objectContaining({ p_username: "realuser" })
         );
     });
@@ -247,8 +247,9 @@ describe("public read endpoints", () => {
     });
 
     test("a user's highscores are readable without auth", async () => {
-        mock.setTable("highscores", {
-            data: [{ game: "SNAKE", highscore: 30 }],
+        // Personal bests now come from the merged leaderboard table.
+        mock.setTable("leaderboard", {
+            data: [{ game: "SNAKE", score: 30 }],
             error: null
         });
 

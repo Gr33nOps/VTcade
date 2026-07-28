@@ -125,10 +125,10 @@ describe("DELETE /api/admin/users/:id", () => {
 
     // Regression for C2: the handler referenced an undefined `Score` model after
     // already deleting the user, so the user vanished, their leaderboard rows
-    // were orphaned, and the admin still saw a 500.
+    // were orphaned, and the admin still saw a 500. Score rows are now removed
+    // by the foreign-key cascade rather than a manual second delete.
     test("deletes a user without throwing ReferenceError", async () => {
         mock.setTable("profiles", { data: { username: "victim" }, error: null });
-        mock.setTable("highscores", { data: [], error: null });
 
         const res = await request(app)
             .delete("/api/admin/users/11111111-1111-1111-1111-111111111111")

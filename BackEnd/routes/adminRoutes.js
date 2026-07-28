@@ -148,17 +148,12 @@ router.delete("/users/:id", requireAdmin, asyncRoute(async (req, res) => {
         return res.status(404).json({ message: "User not found" });
     }
 
-    // Deleting the auth user cascades to profiles, which cascades to leaderboard
-    // (both have ON DELETE CASCADE foreign keys). highscores has no such FK
-    // (matches the original schema), so it needs an explicit cleanup below.
+    // Deleting the auth user cascades to profiles, which cascades to leaderboard.
+    // The manual `highscores` cleanup that used to live here is gone with that
+    // table — it needed it precisely because it had no foreign key, which is how
+    // it drifted out of sync with the leaderboard in the first place.
     const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(req.params.id);
     if (deleteAuthError) throw deleteAuthError;
-
-    const { error: highscoreError } = await supabaseAdmin
-        .from("highscores")
-        .delete()
-        .eq("username", profile.username);
-    if (highscoreError) throw highscoreError;
 
     res.json({ message: "User deleted successfully" });
 }));

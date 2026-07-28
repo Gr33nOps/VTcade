@@ -3,6 +3,14 @@ const { supabaseAdmin } = require("../config/supabase");
 const asyncRoute = require("../config/asyncRoute");
 const { requireUser } = require("../config/auth");
 
+// The separate `highscores` table is gone. It stored the same fact as
+// `leaderboard` — a player's best score per game — but was written by a
+// different endpoint, so the two drifted apart and the public leaderboard ended
+// up showing scores lower than players had actually achieved.
+//
+// These routes now read and write `leaderboard`. The response shapes are
+// deliberately unchanged so the games and dashboard keep working as-is.
+
 const MAX_SCORE = 1000000;
 
 function validateScore(raw) {
@@ -25,10 +33,10 @@ router.post("/save", requireUser, asyncRoute(async (req, res) => {
         return res.status(400).json({ message: "Invalid score" });
     }
 
-    // Identity comes from the verified token, never from the request body —
-    // the client used to just name whichever user it wanted to score for.
+    // Identity comes from the verified token, never from the request body.
     const { data, error } = await supabaseAdmin
-        .rpc("submit_highscore", {
+        .rpc("submit_leaderboard_score", {
+            p_user_id: req.user.id,
             p_username: req.user.username,
             p_game: game.trim(),
             p_score: numScore
@@ -38,8 +46,8 @@ router.post("/save", requireUser, asyncRoute(async (req, res) => {
     if (error) throw error;
 
     res.json({
-        highscore: data.highscore,
-        isNewRecord: data.is_new_record,
+        highscore: data.score,
+        isNewRecord: data.is_new_highscore,
         message: "Highscore saved successfully"
     });
 }));
@@ -52,10 +60,10 @@ router.get("/user/:username", asyncRoute(async (req, res) => {
     }
 
     const { data: scores, error } = await supabaseAdmin
-        .from("highscores")
-        .select("game, highscore")
+        .from("leaderboard")
+        .select("game, score")
         .eq("username", username.trim())
-        .order("highscore", { ascending: false });
+        .order("score", { ascending: false });
 
     if (error) throw error;
 
@@ -63,7 +71,7 @@ router.get("/user/:username", asyncRoute(async (req, res) => {
         username: username.trim(),
         scores: scores.map(s => ({
             game: s.game,
-            highscore: s.highscore
+            highscore: s.score
         })),
         total: scores.length
     });
@@ -77,14 +85,14 @@ router.get("/:username/:game", asyncRoute(async (req, res) => {
     }
 
     const { data } = await supabaseAdmin
-        .from("highscores")
-        .select("highscore")
+        .from("leaderboard")
+        .select("score")
         .eq("username", username.trim())
         .eq("game", game.trim())
         .maybeSingle();
 
     res.json({
-        highscore: data?.highscore || 0,
+        highscore: data?.score || 0,
         username: username.trim(),
         game: game.trim(),
         exists: !!data

@@ -247,6 +247,14 @@ Current state: **zero test files, zero CI, zero lint config** in the entire repo
 
 ## Phase 9 — Maintainability, Scalability (part 2), Interoperability (part 2)
 
+- [x] **Merged the duplicate score tables.** `highscores` and `leaderboard` both
+      stored "best score per player per game" but were written by different
+      endpoints, so they drifted: greenedits' real SNAKE best of 130 showed as 60
+      on the public leaderboard, and COWBOY's 70 showed as 40. Merged into
+      `leaderboard` (it has the FK and `is_flagged`), taking the higher of the two
+      so no score was lost, and dropped `highscores`. A trigger now keeps the
+      denormalized username in step with `profiles.username` after a rename.
+      Backups kept as `_backup_leaderboard_pre_merge` / `_backup_highscores_pre_merge`.
 - [x] Extract the ~150 lines of near-identical terminal-render boilerplate duplicated across login/signup/adminlogin into one shared module
 - [x] Extract the ~100 lines of near-identical save/load-highscore/leaderboard fetch logic duplicated across all 3 games into one shared `api.js`
 - [x] Centralize `API_URL`/`API_BASE_URL` (currently hardcoded separately in 8+ files) into one config, injected at build or read from one constant
