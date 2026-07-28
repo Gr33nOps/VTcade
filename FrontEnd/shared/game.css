@@ -72,9 +72,21 @@ body::after {
 @media (max-width: 768px) {
     body {
         font-size: 12px;
+        /* The square board is 34 lines tall. Stacked above the panel that can
+           be taller than a phone viewport, and the desktop `overflow: hidden`
+           would clip it with no way to reach what was cut off — the controls
+           and the leaderboard. Let small screens scroll instead, and anchor to
+           the top so centring cannot push the board's first rows off-screen. */
+        overflow-y: auto;
+        align-items: flex-start;
     }
     .container {
         flex-direction: column;
         gap: 10px;
+    }
+}
+@media (max-width: 480px) {
+    body {
+        font-size: 10px;
     }
 }

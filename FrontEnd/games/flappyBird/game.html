@@ -90,7 +90,10 @@ let pipes = [];
 const pipeWidth = 3;
 // Widened from 8 to 9 because the bird grew from 1 row to 2: this keeps the
 // same 7 rows of actual clearance the game had before.
-const pipeGap = 9;
+// Held proportional to the playfield, not absolute. It was 9 when the board had
+// 24 flyable rows; the board is now 30 tall (29 flyable) to make it square, and
+// leaving the gap at 9 would have quietly made the game a third harder.
+const pipeGap = Math.round(SKY_ROWS * 9 / 24);   // 11 at 29 rows
 let pipeSpeed = 1;
 const PIPE_SPEED_MAX = 1.8;
 let nextPipeGap = 26;

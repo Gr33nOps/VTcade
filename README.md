@@ -15,8 +15,10 @@ black, scanlines, a blinking cursor, and keyboard driven menus. Three games run
 inside a fixed character grid, and scores are stored server side with global
 leaderboards.
 
-Every screen is drawn as monospaced text. The games use a 50 by 25 character
-board, and all sprites are solid blocks so the grid stays aligned.
+Every screen is drawn as monospaced text. The games use a 50 by 30 character
+board, and all sprites are solid blocks so the grid stays aligned. Those numbers
+are a 5 to 3 ratio on purpose: a monospace cell is 0.6em wide and 1em tall, so
+50 by 30 renders as a perfect 480 by 480 pixel square.
 
 Live at [vtcade.vercel.app](https://vtcade.vercel.app).
 
@@ -141,7 +143,7 @@ tests/            Game logic and consistency tests
 
 ```
 cd BackEnd && npm test     # 60 route tests, Supabase fully mocked
-node tests/game-logic.js   # 93 game logic and consistency checks
+node tests/game-logic.js   # 96 game logic and consistency checks
 ```
 
 The game tests execute the real game scripts against a stubbed DOM instead of

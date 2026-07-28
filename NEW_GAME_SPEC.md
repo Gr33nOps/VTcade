@@ -87,16 +87,38 @@ came from breaking this:
 it for every glyph.
 
 ### 2. Board geometry
-Fixed at 50×25 (48 playable columns) for every game, so all games sit
+Fixed at 50×30 (48 playable columns) for every game, so all games sit
 identically on the page. Use the constants — don't hardcode:
 
 ```js
 VTGameUI.BOARD_W      // 50, including both borders
-VTGameUI.BOARD_H      // 25
+VTGameUI.BOARD_H      // 30
 VTGameUI.PLAY_X_MIN   // 1
 VTGameUI.PLAY_X_MAX   // 48
-VTGameUI.GROUND_ROW   // 24 — floor line for side-scrollers
+VTGameUI.GROUND_ROW   // 29 — floor line for side-scrollers
 ```
+
+**Imagine the board as a square, because it is one.** A Courier New cell is
+0.6em wide and 1em tall at line-height 1.0 — 9.6 × 16 px at the base font — so
+a square board needs
+
+```
+BOARD_W / BOARD_H = 16 / 9.6 = 5 / 3
+```
+
+50×30 is exactly 480 × 480 px. The board was 50×25 until it became obvious that
+this made it 480 × 400 and visibly wide. If you ever resize it, keep the 5:3
+ratio: 40×24, 45×27 and 60×36 also work. `tests/game-logic.js` asserts it.
+
+50 was kept over the other 5:3 sizes because it leaves **48 playable columns**,
+and 48 divides by 2, 3, 4, 6, 8, 12, 16 and 24. A game with a fixed playfield
+can therefore pick a cell width that spans the board exactly, with nothing left
+over needing a border drawn around it. 40×24 leaves 38, which factors only as
+2 × 19.
+
+**Never restate these numbers.** The tests used to hardcode `50`, `25` and `24`
+in a dozen places, and when the board changed shape twelve checks failed — none
+because a game had broken, all because the test was describing the old board.
 
 Anything that rests on the floor sits at `GROUND_ROW - spriteHeight`. Flappy's
 bird and the bottom of Tetris's well both do this, which is why they line up.

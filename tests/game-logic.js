@@ -106,6 +106,44 @@ function boardLines(el) {
     return el.textContent.split("\n");
 }
 
+// Board geometry, READ from the shared module rather than restated as literals.
+//
+// Every one of these used to be a hardcoded number, and when the board changed
+// shape twelve checks failed — not one of them because a game had broken, all
+// of them because the test was describing the old board. A test that has to be
+// edited every time the thing it measures is resized is not measuring anything.
+const GEO = (() => {
+    const UI = loadGame("snake").ctx.VTGameUI;
+    return {
+        W: UI.BOARD_W,
+        H: UI.BOARD_H,
+        X_MIN: UI.PLAY_X_MIN,
+        X_MAX: UI.PLAY_X_MAX,
+        GROUND: UI.GROUND_ROW,
+        // frameBoard emits: top border, H rows, bottom border, 2 status lines.
+        LINES: UI.BOARD_H + 4,
+        // Board row N lives at index N + 1, past the top border.
+        row: (n) => n + 1,
+        // Index of the first of the two status lines.
+        STATUS: UI.BOARD_H + 2
+    };
+})();
+
+// The board must render as a perfect square. A Courier New cell is 0.6em wide
+// and 1em tall at line-height 1.0, so this is the ratio that has to hold.
+console.log("\n=== BOARD IS SQUARE ===");
+{
+    const px = GEO.W * 0.6;
+    const py = GEO.H * 1.0;
+    check("board renders square (" + GEO.W + "x" + GEO.H + " chars = " +
+          (px * 16).toFixed(0) + "x" + (py * 16).toFixed(0) + "px)",
+        Math.abs(px - py) < 1e-9,
+        "W/H must be 5:3; got " + GEO.W + "/" + GEO.H);
+    check("playable width divides cleanly for fixed-playfield games",
+        [2, 3, 4, 6, 8, 12].every(d => (GEO.X_MAX - GEO.X_MIN + 1) % d === 0),
+        (GEO.X_MAX - GEO.X_MIN + 1) + " playable columns");
+}
+
 // ============================ SNAKE ============================
 console.log("\n=== SNAKE ===");
 {
@@ -113,13 +151,13 @@ console.log("\n=== SNAKE ===");
     ctx.restartGame();
     const lines = boardLines(els.game);
 
-    check("board rows = 25 + 2 border + 2 status",
-        lines.length - 1 === 29, "got " + (lines.length - 1));
-    check("every board line is exactly 50 wide",
-        lines.slice(0, 27).every(l => l.length === 50),
-        JSON.stringify(lines.slice(0, 27).map(l => l.length).filter((v, i, a) => a.indexOf(v) === i)));
+    check("board is " + GEO.H + " rows + 2 border + 2 status",
+        lines.length - 1 === GEO.LINES, "got " + (lines.length - 1));
+    check("every board line is exactly " + GEO.W + " wide",
+        lines.slice(0, GEO.H + 2).every(l => l.length === GEO.W),
+        JSON.stringify(lines.slice(0, GEO.H + 2).map(l => l.length).filter((v, i, a) => a.indexOf(v) === i)));
 
-    const body = lines.slice(1, 26).join("");
+    const body = lines.slice(GEO.row(0), GEO.row(GEO.H)).join("");
     const SNAKE_G = ctx.VTGameUI.GLYPH;
     check("both the snake and the food are on the board",
         body.includes(SNAKE_G.PLAYER) && body.includes(SNAKE_G.PICKUP));
@@ -141,7 +179,7 @@ console.log("\n=== SNAKE ===");
     // wall collision
     ctx.snake[0] = { x: 0, y: 5 };
     check("hitting the left wall is a collision", ctx.checkCollision() === true);
-    ctx.snake[0] = { x: 49, y: 5 };
+    ctx.snake[0] = { x: GEO.X_MAX + 1, y: 5 };
     check("hitting the right wall is a collision", ctx.checkCollision() === true);
     ctx.restartGame();
     check("mid-board is not a collision", ctx.checkCollision() === false);
@@ -160,7 +198,7 @@ console.log("\n=== SNAKE ===");
     for (let i = 0; i < 400; i++) {
         ctx.spawnFood();
         if (ctx.snake.some(s => s.x === ctx.food.x && s.y === ctx.food.y)) onSnake++;
-        if (ctx.food.x < 1 || ctx.food.x > 48 || ctx.food.y < 0 || ctx.food.y > 24) onSnake++;
+        if (ctx.food.x < GEO.X_MIN || ctx.food.x > GEO.X_MAX || ctx.food.y < 0 || ctx.food.y > GEO.H - 1) onSnake++;
     }
     check("400 food spawns all legal and off-snake", onSnake === 0, onSnake + " bad");
 }
@@ -172,10 +210,10 @@ console.log("\n=== TETRIS ===");
     ctx.restartGame();
     const boardRows = boardLines(els.game);
 
-    check("board rows = 25 + 2 border + 2 status",
-        boardRows.length - 1 === 29, "got " + (boardRows.length - 1));
-    check("every board line is exactly 50 wide",
-        boardRows.slice(0, 27).every(l => l.length === 50));
+    check("board is " + GEO.H + " rows + 2 border + 2 status",
+        boardRows.length - 1 === GEO.LINES, "got " + (boardRows.length - 1));
+    check("every board line is exactly " + GEO.W + " wide",
+        boardRows.slice(0, GEO.H + 2).every(l => l.length === GEO.W));
 
     // boardRows[0] is the top border, so board row N is boardRows[N + 1].
     check("floor line is drawn", boardRows[ctx.GROUND_ROW + 1].includes("\u2500"));
@@ -192,9 +230,12 @@ console.log("\n=== TETRIS ===");
         ctx.WELL_COLS + " cols x " + ctx.CELL_W + " chars = " + (ctx.WELL_COLS * ctx.CELL_W));
     check("the well starts flush against the board's own border",
         ctx.WELL_X === 1, "WELL_X=" + ctx.WELL_X);
-    check("the well keeps classic 1:2 proportions",
-        ctx.WELL_ROWS === ctx.WELL_COLS * 2,
-        ctx.WELL_COLS + "x" + ctx.WELL_ROWS);
+    // Measured in CELLS, not pixels. The cells are wider than they are tall, so
+    // the well looks square on screen while still being a deep well to play in
+    // — which is the property that decides how the game feels.
+    check("the well is at least twice as deep as it is wide",
+        ctx.WELL_ROWS >= ctx.WELL_COLS * 2,
+        ctx.WELL_COLS + " wide x " + ctx.WELL_ROWS + " deep");
 
     // No internal borders anywhere: nothing but sprites and the floor line.
     const interior = boardRows.slice(1, ctx.GROUND_ROW + 1).join("");
@@ -319,11 +360,11 @@ console.log("\n=== FLAPPY BIRD ===");
     ctx.restartGame();
     const lines = boardLines(els.game);
 
-    check("board rows = 25 + 2 border + 2 status",
-        lines.length - 1 === 29, "got " + (lines.length - 1));
-    check("every board line is exactly 50 wide",
-        lines.slice(0, 27).every(l => l.length === 50));
-    check("floor line is now drawn (was invisible)", lines[25].includes("\u2500"));
+    check("board is " + GEO.H + " rows + 2 border + 2 status",
+        lines.length - 1 === GEO.LINES, "got " + (lines.length - 1));
+    check("every board line is exactly " + GEO.W + " wide",
+        lines.slice(0, GEO.H + 2).every(l => l.length === GEO.W));
+    check("floor line is now drawn (was invisible)", lines[GEO.row(GEO.GROUND)].includes("\u2500"));
     check("bird is the 2x2 shared side-scroller player block",
         ctx.bird.width === 2 && ctx.bird.height === 2);
 
@@ -334,10 +375,10 @@ console.log("\n=== FLAPPY BIRD ===");
         ctx.bird.velocity > 0, "velocity=" + ctx.bird.velocity);
 
     // floor is death, and matches Runner's resting row
-    ctx.bird.y = 22;
-    check("bird resting at row 22 is alive (GROUND_ROW - its own height)", ctx.checkCollision() === false);
-    ctx.bird.y = 23;
-    check("bird at row 23 hits the floor", ctx.checkCollision() === true);
+    ctx.bird.y = ctx.SKY_ROWS - ctx.bird.height;
+    check("bird resting on the floor row is alive", ctx.checkCollision() === false, "y=" + ctx.bird.y);
+    ctx.bird.y = ctx.SKY_ROWS - ctx.bird.height + 1;
+    check("bird one row lower hits the floor", ctx.checkCollision() === true, "y=" + ctx.bird.y);
 
     // every generated pipe must leave a gap the 2-tall bird can fit through
     let badGap = 0, tooTight = 0, samples = 0;
@@ -349,8 +390,8 @@ console.log("\n=== FLAPPY BIRD ===");
         samples++;
         const p = ctx.pipes[0];
         const gapTop = p.topHeight;
-        const gapBottom = p.topHeight + 9;
-        if (gapTop < 1 || gapBottom > 24) badGap++;
+        const gapBottom = p.topHeight + ctx.pipeGap;
+        if (gapTop < 1 || gapBottom > ctx.SKY_ROWS) badGap++;
         if (gapBottom - gapTop < ctx.bird.height) tooTight++;
     }
     check("generated " + samples + " pipes, all gaps inside the playfield", badGap === 0, badGap + " bad");
@@ -358,11 +399,11 @@ console.log("\n=== FLAPPY BIRD ===");
 
     // a bird centred in the gap must survive that pipe
     ctx.pipes = [{ x: ctx.bird.x, topHeight: 5, passed: false }];
-    ctx.bird.y = 5 + Math.floor((9 - 2) / 2);
+    ctx.bird.y = 5 + Math.floor((ctx.pipeGap - ctx.bird.height) / 2);
     check("bird centred in the gap survives", ctx.checkCollision() === false, "y=" + ctx.bird.y);
     ctx.bird.y = 4;
     check("bird clipping the top pipe dies", ctx.checkCollision() === true);
-    ctx.bird.y = 5 + 9 - 1;
+    ctx.bird.y = 5 + ctx.pipeGap - 1;
     check("bird clipping the bottom pipe dies", ctx.checkCollision() === true);
 
     // difficulty actually ramps now
@@ -405,18 +446,18 @@ console.log("\n=== CONSISTENCY ACROSS ALL THREE ===");
         (g.els.ui.textContent.match(/^[A-Z]+: /gm) || []).length);
     check("all three show 3 stat rows", statCounts.every(c => c === 3), statCounts.join(" "));
 
-    const idle = games.map(g => boardLines(g.els.game)[27]);
+    const idle = games.map(g => boardLines(g.els.game)[GEO.STATUS]);
     check("all three use the same start-prompt template",
         idle.every(l => /^< PRESS .+ TO START >$/.test(l)), JSON.stringify(idle));
 
     games.forEach(g => { g.ctx.startGame(); g.ctx.gameRunning = false; g.ctx.paused = false; g.ctx.draw(); });
-    const over = games.map(g => boardLines(g.els.game).slice(27, 29));
+    const over = games.map(g => boardLines(g.els.game).slice(GEO.STATUS, GEO.STATUS + 2));
     check("all three use the same game-over template",
         over.every(([a, b]) => a === "< GAME OVER >" && /^PRESS .+ TO RESTART$/.test(b)),
         JSON.stringify(over));
 
     games.forEach(g => { g.ctx.isNewRecord = true; g.ctx.draw(); });
-    const rec = games.map(g => boardLines(g.els.game)[27]);
+    const rec = games.map(g => boardLines(g.els.game)[GEO.STATUS]);
     check("all three show the same NEW RECORD banner",
         rec.every(l => l === "< GAME OVER - NEW RECORD! >"), JSON.stringify(rec));
 
@@ -633,7 +674,7 @@ console.log("\n=== GAME OVER FRAME SHOWS CONTACT ===");
     ctx.pipes.forEach(p => {
         const px = Math.floor(p.x);
         if (ctx.bird.x >= px + 3 || ctx.bird.x + ctx.bird.width <= px) return; // no x overlap
-        const gapTop = p.topHeight, gapBottom = p.topHeight + 9;
+        const gapTop = p.topHeight, gapBottom = p.topHeight + ctx.pipeGap;
         if (by < gapTop) pipeGap = Math.min(pipeGap, gapTop - byEnd);
         if (byEnd > gapBottom) pipeGap = Math.min(pipeGap, by - gapBottom);
     });
