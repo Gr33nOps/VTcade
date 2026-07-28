@@ -81,3 +81,7 @@ jobs:
       # rules and the shared look still hold.
       - name: Game logic and consistency tests
         run: node tests/game-logic.js
+
+      # Runs the sound module against a stubbed AudioContext.
+      - name: Sound module tests
+        run: node tests/sound.js

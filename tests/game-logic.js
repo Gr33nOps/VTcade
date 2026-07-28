@@ -50,7 +50,16 @@ function loadGame(dir) {
         Math, Date, JSON, Number, String, Array, Object, Boolean, isNaN, parseInt, parseFloat,
         Promise, URLSearchParams, Error,
         fetch: async () => ({ ok: true, json: async () => ({}), text: async () => "" }),
-        localStorage: { getItem: () => "tester", setItem() {}, removeItem() {} },
+        localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+        // sound.js attaches unlock listeners on window and creates an
+        // AudioContext; stub both so the games' real VTSound.* calls run here.
+        addEventListener: () => {},
+        AudioContext: class {
+            constructor() { this.state = "running"; this.currentTime = 0; this.destination = {}; }
+            resume() { return Promise.resolve(); }
+            createGain() { return { gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
+            createOscillator() { return { type: "square", frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, start() {}, stop() {} }; }
+        },
         document: {
             readyState: "complete",
             hidden: false,
@@ -75,6 +84,8 @@ function loadGame(dir) {
 
     // real shared UI module
     vm.runInContext(fs.readFileSync(path.join(ROOT, "shared/gameUI.js"), "utf8"), ctx);
+    // real sound module, so the games' VTSound.* calls resolve
+    vm.runInContext(fs.readFileSync(path.join(ROOT, "shared/sound.js"), "utf8"), ctx);
     // real game script
     vm.runInContext(inlineScript(path.join(ROOT, "games", dir, "game.html")), ctx);
 

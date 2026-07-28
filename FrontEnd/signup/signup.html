@@ -200,6 +200,7 @@
 
     <script src="../shared/config.js"></script>
     <script src="../shared/session.js"></script>
+    <script src="../shared/sound.js"></script>
     <script>
         const API_URL = VTSession.API_URL;
 
@@ -294,10 +295,24 @@
             output += `\n================================================================================\nCOMMAND REFERENCE\n================================================================================\n\n    [↑/↓]              Navigate Fields\n    [ENTER]            Execute Selected\n    [TAB]              Switch to Login Page\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
 
             terminalEl.innerHTML = output;
+            announceMessages();
+        }
+
+        // Plays an error or success beep the moment a new message appears,
+        // once, no matter where in the code it was set.
+        let _lastAnnounced = "";
+        function announceMessages() {
+            const current = errorMessage ? "E:" + errorMessage
+                          : successMessage ? "S:" + successMessage : "";
+            if (current && current !== _lastAnnounced) {
+                if (errorMessage) VTSound.error(); else VTSound.success();
+            }
+            _lastAnnounced = current;
         }
 
         function navigateField(direction) {
             if (isSubmitting || registrationComplete) return;
+            VTSound.nav();
 
             errorMessage = "";
             successMessage = "";
@@ -313,6 +328,7 @@
         function handleTyping(key) {
             if (isSubmitting || registrationComplete) return;
             if (currentField === 4 || currentField === 5) return;
+            VTSound.type();
 
             errorMessage = "";
             successMessage = "";
@@ -383,6 +399,7 @@
                 if (data.requiresVerification) {
                     registrationComplete = true;
                     isSubmitting = false;
+                    VTSound.success();
                     render();
                 } else {
                     localStorage.setItem("currentUser", data.username || username);
@@ -434,6 +451,7 @@
                 navigateField('prev');
             } else if (e.key === "Enter") {
                 e.preventDefault();
+                if (!registrationComplete) VTSound.select();
                 if (currentField === 4 && !registrationComplete) {
                     submitForm();
                 } else if (currentField === 5 && !registrationComplete) {

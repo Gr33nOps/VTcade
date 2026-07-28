@@ -167,9 +167,19 @@
     </div>
 
     <script src="../shared/config.js"></script>
+    <script src="../shared/sound.js"></script>
     <script>
         const API_URL = window.VTCADE_API_URL;
         const terminalEl = document.getElementById("terminal");
+
+        // Every alert() on this page is an error notice, so beep on each one
+        // instead of instrumenting a dozen separate call sites.
+        const _origAlert = window.alert.bind(window);
+        window.alert = function (msg) {
+            VTSound.error();
+            return _origAlert(msg);
+        };
+
         let selectedIndex = 0;
         let currentPage = 0;
         const ITEMS_PER_PAGE = 5;
@@ -311,6 +321,7 @@ NAVIGATION
 
     [↑/↓]     Navigate Menu              [ENTER]     Select Option
     [1-5]     Direct Access              [ESC]       Exit
+    [M]       Sound ${VTSound.isMuted() ? "OFF" : "ON"}
 
 ================================================================================
 
@@ -924,6 +935,22 @@ READY: <span class="cursor">_</span>
 
         // ==================== KEYBOARD HANDLER ====================
         document.addEventListener("keydown", (e) => {
+            // Mute toggle first, so it never falls through to an action.
+            if (e.key === "m" || e.key === "M") {
+                VTSound.toggleMute();
+                render();
+                e.preventDefault();
+                return;
+            }
+            // One place for the movement/confirm/back beeps.
+            if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+                VTSound.nav();
+            } else if (e.key === "Escape") {
+                VTSound.back();
+            } else if (e.key === "Enter" || /^[1-5]$/.test(e.key)) {
+                VTSound.select();
+            }
+
             switch(e.key) {
                 case "ArrowUp":
                     navigate('up');

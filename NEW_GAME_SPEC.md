@@ -208,11 +208,31 @@ Every game must support all of these:
 |---|---|
 | Game keys | arrows **and** WASD equivalents |
 | `P` | pause / resume |
+| `M` | toggle sound (see below) |
 | `ESC` | back to the dashboard (with the loading overlay) |
 | Click | only if it maps naturally (jump/flap). Skip it for directional games. |
 
 Keyboard-first is deliberate: the whole site is `cursor: none` and
 keyboard-driven. Don't add touch controls to one game alone.
+
+### 5a. Sound
+
+Load `shared/sound.js` after `shared/gameUI.js` and call `VTSound.<effect>()` at
+the moments below. The sounds are synthesised at runtime (no files), the mute
+state is shared across the whole site through localStorage, and every effect is
+a no-op while muted, so the calls are always safe to make.
+
+| Moment | Call |
+|---|---|
+| Run starts | `VTSound.start()` |
+| Collect a pickup / clear an obstacle | `VTSound.eat()` or `VTSound.point()` |
+| Jump / flap | `VTSound.jump()` or `VTSound.flap()` |
+| Game over | `VTSound.gameOver()`, or `VTSound.newRecord()` when `isNewRecord && finalScore > 0` |
+| `M` pressed | `VTSound.toggleMute(); draw();` |
+
+The shared panel footer already shows `[M] SOUND ON/OFF`, so no panel change is
+needed. `gameUI` reads the mute state defensively, so it does not matter if
+`sound.js` fails to load — the games just fall silent.
 
 ### 6. Scoring — the three rules that matter
 

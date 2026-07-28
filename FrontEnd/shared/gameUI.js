@@ -219,7 +219,12 @@
         (config.controls || []).forEach(function (line) {
             out += line + "\n";
         });
-        out += "\n" + DIVIDER + "\n[P]   PAUSE\n[ESC] BACK TO HOME\n";
+
+        // Reflect the shared mute state so the player can see whether sound is
+        // on. Guarded because gameUI must not hard-depend on sound.js being
+        // present or loaded first.
+        var soundLabel = (global.VTSound && global.VTSound.isMuted()) ? "OFF" : "ON";
+        out += "\n" + DIVIDER + "\n[P]   PAUSE\n[M]   SOUND " + soundLabel + "\n[ESC] BACK TO HOME\n";
 
         return out;
     }

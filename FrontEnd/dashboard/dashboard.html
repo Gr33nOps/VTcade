@@ -241,6 +241,7 @@
 
     <script src="../shared/config.js"></script>
     <script src="../shared/session.js"></script>
+    <script src="../shared/sound.js"></script>
     <script>
         const API_BASE_URL = `${VTSession.API_URL}/api`;
         const terminalEl = document.getElementById("terminal");
@@ -337,6 +338,7 @@
             } catch (error) {
                 console.error('Error fetching highscores:', error);
                 errorMessage = "Failed to load highscores";
+                VTSound.error();
                 userHighscores = {};
                 totalGamesPlayed = 0;
             }
@@ -358,6 +360,7 @@
             } catch (error) {
                 console.error('Error fetching leaderboard:', error);
                 errorMessage = "Failed to load leaderboard";
+                VTSound.error();
                 leaderboardData = [];
             }
         }
@@ -405,7 +408,7 @@ NAVIGATION
 ================================================================================
 
     [↑/↓]     Navigate Menu              [ENTER]     Select Option
-    [1-4]     Direct Access             
+    [1-4]     Direct Access             [M]         Sound ${VTSound.isMuted() ? "OFF" : "ON"}
 
 ================================================================================
 
@@ -743,11 +746,12 @@ READY: <span class="cursor">_</span>
 
         document.addEventListener("keydown", (e) => {
             switch (e.key) {
-                case "ArrowUp": navigate('up'); e.preventDefault(); break;
-                case "ArrowDown": navigate('down'); e.preventDefault(); break;
-                case "ArrowLeft": navigate('left'); e.preventDefault(); break;
-                case "ArrowRight": navigate('right'); e.preventDefault(); break;
+                case "ArrowUp": VTSound.nav(); navigate('up'); e.preventDefault(); break;
+                case "ArrowDown": VTSound.nav(); navigate('down'); e.preventDefault(); break;
+                case "ArrowLeft": VTSound.nav(); navigate('left'); e.preventDefault(); break;
+                case "ArrowRight": VTSound.nav(); navigate('right'); e.preventDefault(); break;
                 case "Enter":
+                    VTSound.select();
                     if (currentView === "menu") {
                         selectOption(selectedIndex);
                     } else if (currentView === "games") {
@@ -758,6 +762,7 @@ READY: <span class="cursor">_</span>
                     e.preventDefault();
                     break;
                 case "Escape":
+                    if (currentView !== "menu") VTSound.back();
                     if (currentView === "leaderboard") {
                         currentView = "leaderboard-menu";
                         currentPage = 0;
@@ -773,7 +778,13 @@ READY: <span class="cursor">_</span>
                     }
                     e.preventDefault();
                     break;
+                case "m": case "M":
+                    VTSound.toggleMute();
+                    render();
+                    e.preventDefault();
+                    break;
                 case "1": case "2": case "3": case "4": case "5":
+                    VTSound.select();
                     const num = parseInt(e.key) - 1;
                     if (currentView === "menu") {
                         selectOption(num);

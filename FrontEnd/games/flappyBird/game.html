@@ -31,6 +31,7 @@ FLAPPY BIRD v1.0
     <script src="../../shared/session.js"></script>
     <script src="../../shared/gameApi.js"></script>
     <script src="../../shared/gameUI.js"></script>
+    <script src="../../shared/sound.js"></script>
     <script>
 const gameEl = document.getElementById("game");
 const uiEl = document.getElementById("ui");
@@ -213,6 +214,7 @@ function updatePipes() {
             score++;
             pipesCleared++;
             pipe.passed = true;
+            VTSound.point();
             // Flappy was the only game with no difficulty curve at all.
             if (score % 5 === 0 && pipeSpeed < PIPE_SPEED_MAX) {
                 pipeSpeed = Math.min(PIPE_SPEED_MAX, pipeSpeed + 0.1);
@@ -250,6 +252,8 @@ async function gameOver() {
 
     // Compare against the best we knew *before* the save overwrites it.
     isNewRecord = finalScore > highScore;
+
+    if (isNewRecord && finalScore > 0) VTSound.newRecord(); else VTSound.gameOver();
 
     // Paint GAME OVER immediately: the three calls below hit a free-tier
     // backend that can take seconds to wake, and the player used to stare at a
@@ -294,6 +298,7 @@ function startGame() {
     // Without this guard two rapid inputs could start two concurrent gameLoop()
     // timers, doubling the speed and firing gameOver() twice.
     if (gameRunning) return;
+    VTSound.start();
     gameRunning = true;
     gameStarted = true;
     gameLoop();
@@ -320,6 +325,7 @@ function jump() {
         startGame();
     } else if (gameRunning) {
         bird.velocity = bird.jump;
+        VTSound.flap();
     } else {
         // Restart synchronously; the old deferred restart left a 100ms window
         // in which another input could start a second loop. This game binds
@@ -354,6 +360,10 @@ document.addEventListener("keydown", (e) => {
     } else if (e.code === "KeyP") {
         e.preventDefault();
         togglePause();
+    } else if (e.code === "KeyM") {
+        e.preventDefault();
+        VTSound.toggleMute();
+        draw();
     } else if (e.code === "Escape") {
         e.preventDefault();
         document.getElementById('loadingOverlay').classList.add('active');

@@ -28,7 +28,10 @@ Live at [vtcade.vercel.app](https://vtcade.vercel.app).
 * Personal bests and per game leaderboards
 * Admin panel for users, games, scores, and maintenance mode
 * Pure CSS terminal effects with no images and no build step
-* Keyboard first controls with arrow keys, WASD, P to pause, and Escape to exit
+* Retro beep sound effects, synthesised at runtime with the Web Audio API so
+  there are no audio files to load, with a shared mute toggle on the M key
+* Keyboard first controls with arrow keys, WASD, P to pause, M to mute, and
+  Escape to exit
 * Scores are submitted with a verified session token, so a player cannot post a
   score under someone else's name
 
