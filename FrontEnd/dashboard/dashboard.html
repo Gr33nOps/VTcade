@@ -266,13 +266,46 @@
         let errorMessage = "";
         let selectedGame = null;
 
-        const games = [
-            { id: 1, name: "FLAPPY BIRD", url: "../games/flappyBird/game.html", available: true, apiName: "FLAPPY BIRD" },
-            { id: 2, name: "RUNNER", url: "../games/runner/game.html", available: true, apiName: "RUNNER" },
-            { id: 3, name: "SNAKE", url: "../games/snake/game.html", available: true, apiName: "SNAKE" },
-            { id: 4, name: "PROGRAM 04", url: "../games/game4/game.html", available: false, apiName: "PROGRAM 04" },
-            { id: 5, name: "PROGRAM 05", url: "../games/game5/game.html", available: false, apiName: "PROGRAM 05" }
+        // Which games exist locally and where they live. Titles must match the
+        // `games` table so the admin panel can switch them off.
+        const GAME_REGISTRY = [
+            { id: 1, name: "FLAPPY BIRD", url: "../games/flappyBird/game.html", apiName: "FLAPPY BIRD", shipped: true },
+            { id: 2, name: "RUNNER",      url: "../games/runner/game.html",     apiName: "RUNNER",      shipped: true },
+            { id: 3, name: "SNAKE",       url: "../games/snake/game.html",      apiName: "SNAKE",       shipped: true },
+            { id: 4, name: "PROGRAM 04",  url: null, apiName: null, shipped: false },
+            { id: 5, name: "PROGRAM 05",  url: null, apiName: null, shipped: false }
         ];
+
+        // Titles the admin has disabled. Until now nothing on the player side
+        // read is_active at all, so disabling a game in the admin panel had no
+        // effect whatsoever.
+        let disabledGames = new Set();
+
+        let games = GAME_REGISTRY.map(g => ({ ...g, available: g.shipped }));
+
+        function applyGameStatus() {
+            games = GAME_REGISTRY.map(g => ({
+                ...g,
+                available: g.shipped && !disabledGames.has(g.apiName)
+            }));
+        }
+
+        async function fetchGameStatus() {
+            try {
+                const res = await fetch(`${API_BASE_URL}/game`);
+                if (!res.ok) return;              // fail open — see below
+                const rows = await res.json();
+                if (!Array.isArray(rows)) return;
+                disabledGames = new Set(
+                    rows.filter(r => r && r.is_active === false).map(r => r.title)
+                );
+                applyGameStatus();
+            } catch (err) {
+                // Fail open on purpose: a cold or unreachable backend should not
+                // make the whole arcade look empty.
+                console.error('Could not load game availability:', err);
+            }
+        }
 
         function checkLogin() {
             const user = VTSession.getUsername();
@@ -449,7 +482,7 @@ MY HIGH SCORES
                 output += `    <span class="red">ERROR: ${esc(errorMessage)}</span>\n\n`;
             }
 
-            const availableGames = ['FLAPPY BIRD', 'RUNNER', 'SNAKE'];
+            const availableGames = games.filter(g => g.available).map(g => g.apiName);
             let totalScore = 0;
             let gamesWithScores = 0;
 
@@ -761,6 +794,7 @@ READY: <span class="cursor">_</span>
             username = checkLogin();
             if (username) {
                 await fetchUserHighscores();
+                await fetchGameStatus();
                 render();
                 clockTimer = setInterval(() => {
                     // The header clock is drawn on every view, so re-render on

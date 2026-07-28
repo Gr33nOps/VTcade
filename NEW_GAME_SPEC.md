@@ -1,0 +1,217 @@
+# VTcade — Adding a New Game
+
+Hand this file to whoever (or whatever) builds the next game. It is written to
+be pasted as a prompt. Everything in it reflects how the three existing games
+actually work today, not how they were originally written.
+
+---
+
+## Paste-as-prompt version
+
+> Add a new game to VTcade at `FrontEnd/games/<name>/game.html`, following the
+> existing conventions exactly. Read `FrontEnd/games/snake/game.html` first — it
+> is the reference implementation.
+>
+> **Do not invent new styling, glyphs, wording, or layout.** Everything visual
+> comes from `FrontEnd/shared/gameUI.js` and `FrontEnd/shared/game.css`. If
+> something you need isn't in the shared module, add it there so all games get
+> it, rather than special-casing your game.
+>
+> Required:
+> - Link, in this order: `shared/game.css`, `shared/config.js`,
+>   `shared/session.js`, `shared/gameApi.js`, `shared/gameUI.js`
+> - 50×25 board via `VTGameUI.createGrid()` / `frameBoard()`; never build the
+>   border by hand
+> - Only these glyphs, with these meanings: `GLYPH.PLAYER` for the thing the
+>   player controls, `GLYPH.HAZARD` for anything that kills, `GLYPH.PICKUP` for
+>   anything collectible, `GLYPH.GROUND` for a floor
+> - Side panel via `VTGameUI.panel()` with **exactly three** stat rows:
+>   `SCORE`, `HIGHSCORE`, and one game-specific stat
+> - Status text via `VTGameUI.statusLines()` — never write your own prompt
+>   strings, so the wording and the fixed 2-line height stay consistent
+> - Auth guard, score saving, pause, tab-hide pause, ESC-to-dashboard, and the
+>   run-counter pattern copied from Snake (details below)
+> - Register the game in the `games` table and in the dashboard's
+>   `GAME_REGISTRY`, or it will not appear
+> - Add assertions to `tests/game-logic.js` and make sure `node
+>   tests/game-logic.js` passes
+>
+> Then tell me what difficulty curve you chose and why.
+
+---
+
+## The rules, in detail
+
+### 1. Visual language — never deviate
+
+| Role | Constant | Meaning |
+|---|---|---|
+| Player | `GLYPH.PLAYER` | the thing you control |
+| Hazard | `GLYPH.HAZARD` | anything that ends the run |
+| Pickup | `GLYPH.PICKUP` | anything you want to touch |
+| Ground | `GLYPH.GROUND` | the floor |
+
+One glyph = one meaning, across every game. Snake originally used the same
+character for the snake *and* the food, which made the food invisible; that is
+the exact class of bug this rule exists to prevent.
+
+### 2. Board geometry
+Fixed at 50×25 (48 playable columns) for every game, so all games sit
+identically on the page. Use the constants — don't hardcode:
+
+```js
+VTGameUI.BOARD_W      // 50, including both borders
+VTGameUI.BOARD_H      // 25
+VTGameUI.PLAY_X_MIN   // 1
+VTGameUI.PLAY_X_MAX   // 48
+VTGameUI.GROUND_ROW   // 24 — floor line for side-scrollers
+```
+
+Anything that rests on the floor sits at `GROUND_ROW - spriteHeight`. Runner's
+player and Flappy's bird both do this, which is why they line up.
+
+### 3. Sprite scale
+- **Grid games** (Snake-like): 1×1 cells.
+- **Side-scrollers** (Runner/Flappy-like): player **2×2**, hazards **3 wide**.
+
+Match whichever family your game belongs to. Don't invent a third scale.
+
+### 4. Status area
+Always call `VTGameUI.statusLines(state, keyLabel, { newRecord })`. It always
+returns exactly two lines, which is what stops the board jumping vertically
+between idle / playing / paused / game-over.
+
+State is derived, not stored twice:
+```js
+function currentState() {
+    if (!gameStarted) return STATE.IDLE;
+    if (gameRunning)  return STATE.PLAYING;
+    return paused ? STATE.PAUSED : STATE.GAME_OVER;
+}
+```
+
+### 5. Required controls
+Every game must support all of these:
+
+| Key | Behaviour |
+|---|---|
+| Game keys | arrows **and** WASD equivalents |
+| `P` | pause / resume |
+| `ESC` | back to the dashboard (with the loading overlay) |
+| Click | only if it maps naturally (jump/flap). Skip it for directional games. |
+
+Keyboard-first is deliberate: the whole site is `cursor: none` and
+keyboard-driven. Don't add touch controls to one game alone.
+
+### 6. Scoring — the three rules that matter
+
+**Snapshot the score before awaiting.** Reading the shared `score` after an
+`await` is how a restart mid-save used to submit `0`:
+```js
+const finalScore = score;
+```
+
+**Paint GAME OVER before saving, not after.** The backend is free-tier and can
+take seconds to wake; the player must see the run end immediately:
+```js
+gameRunning = false;
+isNewRecord = finalScore > highScore;   // compare BEFORE the save overwrites it
+draw();                                  // <- immediate
+await saveHighscore(finalScore);
+```
+
+**Use a run counter so a slow response can't repaint a new run:**
+```js
+const runAtDeath = runCounter;      // runCounter++ inside restartGame()
+...
+if (runCounter === runAtDeath) { leaderboard = fresh; draw(); }
+```
+
+Never set `highScore = score` inside the game loop. The panel shows the
+server-confirmed value; the live run is already shown as `SCORE`.
+
+### 7. Networking
+Only through `createGameApi(GAME_NAME)`. Never call `fetch` directly — score
+submission has to be authenticated, and the server derives the username from
+the verified token. Sending a username in the body does nothing.
+
+```js
+const gameApi = createGameApi(GAME_NAME);
+```
+
+### 8. Auth guard — must halt the script
+```js
+const currentUser = VTSession.getUsername();
+if (!currentUser) {
+    alert("You must be logged in to play!");
+    window.location.replace("../../login/login.html");
+    throw new Error("Not authenticated");   // without this the rest still runs
+}
+```
+The `throw` is required: a redirect is only *queued*, so without it the game
+initialises and fires requests for a user literally named `"null"`.
+
+### 9. Loop and pause
+```js
+function startGame() {
+    if (gameRunning) return;    // two fast inputs otherwise start two loops
+    gameRunning = true;
+    gameStarted = true;
+    gameLoop();
+}
+```
+Copy the `visibilitychange` handler from any existing game, including the
+`&& !paused` guard so a deliberate pause survives a tab switch.
+
+### 10. Difficulty
+Every game must get harder. Flappy originally never did.
+
+Scale spacing by **distance, not frames**. Runner used a frame interval while
+obstacles moved by speed, so raising the speed made the gaps proportionally
+wider — the difficulty partly cancelled itself:
+```js
+distanceSinceSpawn += gameSpeed;          // correct
+if (distanceSinceSpawn >= nextGapColumns) { ... }
+```
+Always cap the ramp.
+
+---
+
+## Registering the game
+
+Two places, or it won't show up:
+
+**1. The database** — the admin panel's enable/disable reads this:
+```sql
+insert into games (title, genre, description, difficulty, is_active)
+values ('YOUR GAME', 'arcade', 'One line.', 'medium', true);
+```
+
+**2. `FrontEnd/dashboard/dashboard.html` → `GAME_REGISTRY`:**
+```js
+{ id: 6, name: "YOUR GAME", url: "../games/yourgame/game.html",
+  apiName: "YOUR GAME", shipped: true }
+```
+`apiName` must match the `games.title` exactly, or the admin's disable switch
+won't affect it.
+
+---
+
+## Before you call it done
+
+```bash
+node tests/game-logic.js
+```
+
+Add your game to that file's list. The consistency block checks that every game
+has identical board dimensions, identical panel height, three stat rows, and
+the same prompt templates — so a new game that drifts will fail the build.
+
+Also confirm by hand:
+- [ ] Die — GAME OVER appears instantly, not after a delay
+- [ ] Die, then immediately restart — the score saved is the one you earned
+- [ ] Beat your best — `NEW RECORD` shows
+- [ ] `P` pauses; switching tabs and back does not silently resume it
+- [ ] Log out, open the game URL directly — you're bounced to login and no
+      request is sent
+- [ ] Disable the game in the admin panel — it disappears from the dashboard

@@ -60,7 +60,6 @@ if (!currentUser) {
 let score = 0;
 let highScore = 0;
 let gameRunning = false;
-let frameCount = 0;
 let gameStarted = false;
 // Incremented on every restart. gameOver() captures it before awaiting so a
 // slow save can't repaint over a run the player has already restarted.
@@ -164,8 +163,6 @@ function updateBird() {
 }
 
 function updatePipes() {
-    frameCount++;
-
     distanceSincePipe += pipeSpeed;
 
     if (distanceSincePipe >= nextPipeGap) {
@@ -247,7 +244,6 @@ function restartGame() {
     pipes = [];
     score = 0;
     pipesCleared = 0;
-    frameCount = 0;
     pipeSpeed = 1;
     distanceSincePipe = 0;
     nextPipeGap = 26;
