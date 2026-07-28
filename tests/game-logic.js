@@ -178,19 +178,29 @@ console.log("\n=== TETRIS ===");
         boardRows.slice(0, 27).every(l => l.length === 50));
 
     // boardRows[0] is the top border, so board row N is boardRows[N + 1].
-    check("well floor is drawn", boardRows[ctx.GROUND_ROW + 1].includes("\u2500"));
-    check("well rails are drawn", boardRows[ctx.WELL_TOP + 1].includes("\u2502"));
-    check("well is the standard 10 wide by 20 tall",
-        ctx.WELL_COLS === 10 && ctx.WELL_ROWS === 20,
-        ctx.WELL_COLS + "x" + ctx.WELL_ROWS);
+    check("floor line is drawn", boardRows[ctx.GROUND_ROW + 1].includes("\u2500"));
     check("the well's bottom row sits on the shared ground row",
         ctx.WELL_TOP + ctx.WELL_ROWS === ctx.GROUND_ROW,
         "top=" + ctx.WELL_TOP + " ground=" + ctx.GROUND_ROW);
-    // The well plus the next-piece box must stay centred on the board's own
-    // centre line, or the game sits visibly off to one side of the others.
-    check("well and next box are centred together on the board",
-        (ctx.WELL_X - 1) + (ctx.PREV_X + ctx.PREV_COLS) === 1 + 48,
-        "spans " + (ctx.WELL_X - 1) + ".." + (ctx.PREV_X + ctx.PREV_COLS));
+
+    // The whole point of the layout: the well spans the entire playfield, so
+    // the board's own frame is the wall. The first version drew a 10-column
+    // well with its own side rails, which put a box inside the box and made
+    // this the only game that looked like that.
+    check("the well spans the full playable width",
+        ctx.WELL_COLS * ctx.CELL_W === 48,
+        ctx.WELL_COLS + " cols x " + ctx.CELL_W + " chars = " + (ctx.WELL_COLS * ctx.CELL_W));
+    check("the well starts flush against the board's own border",
+        ctx.WELL_X === 1, "WELL_X=" + ctx.WELL_X);
+    check("the well keeps classic 1:2 proportions",
+        ctx.WELL_ROWS === ctx.WELL_COLS * 2,
+        ctx.WELL_COLS + "x" + ctx.WELL_ROWS);
+
+    // No internal borders anywhere: nothing but sprites and the floor line.
+    const interior = boardRows.slice(1, ctx.GROUND_ROW + 1).join("");
+    check("no rails or inner boxes are drawn inside the board",
+        !interior.includes("\u2502") && !interior.includes("\u2500"),
+        "found an internal border character");
 
     // A rotation that isn't a true rotation drifts pieces out of shape over a
     // long run. Four turns must be the identity for all seven.
@@ -221,14 +231,25 @@ console.log("\n=== TETRIS ===");
         drawn.slice().sort().join("") === ctx.PIECE_NAMES.slice().sort().join(""),
         drawn.join(","));
 
-    // walls
+    // walls (the board's own border)
     ctx.well = ctx.emptyWell();
     ctx.piece = { name: "O", cells: [[1, 1], [1, 1]], x: 0, y: 0 };
-    check("a piece flush against the left rail cannot move further left",
+    check("a piece flush against the left wall cannot move further left",
         ctx.tryMove(-1, 0) === false);
     ctx.piece.x = ctx.WELL_COLS - 2;
-    check("a piece flush against the right rail cannot move further right",
+    check("a piece flush against the right wall cannot move further right",
         ctx.tryMove(1, 0) === false);
+
+    // A block must be exactly CELL_W wide on screen, or the well stops lining
+    // up with the border it is supposed to be flush against.
+    ctx.well = ctx.emptyWell();
+    ctx.well[ctx.WELL_ROWS - 1][0] = 1;
+    ctx.piece = null;
+    const bottom = boardLines({ textContent: ctx.VTGameUI.frameBoard(ctx.buildGrid(), ["", ""]) })[ctx.WELL_ROWS];
+    check("one well cell renders exactly CELL_W characters wide",
+        bottom.slice(1, 1 + ctx.CELL_W) === "█".repeat(ctx.CELL_W) &&
+        bottom[1 + ctx.CELL_W] === " ",
+        JSON.stringify(bottom.slice(0, 10)));
 
     // completing a row
     ctx.restartGame();

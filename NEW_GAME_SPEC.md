@@ -50,13 +50,14 @@ actually work today, not how they were originally written.
 | Hazard | `GLYPH.HAZARD` | `█` U+2588 | anything that ends the run |
 | Pickup | `GLYPH.PICKUP` | `█` U+2588 | anything you want to touch |
 | Ground | `GLYPH.GROUND` | `─` U+2500 | the floor, a backdrop rather than a sprite |
-| Wall | `GLYPH.WALL` | `│` U+2502 | a side rail, the upright form of `GROUND` |
 
-`WALL` exists because Tetris needs a well narrower than the board. Note the one
-asymmetry in the overlap guard: `ROLE.GROUND` is exempt from it, because
-anything may stand on the floor, but `ROLE.WALL` is **not** — a sprite drawn
-inside a rail is a sprite that has escaped its playfield, and that is a bug
-worth failing the build over.
+**Never draw a border inside the board.** There was briefly a `GLYPH.WALL`
+(`│`), added so Tetris could draw side rails around a well narrower than the
+playfield. It was a mistake and it is gone. The board's frame is the only frame
+any game gets; a game that draws its own box inside that one reads instantly as
+the odd one out, and no amount of correct behaviour makes up for it. If your
+playfield is narrower than the board, widen the cells until it isn't — see
+sprite scale below.
 
 Use the constants, never the characters directly.
 
@@ -189,17 +190,29 @@ that forces the `null` fallback — the second one is exactly where the overlap
 bug can silently come back if the rebuild guard is missing.
 
 ### 3. Sprite scale
-- **Grid games** (Snake/Tetris-like): 1×1 cells.
+- **Free-roaming grid games** (Snake-like): 1×1 cells.
 - **Side-scrollers** (Flappy-like): player **2×2**, hazards **3 wide**.
+- **Fixed-playfield games** (Tetris-like): whatever cell width makes the
+  playfield span all 48 columns exactly. Tetris uses **4 wide × 1 tall**,
+  because 12 × 4 = 48.
 
-Match whichever family your game belongs to. Don't invent a third scale.
+Pick by how your game uses the board, and say why in a comment.
 
-A character cell is about 9.6px wide and 16px tall, so a 1×1 sprite is taller
-than it is wide. That is a real cost for a game built on shape recognition —
-Tetris pieces are noticeably stretched — and doubling the cell width would fix
-it. It is still not worth doing: the games have to look like one arcade, and a
-game whose blocks are twice the width of Snake's does not. If you are tempted,
-you are the third person to be tempted.
+The third case is the one that caused trouble. Tetris was first built at Snake's
+1×1 scale, which is defensible in isolation — a block was exactly a snake
+segment. But a 10-column well inside a 48-column board only occupies a fifth of
+the width, so it needed side rails to be visible at all, and the result was a
+box inside a box: tiny, cluttered, and obviously not part of the same arcade.
+
+The fix was to widen the cell until the well *was* the board. Consistency here
+means **filling the same canvas the same way**, not using identical sprite
+dimensions. A game that leaves four fifths of the board empty has not matched
+the others by keeping their cell size; it has just drawn a small game inside a
+big frame.
+
+Keep the playfield's proportions in *cells* rather than pixels: Tetris is 12×24,
+which is the same 1:2 well as the classic 10×20 even though the characters are
+wider than they are tall.
 
 ### 4. Status area
 Always call `VTGameUI.statusLines(state, keyLabel, { newRecord })`. It always

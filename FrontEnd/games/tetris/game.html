@@ -58,21 +58,23 @@ if (!currentUser) {
 
 // ---- Geometry -------------------------------------------------------------
 //
-// A standard 10x20 well, drawn at the shared 1x1 grid-game sprite scale (the
-// same cell size Snake uses), so a block here is exactly a snake segment.
+// The well IS the board. Every other game paints straight onto the playfield
+// with the board's own frame as the only border, and the first version of this
+// game did not: a 10-column well inside a 48-column board needs its own side
+// rails to be visible at all, which put a box inside the box and made this the
+// odd one out. Nothing about Tetris requires that.
 //
-// The well and the next-piece box together span columns 14..35, which is
-// centred on the board's own centre line at 24.5. Don't nudge one without
-// rechecking the other.
-const WELL_COLS = 10;
-const WELL_ROWS = 20;
-const WELL_X = 15;                          // leftmost interior column
-const WELL_TOP = GROUND_ROW - WELL_ROWS;    // 4 — topmost interior row
-
-const PREV_COLS = 4;
-const PREV_ROWS = 4;
-const PREV_X = 31;
-const PREV_TOP = 8;
+// So a cell is CELL_W characters wide, chosen so the well spans the playable
+// width exactly: 12 x 4 = 48. The board's left and right borders are the walls,
+// there are no rails to draw, and the blocks are four times wider than before.
+//
+// 12x24 keeps the classic 1:2 well proportions (10x20 is the same shape), so
+// this plays like Tetris even though the numbers differ.
+const CELL_W = 4;
+const WELL_COLS = 12;                       // 12 * 4 = 48 = the full playable width
+const WELL_ROWS = 24;
+const WELL_X = X_MIN;                       // flush against the board's own border
+const WELL_TOP = GROUND_ROW - WELL_ROWS;    // 0 — the well is the whole playfield
 
 // ---- Pieces ---------------------------------------------------------------
 //
@@ -126,7 +128,6 @@ let wasPausedByHide = false;
 // block, so nothing more than occupancy needs storing.
 let well = emptyWell();
 let piece = null;
-let nextName = null;
 // 7-bag randomiser: every seven spawns deal each piece exactly once, shuffled.
 // Uniform random can starve you of an I piece for twenty pieces at a time,
 // which reads as the game cheating rather than as difficulty.
@@ -177,22 +178,6 @@ function rotateCW(m) {
     return out;
 }
 
-// Filled bounds of a matrix, used to centre the next piece in its box rather
-// than centring the matrix — an I piece's matrix is 4x4 but its shape is 4x1.
-function filledBounds(cells) {
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (let y = 0; y < cells.length; y++) {
-        for (let x = 0; x < cells[y].length; x++) {
-            if (!cells[y][x]) continue;
-            if (x < minX) minX = x;
-            if (x > maxX) maxX = x;
-            if (y < minY) minY = y;
-            if (y > maxY) maxY = y;
-        }
-    }
-    return { minX, minY, w: maxX - minX + 1, h: maxY - minY + 1 };
-}
-
 // True if placing `cells` with its top-left at (px, py) would leave the well or
 // touch a settled block. Rows above the well are legal so a piece can spawn
 // partly off the top.
@@ -231,8 +216,7 @@ function nextFromBag() {
 }
 
 function spawnPiece() {
-    const name = nextName;
-    nextName = nextFromBag();
+    const name = nextFromBag();
     const cells = PIECES[name].map(row => row.slice());
     piece = {
         name: name,
@@ -330,62 +314,40 @@ function tick() {
 }
 
 // ---- Rendering ------------------------------------------------------------
-function paintCells(grid, cells, ox, oy, glyph, role) {
-    for (let y = 0; y < cells.length; y++) {
-        for (let x = 0; x < cells[y].length; x++) {
-            if (!cells[y][x]) continue;
-            VTGameUI.paintRect(grid, ox + x, oy + y, 1, 1, glyph, role);
-        }
-    }
+//
+// One well cell is CELL_W characters wide and one row tall, so everything goes
+// through here rather than writing single cells anywhere.
+function paintCell(grid, col, row, glyph, role) {
+    VTGameUI.paintRect(grid, WELL_X + col * CELL_W, WELL_TOP + row, CELL_W, 1, glyph, role);
 }
 
-// The next-piece box. It sits on the board rather than in the side panel
-// because the panel's shape is fixed across every game — three stat rows and
-// three control lines — and a preview cannot be squeezed in without making
-// this game's panel a different height from the other two.
-function paintPreview(grid) {
-    VTGameUI.paintRect(grid, PREV_X - 1, PREV_TOP - 1, PREV_COLS + 2, 1, GLYPH.GROUND, VTGameUI.ROLE.GROUND);
-    VTGameUI.paintRect(grid, PREV_X - 1, PREV_TOP + PREV_ROWS, PREV_COLS + 2, 1, GLYPH.GROUND, VTGameUI.ROLE.GROUND);
-    VTGameUI.paintRect(grid, PREV_X - 1, PREV_TOP, 1, PREV_ROWS, GLYPH.WALL, VTGameUI.ROLE.WALL);
-    VTGameUI.paintRect(grid, PREV_X + PREV_COLS, PREV_TOP, 1, PREV_ROWS, GLYPH.WALL, VTGameUI.ROLE.WALL);
-
-    if (!nextName) return;
-    const cells = PIECES[nextName];
-    const b = filledBounds(cells);
-    paintCells(
-        grid,
-        cells,
-        PREV_X + Math.floor((PREV_COLS - b.w) / 2) - b.minX,
-        PREV_TOP + Math.floor((PREV_ROWS - b.h) / 2) - b.minY,
-        GLYPH.PLAYER,
-        VTGameUI.ROLE.PLAYER
-    );
+function paintPieceCells(grid, cells, ox, oy, glyph, role) {
+    for (let y = 0; y < cells.length; y++) {
+        for (let x = 0; x < cells[y].length; x++) {
+            if (cells[y][x]) paintCell(grid, ox + x, oy + y, glyph, role);
+        }
+    }
 }
 
 function buildGrid() {
     const grid = VTGameUI.createGrid();
 
-    // Floor first, then the rails over it, so the two bottom corners read as
-    // rail rather than as a gap in the floor.
-    VTGameUI.paintRect(grid, WELL_X, GROUND_ROW, WELL_COLS, 1, GLYPH.GROUND, VTGameUI.ROLE.GROUND);
-    VTGameUI.paintRect(grid, WELL_X - 1, WELL_TOP, 1, WELL_ROWS + 1, GLYPH.WALL, VTGameUI.ROLE.WALL);
-    VTGameUI.paintRect(grid, WELL_X + WELL_COLS, WELL_TOP, 1, WELL_ROWS + 1, GLYPH.WALL, VTGameUI.ROLE.WALL);
+    // The same full-width floor line every side-scroller draws. There are no
+    // rails: the well spans the whole playfield, so the board's own frame is
+    // the wall.
+    VTGameUI.paintGround(grid);
 
-    // The settled stack is the hazard: it is what ends the run once it reaches
+    // The settled stack is the hazard — it is what ends the run once it reaches
     // the spawn row. The falling piece is the player.
     for (let y = 0; y < WELL_ROWS; y++) {
         for (let x = 0; x < WELL_COLS; x++) {
-            if (well[y][x]) {
-                VTGameUI.paintRect(grid, WELL_X + x, WELL_TOP + y, 1, 1, GLYPH.HAZARD, VTGameUI.ROLE.HAZARD);
-            }
+            if (well[y][x]) paintCell(grid, x, y, GLYPH.HAZARD, VTGameUI.ROLE.HAZARD);
         }
     }
 
     if (piece) {
-        paintCells(grid, piece.cells, WELL_X + piece.x, WELL_TOP + piece.y, GLYPH.PLAYER, VTGameUI.ROLE.PLAYER);
+        paintPieceCells(grid, piece.cells, piece.x, piece.y, GLYPH.PLAYER, VTGameUI.ROLE.PLAYER);
     }
-
-    paintPreview(grid);
 
     return grid;
 }
@@ -502,7 +464,6 @@ function restartGame() {
 
     well = emptyWell();
     bag = [];
-    nextName = nextFromBag();
     spawnPiece();
 
     score = 0;
