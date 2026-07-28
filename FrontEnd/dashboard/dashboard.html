@@ -763,9 +763,11 @@ READY: <span class="cursor">_</span>
                 await fetchUserHighscores();
                 render();
                 clockTimer = setInterval(() => {
-                    // Skip re-rendering while the tab is hidden — there's nobody
-                    // to see the clock tick, and it kept running forever.
-                    if (currentView === "menu" && !document.hidden) render();
+                    // The header clock is drawn on every view, so re-render on
+                    // every view. This used to be limited to the menu, which made
+                    // the clock look frozen anywhere else until you pressed a key.
+                    // Still skipped while the tab is hidden — nobody is watching.
+                    if (!document.hidden) render();
                 }, 1000);
                 setTimeout(() => document.getElementById('loadingOverlay').classList.remove('active'), 500);
             }

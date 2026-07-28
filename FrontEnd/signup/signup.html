@@ -324,10 +324,10 @@
                 else if (currentField === 3) confirmPassword = confirmPassword.slice(0, -1);
             } else if (key.length === 1) {
                 if (currentField === 0) {
-                    if (username.length < 10) {
+                    if (username.length < 20) {
                         username += key;
                     } else {
-                        errorMessage = "Username cannot exceed 10 characters";
+                        errorMessage = "Username cannot exceed 20 characters";
                     }
                 } else if (currentField === 1) email += key;
                 else if (currentField === 2) password += key;

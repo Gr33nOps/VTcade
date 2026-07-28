@@ -132,9 +132,9 @@ let frame = 0;
 let gameRunning = false;
 let gameStarted = false;
 let gameSpeed = 1;
-// Set while the end-of-game save is in flight, so a restart can't reset `score`
-// out from under the pending save (or start a second game loop).
-let isSaving = false;
+// Incremented on every restart. gameOver() captures it before awaiting so a
+// slow save can't repaint over a run the player has already restarted.
+let runCounter = 0;
 let wasPausedByHide = false;
 
 const player = {
@@ -329,24 +329,30 @@ function gameLoop() {
 
 async function gameOver() {
     gameRunning = false;
-    isSaving = true;
 
-    // Snapshot the score up front. These awaits can take seconds on a cold
-    // backend, and reading the global `score` afterwards risked submitting 0
-    // if the player had already restarted.
+    // Snapshot the score and which run it belongs to, before any awaiting.
     const finalScore = score;
+    const runAtDeath = runCounter;
 
-    try {
-        await saveHighscore(finalScore);
-        await saveLeaderboard(finalScore);
-        await loadLeaderboard();
-    } finally {
-        isSaving = false;
+    // Paint GAME OVER immediately. The three calls below hit a free-tier
+    // backend that can take seconds to wake up, and the player used to stare
+    // at a frozen board that whole time with no sign the run had ended.
+    draw();
+
+    await saveHighscore(finalScore);
+    await saveLeaderboard(finalScore);
+    const freshLeaderboard = await gameApi.loadLeaderboard();
+
+    // The player may already have restarted while those were in flight; don't
+    // repaint a live game with stale end-of-run state.
+    if (runCounter === runAtDeath) {
+        leaderboard = freshLeaderboard;
         draw();
     }
 }
 
 function restartGame() {
+    runCounter++;
     obstacles = [];
     score = 0;
     frame = 0;
@@ -364,8 +370,6 @@ function restartGame() {
 }
 
 function jump() {
-    if (isSaving) return;
-
     if (!gameStarted) {
         startGame();
     } else if (gameRunning && !player.isJumping) {
@@ -433,7 +437,7 @@ document.addEventListener("visibilitychange", () => {
         draw();
     } else if (!document.hidden && wasPausedByHide) {
         wasPausedByHide = false;
-        if (gameStarted && !isSaving) startGame();
+        if (gameStarted) startGame();
     }
 });
 
