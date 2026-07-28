@@ -50,6 +50,13 @@ actually work today, not how they were originally written.
 | Hazard | `GLYPH.HAZARD` | `█` U+2588 | anything that ends the run |
 | Pickup | `GLYPH.PICKUP` | `█` U+2588 | anything you want to touch |
 | Ground | `GLYPH.GROUND` | `─` U+2500 | the floor, a backdrop rather than a sprite |
+| Wall | `GLYPH.WALL` | `│` U+2502 | a side rail, the upright form of `GROUND` |
+
+`WALL` exists because Tetris needs a well narrower than the board. Note the one
+asymmetry in the overlap guard: `ROLE.GROUND` is exempt from it, because
+anything may stand on the floor, but `ROLE.WALL` is **not** — a sprite drawn
+inside a rail is a sprite that has escaped its playfield, and that is a bug
+worth failing the build over.
 
 Use the constants, never the characters directly.
 
@@ -90,8 +97,8 @@ VTGameUI.PLAY_X_MAX   // 48
 VTGameUI.GROUND_ROW   // 24 — floor line for side-scrollers
 ```
 
-Anything that rests on the floor sits at `GROUND_ROW - spriteHeight`. Runner's
-player and Flappy's bird both do this, which is why they line up.
+Anything that rests on the floor sits at `GROUND_ROW - spriteHeight`. Flappy's
+bird and the bottom of Tetris's well both do this, which is why they line up.
 
 Paint through `VTGameUI.paintRect()` rather than writing into the grid yourself,
 and pass the role as the last argument:
@@ -182,10 +189,17 @@ that forces the `null` fallback — the second one is exactly where the overlap
 bug can silently come back if the rebuild guard is missing.
 
 ### 3. Sprite scale
-- **Grid games** (Snake-like): 1×1 cells.
-- **Side-scrollers** (Runner/Flappy-like): player **2×2**, hazards **3 wide**.
+- **Grid games** (Snake/Tetris-like): 1×1 cells.
+- **Side-scrollers** (Flappy-like): player **2×2**, hazards **3 wide**.
 
 Match whichever family your game belongs to. Don't invent a third scale.
+
+A character cell is about 9.6px wide and 16px tall, so a 1×1 sprite is taller
+than it is wide. That is a real cost for a game built on shape recognition —
+Tetris pieces are noticeably stretched — and doubling the cell width would fix
+it. It is still not worth doing: the games have to look like one arcade, and a
+game whose blocks are twice the width of Snake's does not. If you are tempted,
+you are the third person to be tempted.
 
 ### 4. Status area
 Always call `VTGameUI.statusLines(state, keyLabel, { newRecord })`. It always
@@ -297,14 +311,21 @@ Copy the `visibilitychange` handler from any existing game, including the
 ### 10. Difficulty
 Every game must get harder. Flappy originally never did.
 
-Scale spacing by **distance, not frames**. Runner used a frame interval while
-obstacles moved by speed, so raising the speed made the gaps proportionally
-wider — the difficulty partly cancelled itself:
+For a side-scroller, scale spacing by **distance, not frames**. The now-removed
+Runner used a frame interval while obstacles moved by speed, so raising the
+speed made the gaps proportionally wider — the difficulty partly cancelled
+itself:
 ```js
 distanceSinceSpawn += gameSpeed;          // correct
 if (distanceSinceSpawn >= nextGapColumns) { ... }
 ```
-Always cap the ramp.
+
+Drive the ramp off something the player earns, not off time survived. Tetris
+speeds up per ten lines cleared, so standing still never makes it harder and
+clearing always costs you something; Snake shortens its tick per pickup.
+
+Always cap the ramp, and assert the cap in `tests/game-logic.js` — an uncapped
+curve passes every "does it get harder" test and is still unplayable.
 
 ---
 

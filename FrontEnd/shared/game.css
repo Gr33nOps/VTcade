@@ -1,6 +1,6 @@
 /* Shared styling for all VTcade games.
-   This block was byte-identical in snake, runner and flappyBird; it now
-   lives here once so the three can no longer drift apart. */
+   This block was byte-identical in every game's own <style> tag; it now
+   lives here once so they can no longer drift apart. */
 
 * { margin:0; padding:0; box-sizing:border-box; }
 body {

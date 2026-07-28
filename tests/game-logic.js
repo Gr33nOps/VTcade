@@ -165,75 +165,130 @@ console.log("\n=== SNAKE ===");
     check("400 food spawns all legal and off-snake", onSnake === 0, onSnake + " bad");
 }
 
-// ============================ RUNNER ============================
-console.log("\n=== RUNNER ===");
+// ============================ TETRIS ============================
+console.log("\n=== TETRIS ===");
 {
-    const { ctx, els } = loadGame("runner");
+    const { ctx, els } = loadGame("tetris");
     ctx.restartGame();
-    const lines = boardLines(els.game);
+    const boardRows = boardLines(els.game);
 
     check("board rows = 25 + 2 border + 2 status",
-        lines.length - 1 === 29, "got " + (lines.length - 1));
+        boardRows.length - 1 === 29, "got " + (boardRows.length - 1));
     check("every board line is exactly 50 wide",
-        lines.slice(0, 27).every(l => l.length === 50));
-    check("ground line is drawn", lines[25].includes("\u2500"));
-    check("player rests on the ground row",
-        ctx.player.groundY === 22 && ctx.player.height === 2,
-        "groundY=" + ctx.player.groundY);
+        boardRows.slice(0, 27).every(l => l.length === 50));
 
-    // obstacle spacing must be measured in COLUMNS, so faster != roomier
-    function measureGaps(speed) {
-        ctx.restartGame();
-        ctx.gameSpeed = speed;
-        const xs = [];
-        for (let i = 0; i < 4000; i++) {
-            const n = ctx.obstacles.length;
-            ctx.updateObstacles();
-            ctx.gameSpeed = speed;              // hold speed constant
-            if (ctx.obstacles.length > n) xs.push(ctx.obstacles[ctx.obstacles.length - 1].x - i * 0);
-            if (xs.length > 12) break;
-        }
-        return ctx;
-    }
-    ctx.restartGame();
-    ctx.gameSpeed = 1;
-    let spawnFrames1 = [];
-    for (let i = 0; i < 2000 && spawnFrames1.length < 8; i++) {
-        const n = ctx.obstacles.length;
-        ctx.updateObstacles();
-        ctx.gameSpeed = 1;
-        if (ctx.obstacles.length > n) spawnFrames1.push(i);
-    }
-    ctx.restartGame();
-    ctx.gameSpeed = 2.5;
-    let spawnFrames25 = [];
-    for (let i = 0; i < 2000 && spawnFrames25.length < 8; i++) {
-        const n = ctx.obstacles.length;
-        ctx.updateObstacles();
-        ctx.gameSpeed = 2.5;
-        if (ctx.obstacles.length > n) spawnFrames25.push(i);
-    }
-    const gapFrames1 = spawnFrames1[2] - spawnFrames1[1];
-    const gapFrames25 = spawnFrames25[2] - spawnFrames25[1];
-    check("at 2.5x speed obstacles spawn in FEWER frames (spacing held in columns)",
-        gapFrames25 < gapFrames1,
-        "1x=" + gapFrames1 + " frames, 2.5x=" + gapFrames25 + " frames");
+    // boardRows[0] is the top border, so board row N is boardRows[N + 1].
+    check("well floor is drawn", boardRows[ctx.GROUND_ROW + 1].includes("\u2500"));
+    check("well rails are drawn", boardRows[ctx.WELL_TOP + 1].includes("\u2502"));
+    check("well is the standard 10 wide by 20 tall",
+        ctx.WELL_COLS === 10 && ctx.WELL_ROWS === 20,
+        ctx.WELL_COLS + "x" + ctx.WELL_ROWS);
+    check("the well's bottom row sits on the shared ground row",
+        ctx.WELL_TOP + ctx.WELL_ROWS === ctx.GROUND_ROW,
+        "top=" + ctx.WELL_TOP + " ground=" + ctx.GROUND_ROW);
+    // The well plus the next-piece box must stay centred on the board's own
+    // centre line, or the game sits visibly off to one side of the others.
+    check("well and next box are centred together on the board",
+        (ctx.WELL_X - 1) + (ctx.PREV_X + ctx.PREV_COLS) === 1 + 48,
+        "spans " + (ctx.WELL_X - 1) + ".." + (ctx.PREV_X + ctx.PREV_COLS));
 
-    // hazard width now matches Flappy's pipes
+    // A rotation that isn't a true rotation drifts pieces out of shape over a
+    // long run. Four turns must be the identity for all seven.
+    Object.keys(ctx.PIECES).forEach(name => {
+        let r = ctx.PIECES[name];
+        for (let i = 0; i < 4; i++) r = ctx.rotateCW(r);
+        check("rotating " + name + " four times returns the original shape",
+            JSON.stringify(r) === JSON.stringify(ctx.PIECES[name]));
+    });
+
+    // Every piece must be able to appear. A spawn that already collides on an
+    // empty well would end the run the instant that piece came up.
+    let badSpawns = 0;
+    for (let i = 0; i < 300; i++) {
+        ctx.well = ctx.emptyWell();
+        ctx.spawnPiece();
+        if (ctx.checkCollision()) badSpawns++;
+        if (ctx.piece.x < 0 || ctx.piece.x + ctx.piece.cells.length > ctx.WELL_COLS) badSpawns++;
+    }
+    check("300 spawns all fit inside an empty well", badSpawns === 0, badSpawns + " bad");
+
+    // 7-bag: uniform random can starve a player of an I piece for twenty
+    // pieces, which reads as the game cheating rather than as difficulty.
+    ctx.bag = [];
+    const drawn = [];
+    for (let i = 0; i < 7; i++) drawn.push(ctx.nextFromBag());
+    check("a 7-bag deals each of the seven pieces exactly once",
+        drawn.slice().sort().join("") === ctx.PIECE_NAMES.slice().sort().join(""),
+        drawn.join(","));
+
+    // walls
+    ctx.well = ctx.emptyWell();
+    ctx.piece = { name: "O", cells: [[1, 1], [1, 1]], x: 0, y: 0 };
+    check("a piece flush against the left rail cannot move further left",
+        ctx.tryMove(-1, 0) === false);
+    ctx.piece.x = ctx.WELL_COLS - 2;
+    check("a piece flush against the right rail cannot move further right",
+        ctx.tryMove(1, 0) === false);
+
+    // completing a row
     ctx.restartGame();
-    for (let i = 0; i < 200 && ctx.obstacles.length === 0; i++) ctx.updateObstacles();
-    check("hazard width is 3 (matches Flappy pipes)",
-        ctx.obstacles[0] && ctx.obstacles[0].width === 3,
-        ctx.obstacles[0] && String(ctx.obstacles[0].width));
-    check("obstacle sits on the ground row",
-        ctx.obstacles[0] && ctx.obstacles[0].y + ctx.obstacles[0].height === 24,
-        ctx.obstacles[0] && (ctx.obstacles[0].y + ctx.obstacles[0].height));
+    ctx.well = ctx.emptyWell();
+    for (let x = 2; x < ctx.WELL_COLS; x++) ctx.well[ctx.WELL_ROWS - 1][x] = 1;
+    ctx.piece = { name: "O", cells: [[1, 1], [1, 1]], x: 0, y: 0 };
+    ctx.lines = 0;
+    ctx.score = 0;
+    ctx.hardDrop();
+    check("completing a row clears it and counts the line",
+        ctx.lines === 1, "lines=" + ctx.lines);
+    check("a single clear is worth at least 100",
+        ctx.score >= 100, "score=" + ctx.score);
+    check("the row above the cleared one drops into its place",
+        ctx.well[ctx.WELL_ROWS - 1][0] === 1 && ctx.well[ctx.WELL_ROWS - 1][2] === 0,
+        JSON.stringify(ctx.well[ctx.WELL_ROWS - 1]));
+
+    // four at once, in a single pass
+    ctx.well = ctx.emptyWell();
+    for (let y = ctx.WELL_ROWS - 4; y < ctx.WELL_ROWS; y++) {
+        for (let x = 0; x < ctx.WELL_COLS; x++) ctx.well[y][x] = 1;
+    }
+    check("clearLines removes four full rows in one pass", ctx.clearLines() === 4);
+    check("the well is empty afterwards",
+        ctx.well.every(row => row.every(v => v === 0)));
+    check("a four-line clear beats four single clears, so building a well pays",
+        ctx.LINE_SCORES[4] > 4 * ctx.LINE_SCORES[1],
+        ctx.LINE_SCORES[4] + " vs " + (4 * ctx.LINE_SCORES[1]));
+
+    // a hard drop must land ON the stack, not through it
+    ctx.restartGame();
+    ctx.well = ctx.emptyWell();
+    ctx.well[ctx.WELL_ROWS - 1][4] = 1;
+    ctx.piece = { name: "O", cells: [[1, 1], [1, 1]], x: 4, y: 0 };
+    ctx.hardDrop();
+    check("a hard drop stacks on top of what is already there",
+        ctx.well[ctx.WELL_ROWS - 2][4] === 1 && ctx.well[ctx.WELL_ROWS - 3][4] === 1,
+        "column 4 = " + ctx.well.map(r => r[4]).join(""));
+
+    // difficulty ramps with lines cleared, and stops somewhere reachable
+    ctx.restartGame();
+    const startInterval = ctx.dropInterval();
+    ctx.lines = 40;
+    check("pieces fall faster as lines are cleared",
+        ctx.dropInterval() < startInterval,
+        startInterval + "ms -> " + ctx.dropInterval() + "ms");
+    ctx.lines = 100000;
+    check("the speed ramp is capped",
+        ctx.level() === ctx.MAX_LEVEL && ctx.dropInterval() >= 90,
+        "level=" + ctx.level() + " interval=" + ctx.dropInterval());
 
     // pause
+    ctx.restartGame();
     ctx.startGame();
+    check("running before pause", ctx.gameRunning === true);
     ctx.togglePause();
     check("pause works", ctx.gameRunning === false && ctx.paused === true);
     check("paused status text shown", els.game.textContent.includes("< PAUSED >"));
+    ctx.togglePause();
+    check("resume restarts the loop", ctx.gameRunning === true && ctx.paused === false);
 }
 
 // ============================ FLAPPY ============================
@@ -248,7 +303,7 @@ console.log("\n=== FLAPPY BIRD ===");
     check("every board line is exactly 50 wide",
         lines.slice(0, 27).every(l => l.length === 50));
     check("floor line is now drawn (was invisible)", lines[25].includes("\u2500"));
-    check("bird is a 2x2 block like Runner's player",
+    check("bird is the 2x2 shared side-scroller player block",
         ctx.bird.width === 2 && ctx.bird.height === 2);
 
     // ceiling must not be a free parking spot
@@ -259,7 +314,7 @@ console.log("\n=== FLAPPY BIRD ===");
 
     // floor is death, and matches Runner's resting row
     ctx.bird.y = 22;
-    check("bird resting at row 22 is alive (same as Runner's player)", ctx.checkCollision() === false);
+    check("bird resting at row 22 is alive (GROUND_ROW - its own height)", ctx.checkCollision() === false);
     ctx.bird.y = 23;
     check("bird at row 23 hits the floor", ctx.checkCollision() === true);
 
@@ -310,7 +365,7 @@ console.log("\n=== FLAPPY BIRD ===");
 // ============================ CROSS-GAME CONSISTENCY ============================
 console.log("\n=== CONSISTENCY ACROSS ALL THREE ===");
 {
-    const games = ["snake", "runner", "flappyBird"].map(d => {
+    const games = ["snake", "tetris", "flappyBird"].map(d => {
         const g = loadGame(d);
         g.ctx.restartGame();
         return { dir: d, ...g };
@@ -407,15 +462,9 @@ console.log("\n=== GLYPH SAFETY AND OVERLAP ===");
     // game could ever reach.
     const scenarios = [
         ["snake", (c) => c.updateSnake()],
-        ["runner", (c) => {
-            const near = c.obstacles.find(o => o.x > c.player.x && o.x - c.player.x < 9);
-            if (near && !c.player.isJumping) {
-                c.player.velocityY = c.player.jumpPower;
-                c.player.isJumping = true;
-            }
-            c.updatePlayer();
-            c.updateObstacles();
-        }],
+        // Gravity only. Pieces stack in the middle, nothing ever clears, and
+        // the well tops out — which restarts the run and does it again.
+        ["tetris", (c) => c.tick()],
         ["flappyBird", (c) => {
             const next = c.pipes
                 .filter(p => p.x + 3 >= c.bird.x)
@@ -473,8 +522,9 @@ console.log("\n=== GAME OVER FRAME ===");
             c.updateBird();
             c.updatePipes();
         }],
-        // Never jump, so an obstacle runs into the player.
-        ["runner", (c) => { c.updatePlayer(); c.updateObstacles(); }],
+        // Never steer, so the stack grows straight up the middle until a new
+        // piece has nowhere to spawn.
+        ["tetris", (c) => { c.tick(); }],
         // Drive straight into the right hand wall.
         ["snake", (c) => { c.updateSnake(); }]
     ];
@@ -514,7 +564,7 @@ console.log("\n=== GAME OVER FRAME ===");
 // And prove the guard would actually catch it, so a passing result above means
 // something. Painting a player on top of a hazard must be reported.
 {
-    const { ctx } = loadGame("runner");
+    const { ctx } = loadGame("tetris");
     const UI = ctx.VTGameUI;
     const grid = UI.createGrid();
     UI.paintRect(grid, 10, 10, 2, 2, UI.GLYPH.HAZARD, UI.ROLE.HAZARD);

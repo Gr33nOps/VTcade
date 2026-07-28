@@ -35,6 +35,7 @@
         HAZARD: "█",  // U+2588 full block       - the thing that kills you
         PICKUP: "█",  // U+2588 full block       - the thing you want
         GROUND: "─",  // U+2500 light horizontal - the floor, a backdrop not a sprite
+        WALL:   "│",  // U+2502 light vertical   - a side rail, the upright GROUND
         BLANK:  " "
     };
 
@@ -52,11 +53,15 @@
     // Roles are tracked separately from glyphs. Every sprite draws the same
     // block, so comparing glyphs cannot tell a bird sitting inside a pipe from
     // the pipe itself. Comparing roles can.
+    // WALL is deliberately NOT exempt from the overlap guard the way GROUND is.
+    // Anything may stand on the floor, but a sprite drawn inside a side rail is
+    // a sprite that has escaped its playfield, and that must be reported.
     const ROLE = {
         PLAYER: "player",
         HAZARD: "hazard",
         PICKUP: "pickup",
-        GROUND: "ground"
+        GROUND: "ground",
+        WALL: "wall"
     };
 
     // Cells claimed by two different roles in the current frame. Must always be
