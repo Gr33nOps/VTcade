@@ -1,0 +1,169 @@
+/* Shared terminal styling for every non-game page: login, signup, password
+   reset, the OAuth callback, the dashboard and both admin screens.
+
+   This block was copy-pasted into all seven pages, ~150 near-identical lines
+   each, and had already drifted: three different greens for `.dim`, a leftover
+   grey, and a red that survived the green-only pass because it lived in a file
+   nobody thought to check. One file now, the way shared/game.css already works
+   for the games. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+    /* Per-page override; see each page's one-line <style>. */
+    --panel-max: 700px;
+}
+
+body {
+    background: black;
+    color: #00ff00;
+    font-family: "Courier New", monospace;
+
+    /* Sized from BOTH viewport dimensions, which is the whole point.
+       ------------------------------------------------------------------
+       Everything here is a fixed character grid inside `overflow: hidden`,
+       with the wheel suppressed and the arrow keys taken by navigation. So
+       anything that does not fit is not merely awkward, it is UNREACHABLE:
+       there is no scroll, no wheel and no keyboard way to get to it.
+
+       The old rules keyed on width alone (`max-width: 768px`), which missed
+       every short-and-wide window. A phone in landscape at 844x390 is WIDER
+       than that breakpoint, so it kept full desktop type in a 390px-tall
+       viewport and silently cut off the bottom ~200px. Same for any window
+       a user drags shorter.
+
+       The tallest page is ~44em (logo + the dashboard's longest view), and
+       the widest content is the 80-column rule at 0.875em = 42em. Dividing
+       the smaller viewport axis by 44 therefore always fits, with the 16px
+       cap meaning nothing changes on a normal desktop. */
+    font-size: clamp(6px, min(calc((100vw - 40px) / 44), calc((100vh - 40px) / 44)), 16px);
+
+    line-height: 1.4;
+    text-shadow: 0 0 4px #00ff00;
+    overflow: hidden;
+    cursor: none;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.container {
+    width: 100%;
+    max-width: var(--panel-max);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+pre {
+    white-space: pre;
+    user-select: none;
+    line-height: 1.4;
+}
+
+/* Relative to the body, so one font-size scales the whole page. These were
+   absolute px, which is why the old breakpoints had to restate every one of
+   them at every screen size. At the 16px cap they resolve to exactly the
+   values they replaced: 14px, 10px, 14px. */
+.terminal-output { font-size: 0.875em; text-align: left; }
+
+.logo {
+    font-size: 0.625em;
+    line-height: 1.1;
+    text-align: center;
+    margin-bottom: 0;
+    animation: flicker 0.15s infinite alternate;
+}
+
+.subtitle {
+    font-size: 0.875em;
+    text-align: center;
+    margin-top: 5px;
+    display: block;
+    color: #00ff00;
+}
+
+/* ---- Everything is green -------------------------------------------------
+   The class names are historical. `.red` and `.yellow` say what a line MEANS
+   (an error, a warning) rather than what colour it is, and they are kept so
+   the page scripts do not all have to change. They render green like the rest
+   of the site: the dashboard was still painting `ERROR:` in #ff0000, and the
+   admin login carried a #666666 grey. */
+.highlight { background: #00ff00; color: black; }
+.dim       { color: #00aa00; }
+
+.red,
+.yellow,
+.error-text,
+.success-text,
+.warning-text {
+    color: #00ff00;
+    text-shadow: 0 0 4px #00ff00;
+}
+
+/* Typed-into off-screen; the pages render their own cursor into the <pre>. */
+input {
+    position: absolute;
+    left: -9999px;
+}
+
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,0) 0px,
+        rgba(0,255,0,0.04) 2px,
+        rgba(0,0,0,0) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+}
+
+@keyframes blink {
+    0%, 49%   { opacity: 1; }
+    50%, 100% { opacity: 0; }
+}
+.cursor { animation: blink 1s infinite; }
+
+@keyframes flicker {
+    0%   { opacity: 0.97; }
+    100% { opacity: 1; }
+}
+
+@keyframes dots {
+    0%, 20%   { content: '.'; }
+    40%       { content: '..'; }
+    60%, 100% { content: '...'; }
+}
+.loading-dots::after {
+    content: '';
+    animation: dots 1.5s infinite;
+}
+
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: black;
+    color: #00ff00;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    font-family: "Courier New", monospace;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+.loading-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+}
+.loading-content {
+    font-size: 0.875em;
+    line-height: 1.5;
+}

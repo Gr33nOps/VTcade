@@ -144,7 +144,7 @@ function draw(gridOverride) {
         leaderboard: leaderboard,
         controls: [
             "SPACE / UP / W = FLAP",
-            "CLICK ALSO FLAPS",
+            "FLY THROUGH THE GAPS",
             "AVOID  [" + GLYPH.HAZARD + "]  PIPES"
         ]
     });
@@ -376,9 +376,10 @@ document.addEventListener("keydown", (e) => {
     }
 });
 
-document.addEventListener("click", (e) => {
-    jump();
-});
+// No click handler on purpose. The whole site is keyboard-driven and renders
+// with `cursor: none`, so an invisible pointer that could flap made this the
+// one place the mouse did anything. Snake and Tetris were already keyboard
+// only; all three now match.
 
 // Pause when the tab is hidden. setTimeout-driven loops keep running in
 // background tabs (throttled and jittery), which desynced the game and burned

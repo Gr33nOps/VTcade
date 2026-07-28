@@ -30,6 +30,9 @@ Live at [vtcade.vercel.app](https://vtcade.vercel.app).
 * Personal bests and per game leaderboards
 * Admin panel for users, games, scores, and maintenance mode
 * Pure CSS terminal effects with no images and no build step
+* Every screen is a fixed character grid that scales to fit any window, sized
+  from both viewport dimensions so nothing is ever cut off
+* Keyboard only, by design. Nothing on the site needs a mouse.
 * Retro beep sound effects, synthesised at runtime with the Web Audio API so
   there are no audio files to load, with a shared mute toggle on the M key
 * Keyboard first controls with arrow keys, WASD, P to pause, M to mute, and
@@ -52,7 +55,7 @@ BackEnd/          Express API
   routes/         auth, admin, game, leaderboard, highscore, maintenance
   tests/          Jest and Supertest route tests
 FrontEnd/         Static site, served as is
-  shared/         config, session, game API, game UI, game CSS
+  shared/         config, session, game API, game UI, game CSS, terminal CSS
   games/          snake, tetris, flappyBird
   dashboard/      player menu
   admin/          admin login and panel

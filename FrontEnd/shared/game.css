@@ -7,8 +7,19 @@ body {
     background: black;
     color: #00ff00;
     font-family: "Courier New", monospace;
-    font-size: 16px;
-    line-height: 16px;
+
+    /* Sized from BOTH viewport dimensions. The board is a fixed character
+       grid inside `overflow: hidden` with no scrollbar, so content that does
+       not fit is unreachable rather than merely cramped.
+
+       Side by side, the board and panel need 70 columns (42em) and the board
+       is 34 lines tall. Dividing by 44 and 36 leaves headroom for the 20px
+       padding and the 20px gap; the 16px cap means a normal desktop looks
+       exactly as it did. The column layout below re-derives this, because
+       stacking changes both numbers. */
+    font-size: clamp(5px, min(calc((100vw - 60px) / 44), calc((100vh - 40px) / 36)), 16px);
+
+    line-height: 1;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -70,23 +81,18 @@ body::after {
     animation: dots 1.5s infinite;
 }
 @media (max-width: 768px) {
+    /* Stacked, so the constraints invert: width is just the 50-column board
+       (30em), but height is now the board plus the whole panel beneath it,
+       about 61em together. */
     body {
-        font-size: 12px;
-        /* The square board is 34 lines tall. Stacked above the panel that can
-           be taller than a phone viewport, and the desktop `overflow: hidden`
-           would clip it with no way to reach what was cut off — the controls
-           and the leaderboard. Let small screens scroll instead, and anchor to
-           the top so centring cannot push the board's first rows off-screen. */
+        font-size: clamp(5px, min(calc((100vw - 40px) / 32), calc((100vh - 50px) / 63)), 16px);
+        /* Belt to the braces above: if a viewport is so short that even the
+           5px floor overflows, let it scroll rather than hiding the controls
+           and the leaderboard behind an edge with no way to reach them. */
         overflow-y: auto;
-        align-items: flex-start;
     }
     .container {
         flex-direction: column;
         gap: 10px;
-    }
-}
-@media (max-width: 480px) {
-    body {
-        font-size: 10px;
     }
 }
