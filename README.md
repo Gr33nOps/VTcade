@@ -8,6 +8,10 @@
 ```
 Play Like It's 1985
 
+[![CI](https://github.com/Gr33nOps/VTcade/actions/workflows/ci.yml/badge.svg)](https://github.com/Gr33nOps/VTcade/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-00ff00.svg)](LICENSE)
+[![Play](https://img.shields.io/badge/play-vtcade.vercel.app-00ff00.svg)](https://vtcade.vercel.app)
+
 ## Description
 
 VTcade is a browser arcade styled like a 1980s computer terminal. Green text on
