@@ -13,84 +13,7 @@
     <meta property="og:title" content="FLAPPY BIRD">
     <meta property="og:description" content="Play Flappy Bird in the VTcade retro terminal arcade.">
     <meta name="twitter:card" content="summary">
-    <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body {
-            background: black;
-            color: #00ff00;
-            font-family: "Courier New", monospace;
-            font-size: 16px;
-            line-height: 16px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            text-shadow: 0 0 4px #00ff00;
-            overflow: hidden;
-            cursor: none;
-            padding: 20px;
-        }
-        .container {
-            display: flex;
-            gap: 20px;
-            z-index: 1;
-        }
-        pre {
-            white-space: pre;
-            user-select: none;
-            line-height: 1.0;
-        }
-        body::after {
-            content: "";
-            position: fixed;
-            inset: 0;
-            background: repeating-linear-gradient(
-                to bottom,
-                rgba(0,0,0,0) 0px,
-                rgba(0,255,0,0.04) 2px,
-                rgba(0,0,0,0) 4px
-            );
-            pointer-events: none;
-            z-index: 100;
-        }
-        .loading-overlay {
-            position: fixed;
-            inset: 0;
-            background: black;
-            color: #00ff00;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            font-family: "Courier New", monospace;
-            text-align: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s;
-        }
-        .loading-overlay.active {
-            opacity: 1;
-            pointer-events: all;
-        }
-        @keyframes dots {
-            0%, 20% { content: '.'; }
-            40% { content: '..'; }
-            60%, 100% { content: '...'; }
-        }
-        .loading-dots::after {
-            content: '';
-            animation: dots 1.5s infinite;
-        }
-        @media (max-width: 768px) {
-            body {
-                font-size: 12px;
-            }
-            .container {
-                flex-direction: column;
-                gap: 10px;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="../../shared/game.css">
 </head>
 <body>
 <div class="loading-overlay active" id="loadingOverlay" role="status" aria-live="assertive" aria-label="Loading">
@@ -107,13 +30,20 @@ FLAPPY BIRD v1.0
 <script src="../../shared/config.js"></script>
     <script src="../../shared/session.js"></script>
     <script src="../../shared/gameApi.js"></script>
+    <script src="../../shared/gameUI.js"></script>
     <script>
 const gameEl = document.getElementById("game");
 const uiEl = document.getElementById("ui");
 const API_URL = VTSession.API_URL;
-const WIDTH = 50;
-const HEIGHT = 25;
+const { GLYPH, STATE } = VTGameUI;
+const WIDTH = VTGameUI.BOARD_W;
+const HEIGHT = VTGameUI.BOARD_H;
+const X_MIN = VTGameUI.PLAY_X_MIN;
+const X_MAX = VTGameUI.PLAY_X_MAX;
+const GROUND_ROW = VTGameUI.GROUND_ROW;   // 24 - the floor line
+const SKY_ROWS = GROUND_ROW;              // 0..23 are flyable
 const GAME_NAME = "FLAPPY BIRD";
+const KEY_LABEL = "SPACE";
 const gameApi = createGameApi(GAME_NAME);
 
 const currentUser = VTSession.getUsername();
@@ -136,10 +66,18 @@ let gameStarted = false;
 // slow save can't repaint over a run the player has already restarted.
 let runCounter = 0;
 let wasPausedByHide = false;
+let paused = false;
+let isNewRecord = false;
+let pipesCleared = 0;
+// Distance travelled since the last pipe, in columns, so difficulty scaling
+// tightens the spacing instead of leaving it fixed.
+let distanceSincePipe = 0;
 
 let bird = {
     x: 10,
     y: Math.floor(HEIGHT / 2),
+    width: 2,      // matches Runner's player size
+    height: 2,
     velocity: 0,
     gravity: 0.5,
     jump: -2.5
@@ -147,83 +85,55 @@ let bird = {
 
 let pipes = [];
 const pipeWidth = 3;
-const pipeGap = 8;
-const pipeSpeed = 1;
+// Widened from 8 to 9 because the bird grew from 1 row to 2: this keeps the
+// same 7 rows of actual clearance the game had before.
+const pipeGap = 9;
+let pipeSpeed = 1;
+const PIPE_SPEED_MAX = 1.8;
+let nextPipeGap = 26;
 
 let leaderboard = null; 
 
+function currentState() {
+    if (!gameStarted) return STATE.IDLE;
+    if (gameRunning) return STATE.PLAYING;
+    return paused ? STATE.PAUSED : STATE.GAME_OVER;
+}
+
 function draw() {
-    let out = "";
-    
-    out += "+" + "=".repeat(WIDTH - 2) + "+\n";
-    
-    for (let y = 0; y < HEIGHT; y++) {
-        let line = "|";
-        for (let x = 1; x < WIDTH - 1; x++) {
-            let ch = " ";
-            
-            if (Math.floor(bird.y) === y && x === bird.x) {
-                ch = "█";
-            }
-            
-            pipes.forEach(pipe => {
-                if (x >= pipe.x && x < pipe.x + pipeWidth) {
-                    if (y < pipe.topHeight || y >= HEIGHT - pipe.bottomHeight) {
-                        ch = "▓";
-                    }
-                }
-            });
-            
-            line += ch;
-        }
-        line += "|\n";
-        out += line;
-    }
-    
-    out += "+" + "=".repeat(WIDTH - 2) + "+\n";
-    
-    if (!gameStarted) {
-        out += "< PRESS SPACE OR UP ARROW TO START >\n";
-    } else if (!gameRunning && gameStarted) {
-        out += "< GAME OVER >\nPRESS SPACE TO RESTART\n";
-    }
-    
-    gameEl.textContent = out;
-    
-    let ui = `FLAPPY BIRD v1.0
-━━━━━━━━━━━━━━━━━━━━
+    const grid = VTGameUI.createGrid();
 
-SCORE: ${score}
-HIGHSCORE: ${highScore}
+    // A visible floor. The bird used to die at an invisible boundary below the
+    // last drawn row, so the thing that killed you was off-screen.
+    VTGameUI.paintGround(grid);
 
-━━━━━━━━━━━━━━━━━━━━
-LEADERBOARD:
-━━━━━━━━━━━━━━━━━━━━
-`;
-    
-    if (leaderboard === null) {
-        ui += "(Loading...)\n";
-    } else if (leaderboard.length === 0) {
-        ui += "(No scores yet)\n(Be the first!)\n";
-    } else {
-        leaderboard.slice(0, 8).forEach((entry) => {
-            const username = entry.username.substring(0, 12).padEnd(12);
-            const displayScore = entry.score || 0;
-            ui += `${entry.rank}. ${username} ${displayScore}\n`;
-        });
-    }
-    
-    ui += `\n━━━━━━━━━━━━━━━━━━━━
-CONTROLS:
-━━━━━━━━━━━━━━━━━━━━
-SPACE / UP = FLAP
-AVOID PIPES [▓]
+    pipes.forEach(pipe => {
+        VTGameUI.paintRect(grid, pipe.x, 0, pipeWidth, pipe.topHeight, GLYPH.HAZARD);
+        const bottomStart = pipe.topHeight + pipeGap;
+        VTGameUI.paintRect(grid, pipe.x, bottomStart, pipeWidth, SKY_ROWS - bottomStart, GLYPH.HAZARD);
+    });
 
-━━━━━━━━━━━━━━━━━━━━
-ESC = BACK TO HOME
-`;
-    
-    uiEl.textContent = ui;
+    VTGameUI.paintRect(grid, bird.x, bird.y, bird.width, bird.height, GLYPH.PLAYER);
+
+    gameEl.textContent = VTGameUI.frameBoard(
+        grid,
+        VTGameUI.statusLines(currentState(), KEY_LABEL, { newRecord: isNewRecord })
+    );
+
+    uiEl.textContent = VTGameUI.panel({
+        title: GAME_NAME,
+        stats: [
+            { label: "SCORE",     value: score },
+            { label: "HIGHSCORE", value: highScore },
+            { label: "PIPES",     value: pipesCleared }
+        ],
+        leaderboard: leaderboard,
+        controls: [
+            "SPACE / UP / W = FLAP",
+            "CLICK ALSO FLAPS",
+            "AVOID  [" + GLYPH.HAZARD + "]  PIPES"
+        ]
+    });
 }
 
 function gameLoop() {
@@ -231,10 +141,6 @@ function gameLoop() {
     
     updateBird();
     updatePipes();
-    
-    if (score > highScore) {
-        highScore = score;
-    }
     
     if (checkCollision()) {
         gameOver();
@@ -248,51 +154,60 @@ function gameLoop() {
 function updateBird() {
     bird.velocity += bird.gravity;
     bird.y += bird.velocity;
-    
+
     if (bird.y < 0) {
+        // Bonk. Previously velocity was zeroed here, so you could hold the top
+        // edge indefinitely at no risk; now you bounce off and start falling.
         bird.y = 0;
-        bird.velocity = 0;
+        bird.velocity = 0.5;
     }
 }
 
 function updatePipes() {
     frameCount++;
-    
-    if (frameCount % 40 === 0) {
-        let topHeight = Math.floor(Math.random() * (HEIGHT - pipeGap - 4)) + 2;
-        let bottomHeight = HEIGHT - pipeGap - topHeight;
-        pipes.push({
-            x: WIDTH - 2,
-            topHeight,
-            bottomHeight,
-            passed: false
-        });
+
+    distanceSincePipe += pipeSpeed;
+
+    if (distanceSincePipe >= nextPipeGap) {
+        distanceSincePipe = 0;
+        nextPipeGap = 24 + Math.floor(Math.random() * 10);   // 24-33 columns
+        // Leave at least one row of pipe above and below the gap.
+        const maxTop = SKY_ROWS - pipeGap - 1;
+        const topHeight = 1 + Math.floor(Math.random() * maxTop);
+        pipes.push({ x: X_MAX, topHeight, passed: false });
     }
-    
+
     pipes.forEach(pipe => {
         pipe.x -= pipeSpeed;
         if (pipe.x + pipeWidth < bird.x && !pipe.passed) {
             score++;
+            pipesCleared++;
             pipe.passed = true;
+            // Flappy was the only game with no difficulty curve at all.
+            if (score % 5 === 0 && pipeSpeed < PIPE_SPEED_MAX) {
+                pipeSpeed = Math.min(PIPE_SPEED_MAX, pipeSpeed + 0.1);
+            }
         }
     });
-    
-    pipes = pipes.filter(pipe => pipe.x + pipeWidth > 1);
+
+    pipes = pipes.filter(pipe => pipe.x + pipeWidth > X_MIN);
 }
 
 function checkCollision() {
-    // Only the floor needs checking: updateBird() already clamps bird.y to >= 0,
-    // so the old `|| bird.y < 0` ceiling test was unreachable.
-    if (Math.floor(bird.y) >= HEIGHT) return true;
+    const by = Math.floor(bird.y);
+
+    // Resting on the floor is death, and the floor is now the drawn ground row.
+    if (by + bird.height > SKY_ROWS) return true;
 
     return pipes.some(pipe => {
-        if (bird.x >= pipe.x && bird.x < pipe.x + pipeWidth) {
-            if (Math.floor(bird.y) < pipe.topHeight || 
-                Math.floor(bird.y) >= HEIGHT - pipe.bottomHeight) {
-                return true;
-            }
-        }
-        return false;
+        const px = Math.floor(pipe.x);
+        const overlapsX = bird.x < px + pipeWidth && bird.x + bird.width > px;
+        if (!overlapsX) return false;
+
+        const gapTop = pipe.topHeight;
+        const gapBottom = pipe.topHeight + pipeGap;   // exclusive
+        // Every row the bird occupies must sit inside the gap.
+        return by < gapTop || by + bird.height > gapBottom;
     });
 }
 
@@ -302,6 +217,9 @@ async function gameOver() {
     // Snapshot the score and which run it belongs to, before any awaiting.
     const finalScore = score;
     const runAtDeath = runCounter;
+
+    // Compare against the best we knew *before* the save overwrites it.
+    isNewRecord = finalScore > highScore;
 
     // Paint GAME OVER immediately. The three calls below hit a free-tier
     // backend that can take seconds to wake up, and the player used to stare
@@ -322,11 +240,17 @@ async function gameOver() {
 
 function restartGame() {
     runCounter++;
-    bird.y = Math.floor(HEIGHT / 2);
+    paused = false;
+    isNewRecord = false;
+    bird.y = Math.floor(SKY_ROWS / 2);
     bird.velocity = 0;
     pipes = [];
     score = 0;
+    pipesCleared = 0;
     frameCount = 0;
+    pipeSpeed = 1;
+    distanceSincePipe = 0;
+    nextPipeGap = 26;
     gameStarted = false;
     gameRunning = false;
     draw();
@@ -341,7 +265,23 @@ function startGame() {
     gameLoop();
 }
 
+function togglePause() {
+    if (!gameStarted) return;
+    if (paused) {
+        paused = false;
+        gameRunning = true;
+        gameLoop();
+        return;
+    }
+    if (!gameRunning) return;   // already over — nothing to pause
+    paused = true;
+    gameRunning = false;
+    draw();
+}
+
 function jump() {
+    if (paused) return;
+
     if (!gameStarted) {
         startGame();
     } else if (gameRunning) {
@@ -374,9 +314,12 @@ async function loadLeaderboard() {
 }
 
 document.addEventListener("keydown", (e) => {
-    if (e.code === "Space" || e.code === "ArrowUp") {
+    if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") {
         e.preventDefault();
         jump();
+    } else if (e.code === "KeyP") {
+        e.preventDefault();
+        togglePause();
     } else if (e.code === "Escape") {
         e.preventDefault();
         document.getElementById('loadingOverlay').classList.add('active');
@@ -400,7 +343,8 @@ document.addEventListener("visibilitychange", () => {
         draw();
     } else if (!document.hidden && wasPausedByHide) {
         wasPausedByHide = false;
-        if (gameStarted) startGame();
+        // Don't auto-resume a game the player paused on purpose.
+        if (gameStarted && !paused) startGame();
     }
 });
 

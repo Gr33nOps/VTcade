@@ -76,3 +76,8 @@ jobs:
           console.log('Checked ' + checked + ' scripts, ' + failed + ' failed.');
           process.exit(failed ? 1 : 0);
           "
+
+      # Executes the real game scripts against a stubbed DOM and asserts the
+      # rules and the shared look still hold.
+      - name: Game logic and consistency tests
+        run: node tests/game-logic.js

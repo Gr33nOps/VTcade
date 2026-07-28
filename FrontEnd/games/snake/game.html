@@ -13,84 +13,7 @@
     <meta property="og:title" content="SNAKE">
     <meta property="og:description" content="Play Snake in the VTcade retro terminal arcade.">
     <meta name="twitter:card" content="summary">
-    <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body {
-            background: black;
-            color: #00ff00;
-            font-family: "Courier New", monospace;
-            font-size: 16px;
-            line-height: 16px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            text-shadow: 0 0 4px #00ff00;
-            overflow: hidden;
-            cursor: none;
-            padding: 20px;
-        }
-        .container {
-            display: flex;
-            gap: 20px;
-            z-index: 1;
-        }
-        pre {
-            white-space: pre;
-            user-select: none;
-            line-height: 1.0;
-        }
-        body::after {
-            content: "";
-            position: fixed;
-            inset: 0;
-            background: repeating-linear-gradient(
-                to bottom,
-                rgba(0,0,0,0) 0px,
-                rgba(0,255,0,0.04) 2px,
-                rgba(0,0,0,0) 4px
-            );
-            pointer-events: none;
-            z-index: 100;
-        }
-        .loading-overlay {
-            position: fixed;
-            inset: 0;
-            background: black;
-            color: #00ff00;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            font-family: "Courier New", monospace;
-            text-align: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s;
-        }
-        .loading-overlay.active {
-            opacity: 1;
-            pointer-events: all;
-        }
-        @keyframes dots {
-            0%, 20% { content: '.'; }
-            40% { content: '..'; }
-            60%, 100% { content: '...'; }
-        }
-        .loading-dots::after {
-            content: '';
-            animation: dots 1.5s infinite;
-        }
-        @media (max-width: 768px) {
-            body {
-                font-size: 12px;
-            }
-            .container {
-                flex-direction: column;
-                gap: 10px;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="../../shared/game.css">
 </head>
 <body>
 <div class="loading-overlay active" id="loadingOverlay" role="status" aria-live="assertive" aria-label="Loading">
@@ -107,13 +30,18 @@ SNAKE v1.0
 <script src="../../shared/config.js"></script>
     <script src="../../shared/session.js"></script>
     <script src="../../shared/gameApi.js"></script>
+    <script src="../../shared/gameUI.js"></script>
     <script>
 const gameEl = document.getElementById("game");
 const uiEl = document.getElementById("ui");
 const API_URL = VTSession.API_URL;
-const WIDTH = 50;
-const HEIGHT = 25;
+const { GLYPH, STATE } = VTGameUI;
+const WIDTH = VTGameUI.BOARD_W;
+const HEIGHT = VTGameUI.BOARD_H;
+const X_MIN = VTGameUI.PLAY_X_MIN;
+const X_MAX = VTGameUI.PLAY_X_MAX;
 const GAME_NAME = "SNAKE";
+const KEY_LABEL = "ARROW KEYS";
 const gameApi = createGameApi(GAME_NAME);
 
 const currentUser = VTSession.getUsername();
@@ -134,6 +62,8 @@ let gameStarted = false;
 // slow save can't repaint over a run the player has already restarted.
 let runCounter = 0;
 let wasPausedByHide = false;
+let paused = false;
+let isNewRecord = false;
 let speed = 150;
 let snake = [];
 let direction = { x: 1, y: 0 };
@@ -158,7 +88,7 @@ function spawnFood() {
     const MAX_ATTEMPTS = 100;
 
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
-        const x = Math.floor(Math.random() * (WIDTH - 2)) + 1;
+        const x = Math.floor(Math.random() * (X_MAX - X_MIN + 1)) + X_MIN;
         const y = Math.floor(Math.random() * HEIGHT);
         if (!snake.some(s => s.x === x && s.y === y)) {
             food.x = x;
@@ -169,7 +99,7 @@ function spawnFood() {
 
     const freeCells = [];
     for (let y = 0; y < HEIGHT; y++) {
-        for (let x = 1; x < WIDTH - 1; x++) {
+        for (let x = X_MIN; x <= X_MAX; x++) {
             if (!snake.some(s => s.x === x && s.y === y)) freeCells.push({ x, y });
         }
     }
@@ -184,74 +114,42 @@ function spawnFood() {
     food.y = cell.y;
 }
 
+function currentState() {
+    if (!gameStarted) return STATE.IDLE;
+    if (gameRunning) return STATE.PLAYING;
+    return paused ? STATE.PAUSED : STATE.GAME_OVER;
+}
+
 function draw() {
-    let out = "";
-    
-    out += "+" + "=".repeat(WIDTH - 2) + "+\n";
-    
-    for (let y = 0; y < HEIGHT; y++) {
-        let line = "|";
-        for (let x = 1; x < WIDTH - 1; x++) {
-            let ch = " ";
-            
-            if (snake.some(s => s.x === x && s.y === y)) {
-                ch = "█";
-            } else if (food.x === x && food.y === y) {
-                ch = "█";
-            }
-            
-            line += ch;
+    const grid = VTGameUI.createGrid();
+
+    // Food first, so the snake is drawn over it if they ever overlap.
+    grid[food.y][food.x] = GLYPH.PICKUP;
+    snake.forEach(seg => {
+        if (seg.y >= 0 && seg.y < HEIGHT && seg.x >= X_MIN && seg.x <= X_MAX) {
+            grid[seg.y][seg.x] = GLYPH.PLAYER;
         }
-        line += "|\n";
-        out += line;
-    }
-    
-    out += "+" + "=".repeat(WIDTH - 2) + "+\n";
-    
-    if (!gameStarted) {
-        out += "< PRESS ARROW KEYS TO START >\n";
-    } else if (!gameRunning && gameStarted) {
-        out += "< GAME OVER >\nPRESS ANY ARROW KEY TO RESTART\n";
-    }
-    
-    gameEl.textContent = out;
-    
-    let ui = `SNAKE v1.0
-━━━━━━━━━━━━━━━━━━━━
+    });
 
-SCORE: ${score}
-HIGHSCORE: ${highScore}
-LENGTH: ${snake.length}
+    gameEl.textContent = VTGameUI.frameBoard(
+        grid,
+        VTGameUI.statusLines(currentState(), KEY_LABEL, { newRecord: isNewRecord })
+    );
 
-━━━━━━━━━━━━━━━━━━━━
-LEADERBOARD:
-━━━━━━━━━━━━━━━━━━━━
-`;
-    
-    if (leaderboard === null) {
-        ui += "(Loading...)\n";
-    } else if (leaderboard.length === 0) {
-        ui += "(No scores yet)\n(Be the first!)\n";
-    } else {
-        leaderboard.slice(0, 8).forEach((entry) => {
-            const username = entry.username.substring(0, 12).padEnd(12);
-            const displayScore = entry.score || 0;
-            ui += `${entry.rank}. ${username} ${displayScore}\n`;
-        });
-    }
-    
-    ui += `\n━━━━━━━━━━━━━━━━━━━━
-CONTROLS:
-━━━━━━━━━━━━━━━━━━━━
-ARROW KEYS = MOVE
-EAT FOOD [█]
-AVOID WALLS & SELF
-
-━━━━━━━━━━━━━━━━━━━━
-ESC = BACK TO HOME
-`;
-    
-    uiEl.textContent = ui;
+    uiEl.textContent = VTGameUI.panel({
+        title: GAME_NAME,
+        stats: [
+            { label: "SCORE",     value: score },
+            { label: "HIGHSCORE", value: highScore },
+            { label: "LENGTH",    value: snake.length }
+        ],
+        leaderboard: leaderboard,
+        controls: [
+            "ARROWS / WASD = MOVE",
+            "EAT  [" + GLYPH.PICKUP + "]  TO GROW",
+            "AVOID WALLS & SELF"
+        ]
+    });
 }
 
 function gameLoop() {
@@ -292,7 +190,7 @@ function updateSnake() {
 function checkCollision() {
     const head = snake[0];
     
-    if (head.x < 1 || head.x >= WIDTH - 1 || head.y < 0 || head.y >= HEIGHT) {
+    if (head.x < X_MIN || head.x > X_MAX || head.y < 0 || head.y >= HEIGHT) {
         return true;
     }
     
@@ -311,6 +209,9 @@ async function gameOver() {
     // Snapshot the score and which run it belongs to, before any awaiting.
     const finalScore = score;
     const runAtDeath = runCounter;
+
+    // Compare against the best we knew *before* the save overwrites it.
+    isNewRecord = finalScore > highScore;
 
     // Paint GAME OVER immediately. The three calls below hit a free-tier
     // backend that can take seconds to wake up, and the player used to stare
@@ -331,6 +232,8 @@ async function gameOver() {
 
 function restartGame() {
     runCounter++;
+    paused = false;
+    isNewRecord = false;
     initSnake();
     spawnFood();
     score = 0;
@@ -349,7 +252,23 @@ function startGame() {
     gameLoop();
 }
 
+function togglePause() {
+    if (!gameStarted) return;
+    if (paused) {
+        paused = false;
+        gameRunning = true;
+        gameLoop();
+        return;
+    }
+    if (!gameRunning) return;   // already over — nothing to pause
+    paused = true;
+    gameRunning = false;
+    draw();
+}
+
 function changeDirection(newDir) {
+    if (paused) return;
+
     if (newDir.x === -direction.x && newDir.y === -direction.y) {
         return;
     }
@@ -387,18 +306,21 @@ async function loadLeaderboard() {
 }
 
 document.addEventListener("keydown", (e) => {
-    if (e.code === "ArrowUp") {
+    if (e.code === "ArrowUp" || e.code === "KeyW") {
         changeDirection({ x: 0, y: -1 });
         e.preventDefault();
-    } else if (e.code === "ArrowDown") {
+    } else if (e.code === "ArrowDown" || e.code === "KeyS") {
         changeDirection({ x: 0, y: 1 });
         e.preventDefault();
-    } else if (e.code === "ArrowLeft") {
+    } else if (e.code === "ArrowLeft" || e.code === "KeyA") {
         changeDirection({ x: -1, y: 0 });
         e.preventDefault();
-    } else if (e.code === "ArrowRight") {
+    } else if (e.code === "ArrowRight" || e.code === "KeyD") {
         changeDirection({ x: 1, y: 0 });
         e.preventDefault();
+    } else if (e.code === "KeyP") {
+        e.preventDefault();
+        togglePause();
     } else if (e.code === "Escape") {
         e.preventDefault();
         document.getElementById('loadingOverlay').classList.add('active');
@@ -418,7 +340,8 @@ document.addEventListener("visibilitychange", () => {
         draw();
     } else if (!document.hidden && wasPausedByHide) {
         wasPausedByHide = false;
-        if (gameStarted) startGame();
+        // Don't auto-resume a game the player paused on purpose.
+        if (gameStarted && !paused) startGame();
     }
 });
 

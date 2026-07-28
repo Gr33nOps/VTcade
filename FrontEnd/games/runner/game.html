@@ -13,84 +13,7 @@
     <meta property="og:title" content="RUNNER">
     <meta property="og:description" content="Play Runner in the VTcade retro terminal arcade.">
     <meta name="twitter:card" content="summary">
-    <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body {
-            background: black;
-            color: #00ff00;
-            font-family: "Courier New", monospace;
-            font-size: 16px;
-            line-height: 16px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            text-shadow: 0 0 4px #00ff00;
-            overflow: hidden;
-            cursor: none;
-            padding: 20px;
-        }
-        .container {
-            display: flex;
-            gap: 20px;
-            z-index: 1;
-        }
-        pre {
-            white-space: pre;
-            user-select: none;
-            line-height: 1.0;
-        }
-        body::after {
-            content: "";
-            position: fixed;
-            inset: 0;
-            background: repeating-linear-gradient(
-                to bottom,
-                rgba(0,0,0,0) 0px,
-                rgba(0,255,0,0.04) 2px,
-                rgba(0,0,0,0) 4px
-            );
-            pointer-events: none;
-            z-index: 100;
-        }
-        .loading-overlay {
-            position: fixed;
-            inset: 0;
-            background: black;
-            color: #00ff00;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            font-family: "Courier New", monospace;
-            text-align: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s;
-        }
-        .loading-overlay.active {
-            opacity: 1;
-            pointer-events: all;
-        }
-        @keyframes dots {
-            0%, 20% { content: '.'; }
-            40% { content: '..'; }
-            60%, 100% { content: '...'; }
-        }
-        .loading-dots::after {
-            content: '';
-            animation: dots 1.5s infinite;
-        }
-        @media (max-width: 768px) {
-            body {
-                font-size: 12px;
-            }
-            .container {
-                flex-direction: column;
-                gap: 10px;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="../../shared/game.css">
 </head>
 <body>
 <div class="loading-overlay active" id="loadingOverlay" role="status" aria-live="assertive" aria-label="Loading">
@@ -107,13 +30,20 @@ RUNNER v1.0
 <script src="../../shared/config.js"></script>
     <script src="../../shared/session.js"></script>
     <script src="../../shared/gameApi.js"></script>
+    <script src="../../shared/gameUI.js"></script>
     <script>
 const gameEl = document.getElementById("game");
 const uiEl = document.getElementById("ui");
 const API_URL = VTSession.API_URL;
-const WIDTH = 50;
-const HEIGHT = 25;
+const { GLYPH, STATE } = VTGameUI;
+const WIDTH = VTGameUI.BOARD_W;
+const HEIGHT = VTGameUI.BOARD_H;
+const X_MIN = VTGameUI.PLAY_X_MIN;
+const X_MAX = VTGameUI.PLAY_X_MAX;
+const GROUND_ROW = VTGameUI.GROUND_ROW;
 const GAME_NAME = "RUNNER";
+const KEY_LABEL = "SPACE";
+const HAZARD_W = 3;   // matches Flappy's pipe width
 const gameApi = createGameApi(GAME_NAME);
 
 const currentUser = VTSession.getUsername();
@@ -132,6 +62,13 @@ let frame = 0;
 let gameRunning = false;
 let gameStarted = false;
 let gameSpeed = 1;
+let paused = false;
+let isNewRecord = false;
+// Distance travelled since the last obstacle, in columns. Spacing used to be
+// timed in FRAMES, so at 2.5x speed the gaps became 2.5x wider and the game
+// effectively got roomier as it got faster.
+let distanceSinceObstacle = 0;
+let nextObstacleGap = 26;
 // Incremented on every restart. gameOver() captures it before awaiting so a
 // slow save can't repaint over a run the player has already restarted.
 let runCounter = 0;
@@ -139,113 +76,53 @@ let wasPausedByHide = false;
 
 const player = {
     x: 8,
-    y: HEIGHT - 3,
+    y: VTGameUI.GROUND_ROW - 2,
     width: 2,
     height: 2,
     velocityY: 0,
     gravity: 0.8,
     jumpPower: -3.5,
-    groundY: HEIGHT - 3,
+    groundY: VTGameUI.GROUND_ROW - 2,
     isJumping: false
 };
 
 let obstacles = [];
-let nextObstacleFrame = 40;
 let leaderboard = null;
 
+function currentState() {
+    if (!gameStarted) return STATE.IDLE;
+    if (gameRunning) return STATE.PLAYING;
+    return paused ? STATE.PAUSED : STATE.GAME_OVER;
+}
+
 function draw() {
-    let out = "";
-    
-    out += "+" + "=".repeat(WIDTH - 2) + "+\n";
-    
-    let grid = [];
-    for (let y = 0; y < HEIGHT; y++) {
-        grid[y] = [];
-        for (let x = 0; x < WIDTH; x++) {
-            grid[y][x] = " ";
-        }
-    }
-    
-    for (let x = 1; x < WIDTH - 1; x++) {
-        grid[HEIGHT - 1][x] = "─";
-    }
-    
-    for (let py = 0; py < player.height; py++) {
-        for (let px = 0; px < player.width; px++) {
-            let gy = Math.floor(player.y) + py;
-            let gx = player.x + px;
-            if (gy >= 0 && gy < HEIGHT && gx >= 1 && gx < WIDTH - 1) {
-                grid[gy][gx] = "█";
-            }
-        }
-    }
-    
+    const grid = VTGameUI.createGrid();
+
+    VTGameUI.paintGround(grid);
+    VTGameUI.paintRect(grid, player.x, player.y, player.width, player.height, GLYPH.PLAYER);
     obstacles.forEach(o => {
-        for (let oy = 0; oy < o.height; oy++) {
-            for (let ox = 0; ox < o.width; ox++) {
-                let gy = o.y + oy;
-                let gx = Math.floor(o.x) + ox;
-                if (gy >= 0 && gy < HEIGHT && gx >= 1 && gx < WIDTH - 1) {
-                    grid[gy][gx] = "▓";
-                }
-            }
-        }
+        VTGameUI.paintRect(grid, o.x, o.y, o.width, o.height, GLYPH.HAZARD);
     });
-    
-    for (let y = 0; y < HEIGHT; y++) {
-        let line = "|";
-        for (let x = 1; x < WIDTH - 1; x++) {
-            line += grid[y][x];
-        }
-        line += "|\n";
-        out += line;
-    }
-    
-    out += "+" + "=".repeat(WIDTH - 2) + "+\n";
-    
-    if (!gameStarted) {
-        out += "< PRESS SPACE OR UP ARROW TO START >\n";
-    } else if (!gameRunning && gameStarted) {
-        out += "< GAME OVER >\nPRESS SPACE TO RESTART\n";
-    }
-    
-    gameEl.textContent = out;
-    
-    let ui = `RUNNER v1.0
-━━━━━━━━━━━━━━━━━━━━
 
-SCORE: ${score}
-HIGHSCORE: ${highScore}
-SPEED: ${gameSpeed.toFixed(1)}x
+    gameEl.textContent = VTGameUI.frameBoard(
+        grid,
+        VTGameUI.statusLines(currentState(), KEY_LABEL, { newRecord: isNewRecord })
+    );
 
-━━━━━━━━━━━━━━━━━━━━
-LEADERBOARD:
-━━━━━━━━━━━━━━━━━━━━
-`;
-    
-    if (leaderboard === null) {
-        ui += "(Loading...)\n";
-    } else if (leaderboard.length === 0) {
-        ui += "(No scores yet)\n(Be the first!)\n";
-    } else {
-        leaderboard.slice(0, 8).forEach((entry) => {
-            const username = entry.username.substring(0, 12).padEnd(12);
-            const displayScore = entry.score || 0;
-            ui += `${entry.rank}. ${username} ${displayScore}\n`;
-        });
-    }
-    
-    ui += `\n━━━━━━━━━━━━━━━━━━━━
-CONTROLS:
-━━━━━━━━━━━━━━━━━━━━
-SPACE / UP = JUMP
-AVOID BLOCKS [▓]
-
-━━━━━━━━━━━━━━━━━━━━
-ESC = BACK TO HOME
-`;
-    
-    uiEl.textContent = ui;
+    uiEl.textContent = VTGameUI.panel({
+        title: GAME_NAME,
+        stats: [
+            { label: "SCORE",     value: score },
+            { label: "HIGHSCORE", value: highScore },
+            { label: "SPEED",     value: gameSpeed.toFixed(1) + "x" }
+        ],
+        leaderboard: leaderboard,
+        controls: [
+            "SPACE / UP / W = JUMP",
+            "CLICK ALSO JUMPS",
+            "AVOID  [" + GLYPH.HAZARD + "]  BLOCKS"
+        ]
+    });
 }
 
 function updatePlayer() {
@@ -262,17 +139,21 @@ function updatePlayer() {
 function updateObstacles() {
     frame++;
 
-    if (frame >= nextObstacleFrame) {
-        let height = Math.random() > 0.5 ? 2 : 3;
+    // Advance by distance, not frame count, so raising gameSpeed genuinely
+    // tightens the gaps instead of stretching them.
+    distanceSinceObstacle += gameSpeed;
+
+    if (distanceSinceObstacle >= nextObstacleGap) {
+        distanceSinceObstacle = 0;
+        nextObstacleGap = 22 + Math.floor(Math.random() * 15); // 22-36 columns
+        const height = Math.random() > 0.5 ? 2 : 3;
         obstacles.push({
-            x: WIDTH - 2,
-            y: HEIGHT - 1 - height,
-            width: 2,
+            x: X_MAX,
+            y: GROUND_ROW - height,
+            width: HAZARD_W,
             height: height,
             passed: false
         });
-
-        nextObstacleFrame = frame + Math.floor(Math.random() * 40 + 40);
     }
 
     obstacles.forEach(o => {
@@ -285,7 +166,7 @@ function updateObstacles() {
         }
     });
 
-    obstacles = obstacles.filter(o => o.x + o.width > 1);
+    obstacles = obstacles.filter(o => o.x + o.width > X_MIN);
 }
 
 function checkCollision() {
@@ -318,12 +199,8 @@ function gameLoop() {
         return;
     }
 
-    if (score > highScore) {
-        highScore = score;
-    }
-
     draw();
-    
+
     setTimeout(gameLoop, 80);
 }
 
@@ -333,6 +210,9 @@ async function gameOver() {
     // Snapshot the score and which run it belongs to, before any awaiting.
     const finalScore = score;
     const runAtDeath = runCounter;
+
+    // Compare against the best we knew *before* the save overwrites it.
+    isNewRecord = finalScore > highScore;
 
     // Paint GAME OVER immediately. The three calls below hit a free-tier
     // backend that can take seconds to wake up, and the player used to stare
@@ -353,11 +233,14 @@ async function gameOver() {
 
 function restartGame() {
     runCounter++;
+    paused = false;
+    isNewRecord = false;
     obstacles = [];
     score = 0;
     frame = 0;
     gameSpeed = 1;
-    nextObstacleFrame = 40;
+    distanceSinceObstacle = 0;
+    nextObstacleGap = 26;
 
     player.y = player.groundY;
     player.velocityY = 0;
@@ -369,7 +252,23 @@ function restartGame() {
     draw();
 }
 
+function togglePause() {
+    if (!gameStarted) return;
+    if (paused) {
+        paused = false;
+        gameRunning = true;
+        gameLoop();
+        return;
+    }
+    if (!gameRunning) return;   // already over — nothing to pause
+    paused = true;
+    gameRunning = false;
+    draw();
+}
+
 function jump() {
+    if (paused) return;
+
     if (!gameStarted) {
         startGame();
     } else if (gameRunning && !player.isJumping) {
@@ -411,9 +310,12 @@ async function loadLeaderboard() {
 }
 
 document.addEventListener("keydown", (e) => {
-    if (e.code === "Space" || e.code === "ArrowUp") {
+    if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") {
         e.preventDefault();
         jump();
+    } else if (e.code === "KeyP") {
+        e.preventDefault();
+        togglePause();
     } else if (e.code === "Escape") {
         e.preventDefault();
         document.getElementById('loadingOverlay').classList.add('active');
@@ -437,7 +339,8 @@ document.addEventListener("visibilitychange", () => {
         draw();
     } else if (!document.hidden && wasPausedByHide) {
         wasPausedByHide = false;
-        if (gameStarted) startGame();
+        // Don't auto-resume a game the player paused on purpose.
+        if (gameStarted && !paused) startGame();
     }
 });
 

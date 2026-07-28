@@ -1,0 +1,80 @@
+/* Shared styling for all VTcade games.
+   This block was byte-identical in snake, runner and flappyBird; it now
+   lives here once so the three can no longer drift apart. */
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+    background: black;
+    color: #00ff00;
+    font-family: "Courier New", monospace;
+    font-size: 16px;
+    line-height: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    text-shadow: 0 0 4px #00ff00;
+    overflow: hidden;
+    cursor: none;
+    padding: 20px;
+}
+.container {
+    display: flex;
+    gap: 20px;
+    z-index: 1;
+}
+pre {
+    white-space: pre;
+    user-select: none;
+    line-height: 1.0;
+}
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,0) 0px,
+        rgba(0,255,0,0.04) 2px,
+        rgba(0,0,0,0) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+}
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: black;
+    color: #00ff00;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    font-family: "Courier New", monospace;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+.loading-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+}
+@keyframes dots {
+    0%, 20% { content: '.'; }
+    40% { content: '..'; }
+    60%, 100% { content: '...'; }
+}
+.loading-dots::after {
+    content: '';
+    animation: dots 1.5s infinite;
+}
+@media (max-width: 768px) {
+    body {
+        font-size: 12px;
+    }
+    .container {
+        flex-direction: column;
+        gap: 10px;
+    }
+}
