@@ -112,7 +112,9 @@ router.get("/diagnostics/ip", requireAdmin, asyncRoute(async (req, res) => {
     res.json({
         seenIp: req.ip,
         forwardedFor: req.headers["x-forwarded-for"] || null,
-        trustProxyHops: Number(process.env.TRUST_PROXY_HOPS || 4)
+        // Read back from Express rather than re-derived from the environment,
+        // so what this reports cannot drift from what is actually in force.
+        trustProxyHops: req.app.get("trust proxy")
     });
 }));
 

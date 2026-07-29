@@ -103,8 +103,12 @@ tests/            Game logic and consistency tests
    ADMIN_PASSWORD=choose_a_strong_password
    ADMIN_JWT_SECRET=a_long_random_string
    ADMIN_TOKEN_TTL=2h
-   TRUST_PROXY_HOPS=4
+   TRUST_PROXY_HOPS=0
    ```
+
+   `TRUST_PROXY_HOPS` is `0` locally because nothing sits in front of the server.
+   Production uses `4`; see Deployment for why, and note that leaving it unset
+   defaults to `4`, which is wrong for local use.
 
    The server checks for `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
    `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, and `ADMIN_JWT_SECRET` at

@@ -47,7 +47,20 @@ const app = express();
 //
 // Verify after any hosting change with GET /api/admin/diagnostics/ip, if
 // `seenIp` is not your own address, this number is wrong.
-app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS || 4));
+// Note the explicit undefined test rather than `||`. Zero is a legitimate value
+// (no proxy at all, which is the case when running locally), and `|| 4` would
+// treat it as unset and silently trust four hops that are not there, letting a
+// direct caller forge X-Forwarded-For.
+const TRUST_PROXY_HOPS = process.env.TRUST_PROXY_HOPS === undefined || process.env.TRUST_PROXY_HOPS === ""
+  ? 4
+  : Number(process.env.TRUST_PROXY_HOPS);
+
+if (!Number.isInteger(TRUST_PROXY_HOPS) || TRUST_PROXY_HOPS < 0) {
+  console.error(`FATAL: TRUST_PROXY_HOPS must be a non-negative integer, got "${process.env.TRUST_PROXY_HOPS}"`);
+  process.exit(1);
+}
+
+app.set("trust proxy", TRUST_PROXY_HOPS);
 
 app.use(helmet());
 app.use(compression());
