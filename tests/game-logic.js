@@ -690,9 +690,10 @@ console.log("\n=== GAME OVER FRAME ===");
     const grid = UI.createGrid();
     UI.paintRect(grid, 10, 10, 2, 2, UI.GLYPH.HAZARD, UI.ROLE.HAZARD);
     UI.paintRect(grid, 10, 10, 2, 2, UI.GLYPH.PLAYER, UI.ROLE.PLAYER);
+    // 2x2 cells is 4 characters wide by 2 rows, so 8 character positions.
     check("the overlap guard reports an intersection when one is staged",
-        UI.getPaintConflicts() === 4,
-        "expected 4 cells, got " + UI.getPaintConflicts());
+        UI.getPaintConflicts() === 2 * UI.CELL_W * 2,
+        "expected " + (2 * UI.CELL_W * 2) + " characters, got " + UI.getPaintConflicts());
 }
 
 // ============ THE GAME OVER FRAME MUST SHOW CONTACT, NOT A GAP ============

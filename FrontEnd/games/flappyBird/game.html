@@ -256,9 +256,15 @@ function checkCollision() {
     if (by + bird.height > SKY_ROWS) return true;
 
     return pipes.some(pipe => {
-        const px = Math.floor(pipe.x);
-        const overlapsX = bird.x < px + pipeWidth && bird.x + bird.width > px;
-        if (!overlapsX) return false;
+        // Measured in characters, through the same mapping paintRect uses.
+        // Flooring the cell value instead let a pipe at a half cell position
+        // render on top of the bird while this reported a miss.
+        const pipeStart = VTGameUI.toChars(pipe.x);
+        const pipeEnd = pipeStart + VTGameUI.toChars(pipeWidth);
+        const birdStart = VTGameUI.toChars(bird.x);
+        const birdEnd = birdStart + VTGameUI.toChars(bird.width);
+
+        if (birdStart >= pipeEnd || birdEnd <= pipeStart) return false;
 
         const gapTop = pipe.topHeight;
         const gapBottom = pipe.topHeight + pipeGap;   // exclusive

@@ -106,35 +106,64 @@
         GAME_OVER: "gameover"
     };
 
-    // The grid is exactly the playable area, in cells. The border is added at
-    // render time by frameBoard, so nothing painting into the grid has to know
-    // it exists or leave room for it.
+    // The grid is the playable area, one row per cell row but one column per
+    // CHARACTER, so a sprite can sit on a half cell.
+    //
+    // That matters for anything moving horizontally. Sprites are whole cells
+    // wide, but if their POSITION could only be a whole cell then the smallest
+    // visible move was 19.2 px, and at half a cell per tick a pipe lurched a
+    // full cell every second tick. The bird, moving down rows of 16 px every
+    // tick, looked smooth beside it. Allowing half cell positions puts the
+    // horizontal step back to one character, 9.6 px, which is what it was
+    // before any of this and what actually reads as smooth at a terminal
+    // frame rate.
+    function charCols() {
+        return boardCols * CELL_W;
+    }
+
+    // The character column a cell coordinate actually renders at.
+    //
+    // Any game doing its own collision maths on a fractional coordinate MUST
+    // measure through this, not by flooring the cell value. paintRect rounds to
+    // the nearest character, so a pipe at x = 4.5 draws one character right of
+    // where floor(4.5) suggests, and a game comparing cells would let it render
+    // straight through the player while reporting a miss.
+    function toChars(x) {
+        return Math.round(x * CELL_W);
+    }
+
     function createGrid() {
+        const width = charCols();
         const grid = new Array(boardRows);
         for (let y = 0; y < boardRows; y++) {
-            grid[y] = new Array(boardCols).fill(GLYPH.BLANK);
+            grid[y] = new Array(width).fill(GLYPH.BLANK);
         }
         // A fresh grid starts a fresh frame.
         paintConflicts = 0;
         occupancy = new Array(boardRows);
         for (let y = 0; y < boardRows; y++) {
-            occupancy[y] = new Array(boardCols).fill(null);
+            occupancy[y] = new Array(width).fill(null);
         }
         return grid;
     }
 
-    // Paint a rectangle, in CELLS, clipped to the board so a sprite half off the
-    // edge can never bleed out. `role` is what the overlap guard compares; pass
-    // one of ROLE.*.
+    // Paint a rectangle. x, y, w and h are all in CELLS; x may be fractional and
+    // lands on the nearest character. Clipped to the board so a sprite half off
+    // the edge can never bleed out. `role` is what the overlap guard compares;
+    // pass one of ROLE.*.
     function paintRect(grid, x, y, w, h, glyph, role) {
         const claim = role || glyph;
+        const width = charCols();
+
+        const startChar = toChars(x);
+        const charW = Math.max(1, Math.round(w * CELL_W));
 
         for (let dy = 0; dy < h; dy++) {
             const gy = Math.floor(y) + dy;
             if (gy < 0 || gy >= boardRows) continue;
-            for (let dx = 0; dx < w; dx++) {
-                const gx = Math.floor(x) + dx;
-                if (gx < 0 || gx >= boardCols) continue;
+            for (let dx = 0; dx < charW; dx++) {
+                const gx = startChar + dx;
+                if (gx < 0 || gx >= width) continue;
 
                 // The ground is a backdrop, so anything may stand on it. Two
                 // sprites claiming the same cell is a genuine intersection.
@@ -187,7 +216,7 @@
 
     function paintGround(grid) {
         const gy = groundRow();
-        for (let x = 0; x < boardCols; x++) {
+        for (let x = 0; x < charCols(); x++) {
             if (occupancy) occupancy[gy][x] = ROLE.GROUND;
             grid[gy][x] = GLYPH.GROUND;
         }
@@ -216,13 +245,12 @@
     // Expands each cell to CELL_W characters and wraps the result in the border.
     // This is the only place cells become characters, which is why no game has
     // to know the ratio exists.
+    // The grid is already at character resolution, so this only adds the frame.
     function frameBoard(grid, status) {
-        const border = "+" + "=".repeat(boardCols * CELL_W) + "+";
+        const border = "+" + "=".repeat(charCols()) + "+";
         let out = border + "\n";
         for (let y = 0; y < boardRows; y++) {
-            let line = "";
-            for (let x = 0; x < boardCols; x++) line += grid[y][x].repeat(CELL_W);
-            out += "|" + line + "|\n";
+            out += "|" + grid[y].join("") + "|\n";
         }
         out += border + "\n";
         out += (status[0] || "") + "\n";
@@ -276,6 +304,7 @@
         STATE: STATE,
         CELL_W: CELL_W,
         setBoard: setBoard,
+        toChars: toChars,
         // Functions, not constants: the board size is per game, so a value read
         // once at load would be whatever the last game to load happened to set.
         cols: function () { return boardCols; },
