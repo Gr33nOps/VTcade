@@ -141,7 +141,7 @@
                 output += `<span class="success-text">SUCCESS: ${esc(successMessage)}</span>\n\n`;
             }
 
-            output += `\n================================================================================\nCOMMAND REFERENCE\n================================================================================\n\n    [↑/↓]              Navigate Fields\n    [ENTER]            Execute Selected\n    [TAB]              Switch to Login Page\n    [CTRL+V]           Paste Into Field\n    [CTRL+C]           Copy Current Field\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
+            output += `\n================================================================================\nCOMMANDS\n================================================================================\n\n    [↑/↓]              NAVIGATE FIELDS\n    [ENTER]            SELECT\n    [TAB]              SWITCH TO LOGIN\n    [CTRL+V]           PASTE INTO FIELD\n    [CTRL+C]           COPY FIELD\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
 
             terminalEl.innerHTML = output;
             announceMessages();
@@ -261,8 +261,8 @@
                         document.getElementById('loadingOverlay').classList.add('active');
                         setTimeout(() => {
                             window.location.href = "../dashboard/dashboard.html";
-                        }, 800);
-                    }, 1500);
+                        }, 300);
+                    }, 600);
                 }
 
             } catch (err) {
@@ -282,7 +282,7 @@
             document.getElementById('loadingOverlay').classList.add('active');
             setTimeout(() => {
                 window.location.href = `${API_URL}/api/auth/google`;
-            }, 500);
+            }, 600);
         }
 
         // Terminal style paste. Ctrl+V and Ctrl+Shift+V drop the clipboard into
@@ -299,13 +299,40 @@
             redraw: render
         });
 
-        document.addEventListener("keydown", (e) => {
+                // VTCADE_GLOBAL_KEYS: the two keys that mean the same thing on every
+        // screen. M toggles the shared mute flag, ESC goes back one step. They
+        // used to work only on the games, the dashboard and the admin panel,
+        // so the first screen anyone lands on honoured neither.
+        function handleGlobalKeys(e) {
+            if (e.ctrlKey || e.metaKey || e.altKey) return false;
+
+            if (e.key === "m" || e.key === "M") {
+                e.preventDefault();
+                VTSound.toggleMute();
+                render();
+                return true;
+            }
+
+            if (e.key === "Escape") {
+                e.preventDefault();
+                VTSound.back();
+                const overlay = document.getElementById("loadingOverlay");
+                if (overlay) overlay.classList.add("active");
+                setTimeout(() => { window.location.href = "../login/login.html"; }, 300);
+                return true;
+            }
+
+            return false;
+        }
+
+document.addEventListener("keydown", (e) => {
+            if (handleGlobalKeys(e)) return;
             if (e.key === "Tab") {
                 e.preventDefault();
                 document.getElementById('loadingOverlay').classList.add('active');
                 setTimeout(() => {
                     window.location.href = "../login/login.html";
-                }, 800);
+                }, 600);
             } else if (e.key === "ArrowDown") {
                 e.preventDefault();
                 navigateField('next');

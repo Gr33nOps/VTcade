@@ -31,6 +31,7 @@
 
     <script src="../shared/config.js"></script>
     <script src="../shared/session.js"></script>
+    <script src="../shared/sound.js"></script>
     <script>
         const API_URL = VTSession.API_URL;
         const terminalEl = document.getElementById("terminal");
@@ -49,13 +50,14 @@
         }
 
         function showError(message) {
+            VTSound.error();
             render(
                 `<span class="error-text">ERROR: ${esc(message)}</span>`,
                 'Returning to login...'
             );
             setTimeout(() => {
                 window.location.href = "login.html";
-            }, 2000);
+            }, 900);
         }
 
         function parseHashParams() {
@@ -108,16 +110,34 @@
                     expires_in: expires_in ? Number(expires_in) : undefined
                 }, data.username);
 
+                VTSound.success();
                 render(`<span class="success-text">SUCCESS: Welcome, ${esc(data.username)}</span>`, 'Redirecting to dashboard...');
 
                 setTimeout(() => {
                     window.location.href = "../dashboard/dashboard.html";
-                }, 800);
+                }, 900);
 
             } catch (err) {
                 showError("Network error");
             }
         }
+
+        // VTCADE_GLOBAL_KEYS: M toggles the shared mute flag, ESC goes back one
+        // step. This screen had no key handling and no sound at all.
+        document.addEventListener("keydown", (e) => {
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+            if (e.key === "m" || e.key === "M") {
+                e.preventDefault();
+                VTSound.toggleMute();
+                return;
+            }
+            if (e.key === "Escape") {
+                e.preventDefault();
+                VTSound.back();
+                setTimeout(() => { window.location.href = "login.html"; }, 300);
+            }
+        });
 
         document.addEventListener("wheel", (e) => {
             e.preventDefault();

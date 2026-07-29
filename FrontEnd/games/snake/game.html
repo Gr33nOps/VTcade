@@ -53,8 +53,13 @@ const gameApi = createGameApi(GAME_NAME);
 const currentUser = VTSession.getUsername();
 
 if (!currentUser) {
-    alert("You must be logged in to play!");
-    window.location.replace("../../login/login.html");
+    // Said in the terminal rather than an OS alert box. This site has no cursor
+    // and no other native chrome, so a system modal is jarring, and it blocks
+    // the redirect until someone finds a button to click.
+    document.getElementById("loadingOverlay").innerHTML =
+        '<pre style="font-size: 14px; line-height: 1.5;">NOT SIGNED IN\n\n' +
+        '<span class="loading-dots">RETURNING TO LOGIN</span>\n</pre>';
+    setTimeout(() => { window.location.replace("../../login/login.html"); }, 900);
     // Halt the rest of the script. Without this the redirect is merely queued
     // and initGame() still runs, firing requests for the literal user "null".
     throw new Error("Not authenticated");
@@ -354,10 +359,11 @@ document.addEventListener("keydown", (e) => {
         draw();
     } else if (e.code === "Escape") {
         e.preventDefault();
+        VTSound.back();
         document.getElementById('loadingOverlay').classList.add('active');
         setTimeout(() => {
             window.location.href = "../../dashboard/dashboard.html";
-        }, 800);
+        }, 300);
     }
 });
 

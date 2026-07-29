@@ -129,11 +129,11 @@ ADMIN LOGIN
 
             output += `
 ================================================================================
-NAVIGATION
+COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate Fields           [ENTER]     Select/Submit
-    [CTRL+V]  Paste Into Field          [CTRL+C]    Copy Field
+    [↑/↓]     NAVIGATE FIELDS           [ENTER]     SELECT
+    [CTRL+V]  PASTE INTO FIELD          [CTRL+C]    COPY FIELD
 
 ================================================================================
 
@@ -239,8 +239,8 @@ READY: <span class="cursor">_</span>
                     document.getElementById('loadingOverlay').classList.add('active');
                     setTimeout(() => {
                         window.location.href = "adminpanal.html";
-                    }, 800);
-                }, 1000);
+                    }, 300);
+                }, 600);
                 
             } catch (err) {
                 errorMessage = "Connection failed";
@@ -253,7 +253,7 @@ READY: <span class="cursor">_</span>
             document.getElementById('loadingOverlay').classList.add('active');
             setTimeout(() => {
                 window.location.href = "/login/login.html";
-            }, 500);
+            }, 300);
         }
 
         // Terminal style paste. Ctrl+V and Ctrl+Shift+V drop the clipboard into
@@ -268,7 +268,34 @@ READY: <span class="cursor">_</span>
             redraw: render
         });
 
-        document.addEventListener("keydown", (e) => {
+                // VTCADE_GLOBAL_KEYS: the two keys that mean the same thing on every
+        // screen. M toggles the shared mute flag, ESC goes back one step. They
+        // used to work only on the games, the dashboard and the admin panel,
+        // so the first screen anyone lands on honoured neither.
+        function handleGlobalKeys(e) {
+            if (e.ctrlKey || e.metaKey || e.altKey) return false;
+
+            if (e.key === "m" || e.key === "M") {
+                e.preventDefault();
+                VTSound.toggleMute();
+                render();
+                return true;
+            }
+
+            if (e.key === "Escape") {
+                e.preventDefault();
+                VTSound.back();
+                const overlay = document.getElementById("loadingOverlay");
+                if (overlay) overlay.classList.add("active");
+                setTimeout(() => { window.location.href = "../login/login.html"; }, 300);
+                return true;
+            }
+
+            return false;
+        }
+
+document.addEventListener("keydown", (e) => {
+            if (handleGlobalKeys(e)) return;
             if (e.key === "ArrowDown") {
                 e.preventDefault();
                 navigateField('next');
@@ -315,7 +342,7 @@ READY: <span class="cursor">_</span>
             document.getElementById('loadingOverlay').classList.add('active');
             setTimeout(() => {
                 window.location.href = "adminpanal.html";
-            }, 500);
+            }, 600);
         } else {
             clearAdminSession();
             render();

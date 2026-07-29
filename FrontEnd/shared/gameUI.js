@@ -292,7 +292,7 @@
         // on. Guarded because gameUI must not hard-depend on sound.js being
         // present or loaded first.
         var soundLabel = (global.VTSound && global.VTSound.isMuted()) ? "OFF" : "ON";
-        out += "\n" + DIVIDER + "\n[P]   PAUSE\n[M]   SOUND " + soundLabel + "\n[ESC] BACK TO HOME\n";
+        out += "\n" + DIVIDER + "\n[P]   PAUSE\n[M]   SOUND " + soundLabel + "\n[ESC] BACK TO MENU\n";
 
         return out;
     }

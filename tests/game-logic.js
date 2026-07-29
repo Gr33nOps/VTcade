@@ -521,8 +521,8 @@ console.log("\n=== CONSISTENCY ACROSS ALL THREE ===");
         rec.every(l => l === "< GAME OVER - NEW RECORD! >"), JSON.stringify(rec));
 
     const panels = games.map(g => g.els.ui.textContent);
-    check("all three panels list PAUSE and BACK TO HOME",
-        panels.every(p => p.includes("[P]   PAUSE") && p.includes("[ESC] BACK TO HOME")));
+    check("all three panels list PAUSE and BACK TO MENU",
+        panels.every(p => p.includes("[P]   PAUSE") && p.includes("[ESC] BACK TO MENU")));
 }
 
 // ============ GLYPH SAFETY AND SPRITE OVERLAP ============

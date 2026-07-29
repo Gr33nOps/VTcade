@@ -47,14 +47,6 @@
         const API_URL = window.VTCADE_API_URL;
         const terminalEl = document.getElementById("terminal");
 
-        // Every alert() on this page is an error notice, so beep on each one
-        // instead of instrumenting a dozen separate call sites.
-        const _origAlert = window.alert.bind(window);
-        window.alert = function (msg) {
-            VTSound.error();
-            return _origAlert(msg);
-        };
-
         let selectedIndex = 0;
         let currentPage = 0;
         const ITEMS_PER_PAGE = 5;
@@ -151,7 +143,7 @@
             if (!res.ok) {
                 if (res.status === 401) {
                     clearAdminSession();
-                    alert("Session rejected. Please sign in again.");
+                    // Nothing to render into: this page is about to be replaced.
                     window.location.href = "adminlogin.html";
                 }
                 throw new Error(data?.message || `Request failed (HTTP ${res.status})`);
@@ -209,12 +201,11 @@ MAIN MENU
 
             output += `
 ================================================================================
-NAVIGATION
+COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate Menu              [ENTER]     Select Option
-    [1-5]     Direct Access              [ESC]       Exit
-    [M]       Sound ${VTSound.isMuted() ? "OFF" : "ON"}
+    [↑/↓]     NAVIGATE MENU             [ENTER]     SELECT
+    [1-5]     DIRECT ACCESS             [M]         SOUND ${VTSound.isMuted() ? "OFF" : "ON"}
 
 ================================================================================
 
@@ -274,10 +265,10 @@ USER CONTROL - ${users.length} USERS (Page ${currentPage + 1}/${totalPages})
 COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate List              [←/→]       Change Page
-    [B]       Ban User                   [U]         Unban User
-    [D]       Delete User                [R]         Refresh
-    [ESC]     Back to Menu
+    [↑/↓]     NAVIGATE LIST             [←/→]       CHANGE PAGE
+    [B]       BAN USER                  [U]         UNBAN USER
+    [D]       DELETE USER               [R]         REFRESH
+    [ESC]              BACK TO MENU
 
 ================================================================================
 
@@ -336,9 +327,9 @@ GAME CONTROL - ${games.length} GAMES (Page ${currentPage + 1}/${totalPages})
 COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate List              [←/→]       Change Page
-    [E]       Enable Game                [X]         Disable Game
-    [R]       Refresh                    [ESC]       Back to Menu
+    [↑/↓]     NAVIGATE LIST             [←/→]       CHANGE PAGE
+    [E]       ENABLE GAME               [X]         DISABLE GAME
+    [R]       REFRESH                   [ESC]       BACK TO MENU
 
 ================================================================================
 
@@ -393,8 +384,8 @@ LEADERBOARD CONTROL
 COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate List              [←/→]       Change Page
-    [ENTER]   Select Game                [ESC]       Back to Menu
+    [↑/↓]     NAVIGATE LIST             [←/→]       CHANGE PAGE
+    [ENTER]   SELECT GAME               [ESC]       BACK TO MENU
 
 ================================================================================
 `;
@@ -432,9 +423,9 @@ COMMANDS
 COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate List              [←/→]       Change Page
-    [F]       Flag Score                 [D]         Delete Score
-    [Z]       Reset All Scores           [ESC]       Back to Game List
+    [↑/↓]     NAVIGATE LIST             [←/→]       CHANGE PAGE
+    [F]       FLAG SCORE                [D]         DELETE SCORE
+    [Z]       RESET ALL SCORES          [ESC]       BACK TO GAMES
 
 ================================================================================
 `;
@@ -528,8 +519,8 @@ ACTIONS
 COMMANDS
 ================================================================================
 
-    [↑/↓]     Navigate Menu              [ENTER]     Select Option
-    [ESC]     Back to Menu
+    [↑/↓]     NAVIGATE MENU             [ENTER]     SELECT
+    [ESC]              BACK TO MENU
 
 ================================================================================
 
@@ -552,7 +543,7 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     console.error('Error loading users:', err);
-                    alert('ERROR: Failed to load users: ' + err.message);
+                    showError('Failed to load users: ' + err.message);
                     users = [];
                     stats.users = 0;
                     currentPage = 0;
@@ -572,7 +563,7 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     console.error('Error loading games:', err);
-                    alert('ERROR: Failed to load games: ' + err.message);
+                    showError('Failed to load games: ' + err.message);
                     games = [];
                     stats.games = 3;
                     currentPage = 0;
@@ -592,7 +583,7 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     console.error('Error loading leaderboards:', err);
-                    alert('ERROR: Failed to load leaderboards: ' + err.message);
+                    showError('Failed to load leaderboards: ' + err.message);
                     leaderboards = [];
                     currentPage = 0;
                     selectedIndex = 0;
@@ -602,7 +593,14 @@ READY: <span class="cursor">_</span>
 
         // ==================== ACTIONS ====================
         function banUser(userId) {
-            if (!confirm("BAN THIS USER? Press OK to confirm.")) return;
+            askConfirm("BAN THIS USER?",
+                ["They will no longer be able to sign in.",
+                 "Their scores are kept."],
+                () => banUserConfirmed(userId));
+            return;
+        }
+
+        function banUserConfirmed(userId) {
             
             showLoading();
             apiCall(`/users/${userId}/ban`, { method: 'PUT' })
@@ -612,7 +610,7 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to ban user: " + err.message);
+                    showError("Failed to ban user: " + err.message);
                 });
         }
 
@@ -625,12 +623,19 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to unban user: " + err.message);
+                    showError("Failed to unban user: " + err.message);
                 });
         }
 
         function deleteUser(userId) {
-            if (!confirm("DELETE USER? ALL DATA WILL BE REMOVED. Press OK to confirm.")) return;
+            askConfirm("DELETE THIS USER?",
+                ["Their account and every score they set",
+                 "are removed. This cannot be undone."],
+                () => deleteUserConfirmed(userId));
+            return;
+        }
+
+        function deleteUserConfirmed(userId) {
             
             showLoading();
             apiCall(`/users/${userId}`, { method: 'DELETE' })
@@ -641,7 +646,7 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to delete user: " + err.message);
+                    showError("Failed to delete user: " + err.message);
                 });
         }
 
@@ -654,7 +659,7 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to enable game: " + err.message);
+                    showError("Failed to enable game: " + err.message);
                 });
         }
 
@@ -667,7 +672,7 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to disable game: " + err.message);
+                    showError("Failed to disable game: " + err.message);
                 });
         }
 
@@ -680,12 +685,18 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to flag score: " + err.message);
+                    showError("Failed to flag score: " + err.message);
                 });
         }
 
         function deleteScore(entryId) {
-            if (!confirm("DELETE THIS SCORE? Press OK to confirm.")) return;
+            askConfirm("DELETE THIS SCORE?",
+                ["The entry is removed from the leaderboard."],
+                () => deleteScoreConfirmed(entryId));
+            return;
+        }
+
+        function deleteScoreConfirmed(entryId) {
             
             showLoading();
             apiCall(`/leaderboards/${entryId}`, { method: 'DELETE' })
@@ -696,12 +707,19 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to delete score: " + err.message);
+                    showError("Failed to delete score: " + err.message);
                 });
         }
 
         function resetLeaderboard(game) {
-            if (!confirm(`RESET ALL SCORES FOR ${game.toUpperCase()}? THIS CANNOT BE UNDONE. Press OK to confirm.`)) return;
+            askConfirm("RESET THE " + String(game).toUpperCase() + " LEADERBOARD?",
+                ["Every score for this game is deleted.",
+                 "This cannot be undone."],
+                () => resetLeaderboardConfirmed(game));
+            return;
+        }
+
+        function resetLeaderboardConfirmed(game) {
             
             showLoading();
             apiCall(`/leaderboards/reset/${encodeURIComponent(game)}`, { method: 'DELETE' })
@@ -712,12 +730,19 @@ READY: <span class="cursor">_</span>
                 })
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to reset leaderboard: " + err.message);
+                    showError("Failed to reset leaderboard: " + err.message);
                 });
         }
 
         function enableMaintenance() {
-            if (!confirm("ENABLE MAINTENANCE MODE? Users will be unable to login or submit scores. Press OK to confirm.")) return;
+            askConfirm("ENABLE MAINTENANCE MODE?",
+                ["Players cannot sign in or submit scores",
+                 "until it is switched off again."],
+                () => enableMaintenanceConfirmed());
+            return;
+        }
+
+        async function enableMaintenanceConfirmed() {
             
             showLoading();
             apiCall('/maintenance/enable', { method: 'PUT' })
@@ -727,7 +752,7 @@ READY: <span class="cursor">_</span>
                 .then(hideLoading)
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to enable maintenance mode: " + err.message);
+                    showError("Failed to enable maintenance mode: " + err.message);
                 });
         }
 
@@ -738,7 +763,7 @@ READY: <span class="cursor">_</span>
                 .then(hideLoading)
                 .catch(err => {
                     hideLoading();
-                    alert("ERROR: Failed to disable maintenance mode: " + err.message);
+                    showError("Failed to disable maintenance mode: " + err.message);
                 });
         }
 
@@ -757,12 +782,82 @@ READY: <span class="cursor">_</span>
                     clearAdminSession();
                     setTimeout(() => {
                         window.location.href = "adminlogin.html";
-                    }, 400);
+                    }, 600);
                 });
         }
 
         // ==================== RENDER & NAVIGATION ====================
+        // ==================== ERRORS AND CONFIRMATIONS ====================
+        //
+        // Both used to be native alert() and confirm() boxes. On a site with no
+        // cursor and no other browser chrome, an OS modal is jarring, it cannot
+        // be styled, and confirm() in particular said "Press OK" on a screen
+        // where there is nothing to press. Both are drawn in the terminal now.
+        let errorMessage = "";
+        let pendingConfirm = null;
+
+        function showError(message) {
+            errorMessage = String(message || "Something went wrong");
+            VTSound.error();
+            render();
+        }
+
+        function clearError() {
+            if (!errorMessage) return false;
+            errorMessage = "";
+            return true;
+        }
+
+        // `lines` explains what is about to happen; `run` is called on Y.
+        function askConfirm(title, lines, run) {
+            pendingConfirm = { title, lines, run };
+            VTSound.back();
+            render();
+        }
+
+        function renderConfirm() {
+            const { date, time } = getDateTime();
+            let output = `
+================================================================================
+
+SYSTEM STATUS: ${stats.status}
+ADMIN: ${esc(adminUsername)}
+DATE: ${date}
+TIME: ${time}
+
+================================================================================
+CONFIRM
+================================================================================
+
+    ${esc(pendingConfirm.title)}
+
+`;
+            pendingConfirm.lines.forEach(line => {
+                output += `    ${esc(line)}\n`;
+            });
+
+            output += `
+================================================================================
+COMMANDS
+================================================================================
+
+    [Y]       CONFIRM                   [N]         CANCEL
+    [ESC]     CANCEL
+
+================================================================================
+
+READY: <span class="cursor">_</span>
+
+`;
+            terminalEl.innerHTML = output;
+        }
+
         function render() {
+            if (pendingConfirm) {
+                renderConfirm();
+                return;
+            }
+
             switch(currentView) {
                 case "home":
                     renderHome();
@@ -779,6 +874,15 @@ READY: <span class="cursor">_</span>
                 case "maintenance":
                     renderMaintenance();
                     break;
+            }
+
+            // Every view ends with the READY prompt, so the error goes just
+            // above it, where a terminal would print it.
+            if (errorMessage) {
+                terminalEl.innerHTML = terminalEl.innerHTML.replace(
+                    "READY:",
+                    `<span class="red">ERROR: ${esc(errorMessage)}</span>\n\nREADY:`
+                );
             }
         }
 
@@ -864,6 +968,29 @@ READY: <span class="cursor">_</span>
 
         // ==================== KEYBOARD HANDLER ====================
         document.addEventListener("keydown", (e) => {
+            // A confirmation is modal: nothing else on the page responds until
+            // it is answered, so a stray arrow key cannot move the selection
+            // out from under the action about to run.
+            if (pendingConfirm) {
+                e.preventDefault();
+                if (e.key === "y" || e.key === "Y") {
+                    const run = pendingConfirm.run;
+                    pendingConfirm = null;
+                    VTSound.select();
+                    render();
+                    run();
+                } else if (e.key === "n" || e.key === "N" || e.key === "Escape") {
+                    pendingConfirm = null;
+                    VTSound.back();
+                    render();
+                }
+                return;
+            }
+
+            // Any keypress dismisses the last error, the way typing clears one
+            // on the login screens.
+            if (clearError()) render();
+
             // Mute toggle first, so it never falls through to an action.
             if (e.key === "m" || e.key === "M") {
                 VTSound.toggleMute();

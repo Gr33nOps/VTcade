@@ -168,5 +168,61 @@ console.log("\n=== MAINTENANCE MENU ===");
         mismatched === 0, mismatched + " mismatch(es)");
 }
 
+// Destructive actions used to go through a native confirm(), which said "Press
+// OK" on a site with no cursor and could not be styled. They are drawn in the
+// terminal now, and the screen is modal so a stray arrow key cannot move the
+// selection out from under the action about to run.
+console.log("\n=== CONFIRMATION SCREEN ===");
+{
+    const { ctx, els, press } = loadPanel();
+    ctx.currentView = "users";
+    ctx.users = [{ id: "u1", username: "victim", email: "v@example.com" }];
+    ctx.selectedIndex = 0;
+
+    let ran = 0;
+    ctx.askConfirm("DELETE THIS USER?", ["Everything goes with them."], () => { ran++; });
+
+    const screen = els.terminal.innerHTML;
+    check("the confirm screen names the action", screen.includes("DELETE THIS USER?"));
+    check("it explains the consequence", screen.includes("Everything goes with them."));
+    check("it offers both keys", screen.includes("[Y]") && screen.includes("[N]"));
+
+    // Modal: nothing else responds while it is up.
+    press("ArrowDown");
+    check("arrows do nothing while it is up", ctx.selectedIndex === 0, "index=" + ctx.selectedIndex);
+    check("it is still on screen", els.terminal.innerHTML.includes("DELETE THIS USER?"));
+
+    press("n");
+    check("N cancels without running the action", ran === 0 && ctx.pendingConfirm === null);
+    check("cancelling returns to the list", !els.terminal.innerHTML.includes("DELETE THIS USER?"));
+
+    ctx.askConfirm("DELETE THIS USER?", ["Everything goes with them."], () => { ran++; });
+    press("Escape");
+    check("ESC cancels too", ran === 0 && ctx.pendingConfirm === null);
+
+    ctx.askConfirm("DELETE THIS USER?", ["Everything goes with them."], () => { ran++; });
+    press("y");
+    check("Y runs the action exactly once", ran === 1, "ran=" + ran);
+    check("and dismisses the screen", ctx.pendingConfirm === null);
+}
+
+console.log("\n=== ERRORS RENDER IN THE TERMINAL ===");
+{
+    const { ctx, els } = loadPanel();
+    ctx.currentView = "home";
+    ctx.stats = { users: 0, games: 3, status: "ONLINE", maintenanceMode: false };
+
+    ctx.showError("Failed to ban user: network down");
+    const screen = els.terminal.innerHTML;
+    check("the error is drawn on the page", screen.includes("Failed to ban user: network down"));
+    check("it sits above the READY prompt",
+        screen.indexOf("ERROR:") < screen.indexOf("READY:"),
+        "error at " + screen.indexOf("ERROR:") + ", ready at " + screen.indexOf("READY:"));
+
+    ctx.clearError();
+    ctx.render();
+    check("clearing removes it", !els.terminal.innerHTML.includes("Failed to ban user"));
+}
+
 console.log("\n" + (failures === 0 ? "ALL CHECKS PASSED" : failures + " CHECK(S) FAILED"));
 process.exit(failures ? 1 : 0);
