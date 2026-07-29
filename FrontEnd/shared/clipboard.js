@@ -78,10 +78,22 @@
 
         function mount() {
             if (!catcher.parentNode) document.body.appendChild(catcher);
-            keepFocus();
         }
 
-        function keepFocus() {
+        // Focus is taken only for the instant a clipboard shortcut needs it, and
+        // given straight back.
+        //
+        // The first version held it permanently and reclaimed it on
+        // visibilitychange. That was wrong twice over. visibilitychange fires
+        // when a tab is HIDDEN as well as shown, so switching away from this
+        // site had it calling focus() on a background tab. And a permanently
+        // focused input keeps a caret blinking, which repaints forever in every
+        // open tab whether or not anyone is looking at it.
+        //
+        // Nothing here runs unless a modifier is actually held down, and nothing
+        // runs at all while the tab is hidden.
+        function takeFocus() {
+            if (document.hidden) return;
             if (document.activeElement === catcher) return;
             try {
                 catcher.focus({ preventScroll: true });
@@ -90,15 +102,30 @@
             }
         }
 
+        function releaseFocus() {
+            if (document.activeElement === catcher) catcher.blur();
+        }
+
         if (document.body) mount();
         else document.addEventListener("DOMContentLoaded", mount);
 
-        // Anything can steal focus: a click on the page, returning from another
-        // tab, the browser's own chrome. Take it back before the next paste.
-        global.addEventListener("focus", keepFocus);
-        document.addEventListener("visibilitychange", keepFocus);
-        document.addEventListener("keydown", keepFocus, true);
-        document.addEventListener("click", keepFocus);
+        // Ctrl or Cmd going down is the only cue that a paste or copy might be
+        // coming. Capture phase, so the input is focused before the browser
+        // decides where to deliver the paste.
+        document.addEventListener("keydown", function (e) {
+            if (e.ctrlKey || e.metaKey) takeFocus();
+        }, true);
+
+        // Modifier released: the shortcut is over, so let focus go again.
+        document.addEventListener("keyup", function (e) {
+            if (!e.ctrlKey && !e.metaKey) releaseFocus();
+        }, true);
+
+        // Leaving the tab or the window must never leave it holding focus.
+        global.addEventListener("blur", releaseFocus);
+        document.addEventListener("visibilitychange", function () {
+            if (document.hidden) releaseFocus();
+        });
 
         document.addEventListener("paste", function (e) {
             var data = e.clipboardData || global.clipboardData;
@@ -139,10 +166,10 @@
             if (global.VTSound && global.VTSound.select) global.VTSound.select();
 
             // Clear once the browser has taken the selection, so the value is
-            // not left sitting in the DOM.
+            // not left sitting in the DOM. Focus is released by the keyup
+            // handler when the modifier comes back up.
             setTimeout(function () {
                 catcher.value = "";
-                keepFocus();
             }, 0);
         });
     }
