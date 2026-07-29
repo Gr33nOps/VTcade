@@ -85,3 +85,8 @@ jobs:
       # Runs the sound module against a stubbed AudioContext.
       - name: Sound module tests
         run: node tests/sound.js
+
+      # The menus line up only because the spacing inside each template literal
+      # was counted by hand, which is exactly the kind of thing that drifts.
+      - name: Terminal layout tests
+        run: node tests/layout.js
