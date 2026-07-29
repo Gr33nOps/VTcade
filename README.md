@@ -26,16 +26,6 @@ is 0.6em wide and 1em tall, so 50 by 30 renders as a 480 by 480 pixel square.
 
 Live at [vtcade.vercel.app](https://vtcade.vercel.app).
 
-## Screenshots
-
-| Dashboard | Tetris |
-|---|---|
-| ![Player dashboard](docs/screenshots/dashboard.png) | ![Tetris](docs/screenshots/tetris.png) |
-
-| Snake | Flappy Bird |
-|---|---|
-| ![Snake](docs/screenshots/snake.png) | ![Flappy Bird](docs/screenshots/flappy.png) |
-
 ## Features
 
 * Three games: Snake, Tetris, and Flappy Bird
@@ -72,7 +62,6 @@ FrontEnd/         Static site, served as is
   dashboard/      player menu
   admin/          admin login and panel
   login/ signup/  auth screens
-docs/             Screenshots
 tests/            Game logic and consistency tests
 ```
 
