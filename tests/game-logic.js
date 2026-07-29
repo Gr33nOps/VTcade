@@ -399,8 +399,9 @@ console.log("\n=== FLAPPY BIRD ===");
     check("every board line is exactly " + G.chars + " wide",
         lines.slice(0, G.rows + 2).every(l => l.length === G.chars));
     check("floor line is now drawn (was invisible)", lines[G.row(G.GROUND)].includes("\u2500"));
-    check("bird is the 2x2 shared side-scroller player block",
-        ctx.bird.width === 2 && ctx.bird.height === 2);
+    check("the bird is one cell, the same sprite size as every other game",
+        ctx.bird.width === 1 && ctx.bird.height === 1,
+        ctx.bird.width + "x" + ctx.bird.height);
 
     // ceiling must not be a free parking spot
     ctx.bird.y = 0; ctx.bird.velocity = 0;
@@ -437,19 +438,26 @@ console.log("\n=== FLAPPY BIRD ===");
     check("bird centred in the gap survives", ctx.checkCollision() === false, "y=" + ctx.bird.y);
     ctx.bird.y = 4;
     check("bird clipping the top pipe dies", ctx.checkCollision() === true);
-    ctx.bird.y = 5 + ctx.pipeGap - 1;
-    check("bird clipping the bottom pipe dies", ctx.checkCollision() === true);
+    ctx.bird.y = 5 + ctx.pipeGap;
+    check("bird clipping the bottom pipe dies", ctx.checkCollision() === true,
+        "y=" + ctx.bird.y + " gap=" + ctx.pipeGap);
 
-    // difficulty actually ramps now
+    // Difficulty ramps the TICK, not the step. The step has to divide evenly
+    // into one cell or the motion judders, and only 0.5 and 1.0 do; a changing
+    // step size cannot stay even, which is what made this game look stuttery.
     ctx.restartGame();
-    const startSpeed = ctx.pipeSpeed;
+    const startTick = ctx.tickMs;
     for (let i = 0; i < 40; i++) {
         ctx.pipes = [{ x: -10, topHeight: 5, passed: false }];
         ctx.updatePipes();
     }
-    check("pipe speed increases with score (was constant forever)",
-        ctx.pipeSpeed > startSpeed, startSpeed + " -> " + ctx.pipeSpeed);
-    check("pipe speed is capped", ctx.pipeSpeed <= ctx.PIPE_SPEED_MAX + 1e-9, "speed=" + ctx.pipeSpeed);
+    check("the game speeds up with score (was constant forever)",
+        ctx.tickMs < startTick, startTick + "ms -> " + ctx.tickMs + "ms");
+    check("the speed up is capped",
+        ctx.tickMs >= ctx.TICK_FASTEST, "tick=" + ctx.tickMs);
+    check("the pipe step divides evenly into one cell, so motion never judders",
+        Math.abs(1 / ctx.PIPE_STEP - Math.round(1 / ctx.PIPE_STEP)) < 1e-9,
+        "step=" + ctx.PIPE_STEP);
 
     // pause
     ctx.restartGame();

@@ -79,30 +79,43 @@ let pipesCleared = 0;
 let distanceSincePipe = 0;
 
 let bird = {
-    x: 5,
+    x: 4,
+    // One cell, the same sprite size as a snake segment or a tetris block.
+    // It was 2x2 cells, which looked right when a cell was one character but
+    // came out 2.4 times wider than the old bird relative to the field.
+    width: 1,
+    height: 1,
     y: Math.floor(HEIGHT / 2),
-    width: 2,      // cells, so 4 characters by 2 rows on screen
-    height: 2,
     velocity: 0,
-    gravity: 0.5,
-    jump: -2.5
+    // Scaled to the shorter sky: 23 flyable rows where there were 29, so the
+    // same numbers would have sent the bird across the screen far faster.
+    gravity: 0.4,
+    jump: -2
 };
 
 let pipes = [];
-const pipeWidth = 2;   // cells
+const pipeWidth = 1;   // cells, ~5% of the field, as it always was
 // Proportional to the playfield, never absolute, so resizing the board cannot
 // quietly change the difficulty. Roughly 38% of the sky, which is what it has
 // always been; a fixed number here has twice been left behind by a resize.
-const pipeGap = Math.round(SKY_ROWS * 0.38);   // 9 at 23 rows
+// Clearance above the bird has always been about 30% of the sky. The bird is
+// one row tall now rather than two, so the gap itself is one smaller.
+const pipeGap = Math.round(SKY_ROWS * 0.35);   // 8 at 23 rows
 // Scaled down with every other horizontal distance: the field is 20 cells
 // across where it used to be 48 characters, so the old numbers would have made
 // the game more than twice as fast.
-// 0.4 gives 2.8 seconds from a pipe spawning to reaching the bird, which is
-// what the original 48 character field gave at speed 1.0. Measured rather than
-// guessed: a narrower field at the same speed would have quietly made the game
-// harder.
-let pipeSpeed = 0.4;
-const PIPE_SPEED_MAX = 0.8;
+// A pipe is only redrawn when it crosses a whole cell, so the STEP has to
+// divide evenly into 1 or the motion judders. 0.4 advanced after 2 ticks, then
+// 3, then 3, then 2, which is exactly what "stuttery" looks like. 0.5 advances
+// every 2 ticks, forever.
+//
+// So the step never changes, and difficulty comes from the tick instead. That
+// keeps the motion perfectly even at every speed, which a changing step size
+// cannot do: 0.6 and 0.7 both judder.
+const PIPE_STEP = 0.5;             // cells per tick, fixed
+const TICK_SLOWEST = 90;           // ms, at the start
+const TICK_FASTEST = 60;           // ms, the cap
+let tickMs = TICK_SLOWEST;
 let nextPipeGap = 11;
 
 let leaderboard = null; 
@@ -191,7 +204,7 @@ function gameLoop() {
 
     lastSafeGrid = buildGrid();
     draw(lastSafeGrid);
-    setTimeout(gameLoop, 80);
+    setTimeout(gameLoop, tickMs);
 }
 
 function updateBird() {
@@ -207,7 +220,7 @@ function updateBird() {
 }
 
 function updatePipes() {
-    distanceSincePipe += pipeSpeed;
+    distanceSincePipe += PIPE_STEP;
 
     if (distanceSincePipe >= nextPipeGap) {
         distanceSincePipe = 0;
@@ -219,16 +232,16 @@ function updatePipes() {
     }
 
     pipes.forEach(pipe => {
-        pipe.x -= pipeSpeed;
+        pipe.x -= PIPE_STEP;
         if (pipe.x + pipeWidth < bird.x && !pipe.passed) {
             score++;
             pipesCleared++;
             pipe.passed = true;
             VTSound.point();
-            // Flappy was the only game with no difficulty curve at all.
-            if (score % 5 === 0 && pipeSpeed < PIPE_SPEED_MAX) {
-                // Smaller steps, because the whole scale is smaller now.
-                pipeSpeed = Math.min(PIPE_SPEED_MAX, pipeSpeed + 0.05);
+            // Flappy was the only game with no difficulty curve at all. The
+            // whole game speeds up rather than the pipes taking bigger jumps.
+            if (score % 5 === 0 && tickMs > TICK_FASTEST) {
+                tickMs = Math.max(TICK_FASTEST, tickMs - 3);
             }
         }
     });
@@ -297,7 +310,7 @@ function restartGame() {
     pipes = [];
     score = 0;
     pipesCleared = 0;
-    pipeSpeed = 0.4;
+    tickMs = TICK_SLOWEST;
     distanceSincePipe = 0;
     nextPipeGap = 11;
     gameStarted = false;
