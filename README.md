@@ -191,11 +191,18 @@ flaps, or hard drops. P pauses, M mutes, Escape returns to the dashboard. Tab
 switches between login and signup, and F1 opens admin access from the login
 screen.
 
-**Typing.** The text fields are characters drawn into a `<pre>`, not real
-inputs, so the browser's own clipboard has nothing to act on. Ctrl+V pastes
-into whichever field the cursor is on, and Ctrl+C copies it back out. Ctrl+Shift+V
-works too. Ctrl+Shift+C is attempted but both Chrome and Firefox reserve it for
-their inspector, so plain Ctrl+C is the reliable one.
+**Typing.** The text fields are characters drawn into a `<pre>`, not real inputs,
+so the browser's own clipboard has nothing to act on. Ctrl+V and Ctrl+Shift+V
+paste into whichever field the cursor is on, and Ctrl+C copies it back out.
+
+Both work through a one pixel input kept focused off screen, which the paste
+lands in and the copy is staged through. That is deliberate: the clipboard API
+would raise a permission prompt in Firefox that has to be clicked, which is no
+use on a site with no cursor. Going through a focused element means the text
+rides in on the event itself, with no permission and no prompt.
+
+Ctrl+Shift+C is handled too, but both Chrome and Firefox bind it to their
+inspector and a page cannot take it back, so Ctrl+C is the one to rely on.
 
 **Leaderboards.** Select LEADERBOARD from the dashboard and choose a game. The
 top ten scores are shown.

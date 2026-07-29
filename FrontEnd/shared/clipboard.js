@@ -46,67 +46,87 @@
             if (!text) return false;
 
             field.set((field.get() || "") + text);
-            if (global.VTSound && VTSound.type) VTSound.type();
+            if (global.VTSound && global.VTSound.type) global.VTSound.type();
             redraw();
             return true;
         }
 
         // ---- Paste ---------------------------------------------------------
         //
-        // The native `paste` event is the reliable path: it carries the text
-        // with it, so it needs no clipboard permission and raises no prompt.
-        // It fires for Ctrl+Shift+V as well as Ctrl+V.
-        var handledNatively = false;
+        // A hidden input, kept focused, purely so the browser has somewhere to
+        // deliver a paste.
+        //
+        // Firefox only fires the `paste` event when a genuinely editable element
+        // has focus. Chrome fires it against the document regardless, which is
+        // what made the first version of this look correct while being wrong:
+        // in Firefox no event arrived, the code fell back to
+        // navigator.clipboard.readText(), and Firefox answered that with its own
+        // "Paste" confirmation button that has to be clicked. On a site with no
+        // cursor, that is worse than not having paste at all.
+        //
+        // With something focused there is no fallback and no permission: the
+        // text rides in on the event. The field itself is off screen and one
+        // pixel, and every printable keypress is already preventDefault-ed by
+        // the page's own handler, so nothing ever accumulates in it.
+        var catcher = document.createElement("input");
+        catcher.type = "text";
+        catcher.tabIndex = -1;
+        catcher.setAttribute("aria-hidden", "true");
+        catcher.setAttribute("autocomplete", "off");
+        catcher.style.cssText =
+            "position:fixed;top:0;left:-9999px;width:1px;height:1px;opacity:0;border:0;padding:0;";
+
+        function mount() {
+            if (!catcher.parentNode) document.body.appendChild(catcher);
+            keepFocus();
+        }
+
+        function keepFocus() {
+            if (document.activeElement === catcher) return;
+            try {
+                catcher.focus({ preventScroll: true });
+            } catch (err) {
+                catcher.focus();
+            }
+        }
+
+        if (document.body) mount();
+        else document.addEventListener("DOMContentLoaded", mount);
+
+        // Anything can steal focus: a click on the page, returning from another
+        // tab, the browser's own chrome. Take it back before the next paste.
+        global.addEventListener("focus", keepFocus);
+        document.addEventListener("visibilitychange", keepFocus);
+        document.addEventListener("keydown", keepFocus, true);
+        document.addEventListener("click", keepFocus);
 
         document.addEventListener("paste", function (e) {
             var data = e.clipboardData || global.clipboardData;
             if (!data) return;
 
-            handledNatively = true;
-            if (insert(data.getData("text"))) e.preventDefault();
-        });
-
-        // Fallback for the case where the browser fires no paste event because
-        // nothing focusable is focused. Deliberately does NOT preventDefault,
-        // so the native event above still gets its chance first; this only runs
-        // if that chance came to nothing.
-        document.addEventListener("keydown", function (e) {
-            if (!(e.ctrlKey || e.metaKey) || e.code !== "KeyV") return;
-            if (!config.field()) return;
-
-            handledNatively = false;
-            setTimeout(function () {
-                if (handledNatively) return;
-                if (!global.navigator || !navigator.clipboard || !navigator.clipboard.readText) return;
-                navigator.clipboard.readText().then(insert).catch(function () {
-                    // Clipboard read refused or unavailable. Typing still works.
-                });
-            }, 120);
+            // Always swallow it. Letting the default through would drop the text
+            // into the hidden input, where it would sit invisibly forever.
+            e.preventDefault();
+            insert(data.getData("text"));
+            catcher.value = "";
         });
 
         // ---- Copy ----------------------------------------------------------
         //
-        // Nothing on the page is selectable, so hijacking the copy event cannot
-        // stomp on a selection the player made.
-        document.addEventListener("copy", function (e) {
-            var field = config.field();
-            if (!field) return;
-
-            var value = field.get();
-            if (!value) return;
-
-            if (e.clipboardData) {
-                e.clipboardData.setData("text/plain", value);
-                e.preventDefault();
-            }
-        });
-
-        // Ctrl+Shift+C is the shortcut a terminal uses, but it is also the
-        // browser's own "inspect element" binding in both Chrome and Firefox,
-        // and a page cannot reliably take it back. Try anyway, and let plain
-        // Ctrl+C above be the path that always works.
+        // Same trick in reverse: put the field's value into the hidden input and
+        // select it, then let the browser's own copy take it. No clipboard API,
+        // so no permission and no prompt, and it does not matter that the page
+        // itself is `user-select: none`.
+        //
+        // Relying on the `copy` event alone would not work: the hidden input is
+        // normally empty with nothing selected, and a browser fires no copy
+        // event when there is nothing to copy.
+        //
+        // This covers Ctrl+Shift+C too, on any browser that lets the page see
+        // it. Both Chrome and Firefox bind that to their inspector and a page
+        // cannot take it back, which is why Ctrl+C is the documented one.
         document.addEventListener("keydown", function (e) {
-            if (!(e.ctrlKey || e.metaKey) || !e.shiftKey || e.code !== "KeyC") return;
+            if (!(e.ctrlKey || e.metaKey) || e.code !== "KeyC") return;
 
             var field = config.field();
             if (!field) return;
@@ -114,14 +134,16 @@
             var value = field.get();
             if (!value) return;
 
-            if (global.navigator && navigator.clipboard && navigator.clipboard.writeText) {
-                e.preventDefault();
-                navigator.clipboard.writeText(value).then(function () {
-                    if (global.VTSound && VTSound.select) VTSound.select();
-                }).catch(function () {
-                    // Refused. Ctrl+C still works.
-                });
-            }
+            catcher.value = value;
+            catcher.select();
+            if (global.VTSound && global.VTSound.select) global.VTSound.select();
+
+            // Clear once the browser has taken the selection, so the value is
+            // not left sitting in the DOM.
+            setTimeout(function () {
+                catcher.value = "";
+                keepFocus();
+            }, 0);
         });
     }
 
