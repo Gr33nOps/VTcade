@@ -90,3 +90,7 @@ jobs:
       # was counted by hand, which is exactly the kind of thing that drifts.
       - name: Terminal layout tests
         run: node tests/layout.js
+
+      # Drives the admin panel's real key handling against a stubbed DOM.
+      - name: Admin panel tests
+        run: node tests/admin-panel.js

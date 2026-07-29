@@ -156,10 +156,11 @@ cd BackEnd && npm test     # 60 route tests, Supabase fully mocked
 node tests/game-logic.js   # 96 game logic and consistency checks
 node tests/sound.js        # sound module against a stubbed AudioContext
 node tests/layout.js       # menu column alignment and character widths
+node tests/admin-panel.js  # admin panel menu logic
 ```
 
 The game tests execute the real game scripts against a stubbed DOM instead of
-reimplementing the rules, so they fail when a game actually regresses. All four
+reimplementing the rules, so they fail when a game actually regresses. All five
 suites run in GitHub Actions on every push.
 
 ## Database

@@ -449,6 +449,39 @@ READY: <span class="cursor">_</span>
         }
 
         // ==================== RENDER MAINTENANCE ====================
+        //
+        // The one source of truth for this screen's menu. Enable and Disable are
+        // mutually exclusive, so only one of them is ever on screen, and every
+        // index used anywhere refers to THIS list.
+        //
+        // Previously three places disagreed. The renderer compacted the list and
+        // skipped the disabled entry, so BACK TO MENU drew at index 1, while the
+        // Enter handler still used positions from the uncompacted array and only
+        // recognised BACK TO MENU at index 2. The result was that BACK TO MENU
+        // matched nothing and did nothing, and navigate() allowed a fourth,
+        // invisible position where nothing was highlighted but Enter did work.
+        function maintenanceActions() {
+            const actions = [];
+
+            if (stats.maintenanceMode) {
+                actions.push({ id: 2, name: "DISABLE MAINTENANCE MODE", run: disableMaintenance });
+            } else {
+                actions.push({ id: 1, name: "ENABLE MAINTENANCE MODE", run: enableMaintenance });
+            }
+
+            actions.push({
+                id: 3,
+                name: "BACK TO MENU",
+                run: () => {
+                    currentView = "home";
+                    selectedIndex = 0;
+                    render();
+                }
+            });
+
+            return actions;
+        }
+
         function renderMaintenance() {
             const { date, time } = getDateTime();
             const modeStatus = stats.maintenanceMode ? '<span class="red">ENABLED</span>' : '<span class="yellow">DISABLED</span>';
@@ -478,26 +511,16 @@ ACTIONS
 
 `;
 
-            const actions = [
-                { id: 1, name: "ENABLE MAINTENANCE MODE", enabled: !stats.maintenanceMode },
-                { id: 2, name: "DISABLE MAINTENANCE MODE", enabled: stats.maintenanceMode },
-                { id: 3, name: "BACK TO MENU", enabled: true }
-            ];
-
-            let actionIndex = 0;
-            actions.forEach((action, index) => {
-                if (!action.enabled) return;
-                
-                const isSelected = actionIndex === selectedIndex;
+            maintenanceActions().forEach((action, index) => {
+                const isSelected = index === selectedIndex;
                 const prefix = isSelected ? '>>>' : '   ';
                 const line = `${prefix} [${action.id}] ${action.name}`;
-                
+
                 if (isSelected) {
                     output += `<span class="highlight">${line}</span>\n`;
                 } else {
                     output += line + '\n';
                 }
-                actionIndex++;
             });
 
             output += `
@@ -778,7 +801,10 @@ READY: <span class="cursor">_</span>
                 list = leaderboards;
                 maxIndex = leaderboards.length - 1;
             } else if (currentView === "maintenance") {
-                maxIndex = 2;
+                // Derived, not hardcoded. This was 2 while only two rows were
+                // ever drawn, so the cursor could sit on an invisible fourth
+                // position below the last visible one.
+                maxIndex = maintenanceActions().length - 1;
             }
 
             if (direction === 'left') {
@@ -916,13 +942,10 @@ READY: <span class="cursor">_</span>
                             loadLeaderboards(selectedGame);
                         }
                     } else if (currentView === "maintenance") {
-                        if (selectedIndex === 0 && !stats.maintenanceMode) enableMaintenance();
-                        else if (selectedIndex === 1 && stats.maintenanceMode) disableMaintenance();
-                        else if (selectedIndex === 2) { 
-                            currentView = "home"; 
-                            selectedIndex = 0; 
-                            render(); 
-                        }
+                        // Dispatch straight off the list that was drawn, so the
+                        // highlighted row and the action taken cannot disagree.
+                        const action = maintenanceActions()[selectedIndex];
+                        if (action) action.run();
                     }
                     e.preventDefault();
                     break;
