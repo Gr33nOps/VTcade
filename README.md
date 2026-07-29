@@ -19,12 +19,22 @@ black, scanlines, a blinking cursor, and keyboard driven menus. Three games run
 inside a fixed character grid, and scores are stored server side with global
 leaderboards.
 
-Every screen is drawn as monospaced text. The games use a 50 by 30 character
-board, and all sprites are solid blocks so the grid stays aligned. Those numbers
-are a 5 to 3 ratio on purpose: a monospace cell is 0.6em wide and 1em tall, so
-50 by 30 renders as a perfect 480 by 480 pixel square.
+Every screen is drawn as monospaced text. There are no images and no build step.
+The games use a 50 by 30 character board, and all sprites are solid blocks so the
+grid stays aligned. Those numbers are a 5 to 3 ratio on purpose. A monospace cell
+is 0.6em wide and 1em tall, so 50 by 30 renders as a 480 by 480 pixel square.
 
 Live at [vtcade.vercel.app](https://vtcade.vercel.app).
+
+## Screenshots
+
+| Dashboard | Tetris |
+|---|---|
+| ![Player dashboard](docs/screenshots/dashboard.png) | ![Tetris](docs/screenshots/tetris.png) |
+
+| Snake | Flappy Bird |
+|---|---|
+| ![Snake](docs/screenshots/snake.png) | ![Flappy Bird](docs/screenshots/flappy.png) |
 
 ## Features
 
@@ -33,14 +43,12 @@ Live at [vtcade.vercel.app](https://vtcade.vercel.app).
 * Email verification and password recovery
 * Personal bests and per game leaderboards
 * Admin panel for users, games, scores, and maintenance mode
-* Pure CSS terminal effects with no images and no build step
-* Every screen is a fixed character grid that scales to fit any window, sized
-  from both viewport dimensions so nothing is ever cut off
-* Keyboard only, by design. Nothing on the site needs a mouse.
-* Retro beep sound effects, synthesised at runtime with the Web Audio API so
-  there are no audio files to load, with a shared mute toggle on the M key
-* Keyboard first controls with arrow keys, WASD, P to pause, M to mute, and
-  Escape to exit
+* Retro beep sound effects, synthesised at runtime with the Web Audio API, so
+  there are no audio files to load. Shared mute toggle on the M key.
+* Terminal effects in pure CSS. No images, no framework, no bundler.
+* Every screen scales to fit the window. Font size is derived from both viewport
+  dimensions, so nothing is ever cut off on a small or short screen.
+* Keyboard only by design. Nothing on the site needs a mouse.
 * Scores are submitted with a verified session token, so a player cannot post a
   score under someone else's name
 
@@ -55,7 +63,7 @@ Live at [vtcade.vercel.app](https://vtcade.vercel.app).
 
 ```
 BackEnd/          Express API
-  config/         Supabase clients, auth, logging, route wrapper
+  config/         Supabase clients, auth, origins, logging, route wrapper
   routes/         auth, admin, game, leaderboard, highscore, maintenance
   tests/          Jest and Supertest route tests
 FrontEnd/         Static site, served as is
@@ -64,6 +72,7 @@ FrontEnd/         Static site, served as is
   dashboard/      player menu
   admin/          admin login and panel
   login/ signup/  auth screens
+docs/             Screenshots
 tests/            Game logic and consistency tests
 ```
 
@@ -115,10 +124,10 @@ tests/            Game logic and consistency tests
 
    It also refuses to start on values that are present but weak: an
    `ADMIN_JWT_SECRET` under 32 characters, an `ADMIN_PASSWORD` under 12, or a
-   password that is a known default. Note that the placeholder printed above is
-   itself rejected — replace it. A weak signing secret is not a degraded state
-   to run in, it is an unlocked door, so this is fatal rather than a warning
-   that scrolls past in a log.
+   password that is a known default. The placeholder printed above is itself
+   rejected, so replace it. A weak signing secret is not a degraded state to run
+   in, it is an unlocked door, so this is fatal rather than a warning that
+   scrolls past in a log.
 
    The service role key bypasses Row Level Security and is used only on the
    server. Never ship it to the browser. Find it in Supabase under Project
@@ -143,18 +152,20 @@ tests/            Game logic and consistency tests
    npx live-server
    ```
 
-   The API base URL lives in `FrontEnd/shared/config.js`. Point it at your own
-   backend when running locally.
+   `FrontEnd/shared/config.js` points at `http://localhost:5000` when the page is
+   served from localhost, and uses a same origin path otherwise. Change the port
+   there if your backend runs elsewhere.
 
 ### Running the tests
 
 ```
 cd BackEnd && npm test     # 60 route tests, Supabase fully mocked
 node tests/game-logic.js   # 96 game logic and consistency checks
+node tests/sound.js        # sound module against a stubbed AudioContext
 ```
 
 The game tests execute the real game scripts against a stubbed DOM instead of
-reimplementing the rules, so they fail when a game actually regresses. Both
+reimplementing the rules, so they fail when a game actually regresses. All three
 suites run in GitHub Actions on every push.
 
 ## Database
@@ -169,9 +180,9 @@ identity.
 | `leaderboard` | Best score per player per game |
 | `system_settings` | Single row holding the maintenance mode flag |
 
-Scores are written through a Postgres function that upserts the higher of the
-old and new value in one statement, so two submissions racing each other cannot
-lose a score.
+Scores are written through a Postgres function that upserts the higher of the old
+and new value in one statement, so two submissions racing each other cannot lose
+a score.
 
 ## Usage
 
@@ -181,8 +192,8 @@ password, or continue with Google. Confirm your email, then sign in.
 **Playing.** From the dashboard, select GAMES, pick a title, and play. Scores
 save on their own when a run ends.
 
-**Controls.** Arrow keys or WASD to move, Up to rotate in Tetris, Space to jump,
-flap or hard drop, P to pause, M to mute, Escape to return to the dashboard. Tab
+**Controls.** Arrow keys or WASD to move. Up rotates in Tetris. Space jumps,
+flaps, or hard drops. P pauses, M mutes, Escape returns to the dashboard. Tab
 switches between login and signup, and F1 opens admin access from the login
 screen.
 
@@ -191,12 +202,12 @@ top ten scores are shown.
 
 **Admin.** Sign in at `/admin/adminlogin.html`. From there you can ban, unban,
 and delete users, enable and disable games, flag or remove individual scores,
-reset a whole leaderboard, and turn maintenance mode on and off. Disabling a
-game hides it from the dashboard for every player.
+reset a whole leaderboard, and turn maintenance mode on and off. Disabling a game
+hides it from the dashboard for every player.
 
 ## API
 
-Browsers reach the API at `/api` on the frontend's own origin; Vercel rewrites
+Browsers reach the API at `/api` on the frontend's own origin. Vercel rewrites
 that through to `https://vtcade.onrender.com`, which is also the base URL for
 anything calling the API directly. See Deployment for why the proxy exists.
 
@@ -228,13 +239,13 @@ anything calling the API directly. See Deployment for why the proxy exists.
 
 **Admin.** Everything under `/api/admin` other than `/api/admin/login` requires
 the session issued by that login route. In a browser that is the httpOnly cookie
-it sets; scripts may send the same token as a bearer header instead.
+it sets. Scripts may send the same token as a bearer header instead.
 `POST /api/admin/logout` revokes it.
 
-Note the cookie is scoped to `/api/admin`, so it is never attached to a player
-or public request. `POST /api/game/add` and `DELETE /api/game/:id` sit outside
-that path and are therefore reachable only with a bearer header, not from a
-browser session. The admin panel does not use them.
+The cookie is scoped to `/api/admin`, so it is never attached to a player or
+public request. `POST /api/game/add` and `DELETE /api/game/:id` sit outside that
+path and are therefore reachable only with a bearer header, not from a browser
+session. The admin panel does not use them.
 
 **Health.** `GET /health` returns `{"ok":true}` and is what Render polls.
 
@@ -264,12 +275,12 @@ attaches the token and refreshes it when it expires.
 * The admin session is an httpOnly, `SameSite=Strict` cookie scoped to
   `/api/admin`. The token is never in a response body and never in
   `localStorage`, so a script injected into the panel has nothing to read. This
-  is why `/api` is proxied through the frontend origin — see Deployment.
+  is why `/api` is proxied through the frontend origin. See Deployment.
 * Signing out revokes the token server side, not just in the browser
-* Admin tokens pin the algorithm, issuer and audience, and carry a unique id
+* Admin tokens pin the algorithm, issuer, and audience, and carry a unique id
 * Cross origin state changing admin requests are refused, behind `SameSite`
 * Every admin action that changes or destroys something is written to an audit
-  log with the actor, the target and the source address
+  log with the actor, the target, and the source address
 * The server refuses to start on a weak `ADMIN_PASSWORD` or `ADMIN_JWT_SECRET`
 * Admin password comparison is constant time over fixed length digests, so it
   does not leak the password's length through response timing
@@ -288,21 +299,21 @@ must be registered to appear.
 
 ## Deployment
 
-**Frontend on Vercel.** Root directory is `FrontEnd`. It deploys on every push
-to `main`. There is no build step.
+**Frontend on Vercel.** Root directory is `FrontEnd`. It deploys on every push to
+`main`. There is no build step.
 
 `FrontEnd/vercel.json` rewrites `/api/*` through to the Render backend. This is
 load bearing, not a convenience. `vercel.app` and `onrender.com` are both on the
-Public Suffix List, so `vtcade.vercel.app` and `vtcade.onrender.com` are
-entirely separate *sites*. Without the rewrite the admin session cookie would be
-third party, which Safari blocks and Firefox partitions, and the panel would
-stop working in both. Proxying keeps every request same origin, so the cookie is
-first party and can be `SameSite=Strict`. It also takes CORS out of the request
-path and stops exposing the backend's real origin.
+Public Suffix List, so `vtcade.vercel.app` and `vtcade.onrender.com` are entirely
+separate *sites*. Without the rewrite the admin session cookie would be third
+party, which Safari blocks and Firefox partitions, and the panel would stop
+working in both. Proxying keeps every request same origin, so the cookie is first
+party and can be `SameSite=Strict`. It also takes CORS out of the request path
+and stops exposing the backend's real origin.
 
-If you ever point the frontend somewhere without that rewrite, set
-`window.VTCADE_API_URL` in `FrontEnd/shared/config.js` back to an absolute URL —
-and understand that the admin cookie will not survive the change.
+If you point the frontend somewhere without that rewrite, set
+`window.VTCADE_API_URL` in `FrontEnd/shared/config.js` back to an absolute URL,
+and expect the admin cookie to stop working.
 
 **Backend on Render.** Root directory is `BackEnd`, start command `npm start`,
 health check path `/health`. Set the environment variables listed above in the
@@ -311,17 +322,17 @@ so it is never committed.
 
 `TRUST_PROXY_HOPS` is `4`. Vercel's rewrite sits in front of Render's own router
 and `X-Forwarded-For` arrives four deep, so the client address is the fourth
-entry from the socket. This is measured, not guessed: it was set to `2` at first
+entry from the socket. This is measured, not guessed. It was set to `2` at first
 and `req.ip` resolved to a shared Cloudflare edge address, which meant every
 visitor behind that edge shared a single rate limit bucket. After any hosting
-change, confirm it with `GET /api/admin/diagnostics/ip` — if `seenIp` is not your
+change, confirm it with `GET /api/admin/diagnostics/ip`. If `seenIp` is not your
 own address, the number is wrong.
 
-Note that a fixed hop count is only correct for traffic arriving through Vercel.
-Anything hitting the Render URL directly has a shorter chain and could therefore
-forge `X-Forwarded-For` to change its apparent address and dodge the per address
-limits. The global cap on failed admin logins is not keyed by address and is
-what covers that case.
+A fixed hop count is only correct for traffic arriving through Vercel. Anything
+hitting the Render URL directly has a shorter chain and could forge
+`X-Forwarded-For` to change its apparent address and dodge the per address
+limits. The global cap on failed admin logins is not keyed by address and is what
+covers that case.
 
 **Database on Supabase.** Enable the Google provider under Authentication if you
 want Google sign in, and add your callback page to the redirect allow list.
@@ -330,16 +341,15 @@ want Google sign in, and add your callback page to the redirect allow list.
 
 **Soon**
 
-* Sound effects
-* User profiles
+* User profiles with per game statistics
 * Achievement badges
+* A fourth game
 
 **Later**
 
 * Real time multiplayer
 * Tournament mode
-* More games
 
 ## License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+MIT. See [LICENSE](LICENSE).

@@ -41,8 +41,8 @@ const WIDTH = VTGameUI.BOARD_W;
 const HEIGHT = VTGameUI.BOARD_H;
 const X_MIN = VTGameUI.PLAY_X_MIN;
 const X_MAX = VTGameUI.PLAY_X_MAX;
-const GROUND_ROW = VTGameUI.GROUND_ROW;   // 24 - the floor line
-const SKY_ROWS = GROUND_ROW;              // 0..23 are flyable
+const GROUND_ROW = VTGameUI.GROUND_ROW;   // 29, the floor line
+const SKY_ROWS = GROUND_ROW;              // rows 0..28 are flyable
 const GAME_NAME = "FLAPPY BIRD";
 const KEY_LABEL = "SPACE";
 const gameApi = createGameApi(GAME_NAME);
@@ -51,7 +51,7 @@ const currentUser = VTSession.getUsername();
 
 if (!currentUser) {
     alert("You must be logged in to play!");
-    // Was "../login/login.html", which resolves to games/login/login.html — a 404.
+    // Was "../login/login.html", which resolves to games/login/login.html, a 404.
     window.location.replace("../../login/login.html");
     // Halt the rest of the script. Without this the redirect is merely queued
     // and initGame() still runs, firing requests for the literal user "null".
@@ -88,11 +88,10 @@ let bird = {
 
 let pipes = [];
 const pipeWidth = 3;
-// Widened from 8 to 9 because the bird grew from 1 row to 2: this keeps the
-// same 7 rows of actual clearance the game had before.
-// Held proportional to the playfield, not absolute. It was 9 when the board had
-// 24 flyable rows; the board is now 30 tall (29 flyable) to make it square, and
-// leaving the gap at 9 would have quietly made the game a third harder.
+// Proportional to the playfield, never absolute. The gap was a fixed 9 rows
+// when only 24 were flyable, which left 7 rows of real clearance for a 2 row
+// bird. The board is 29 flyable rows now that it is square, and leaving the
+// gap at 9 would have quietly made the game a third harder.
 const pipeGap = Math.round(SKY_ROWS * 9 / 24);   // 11 at 29 rows
 let pipeSpeed = 1;
 const PIPE_SPEED_MAX = 1.8;
@@ -171,7 +170,7 @@ function gameLoop() {
         });
         // If a contact point was found, rebuild the frame at that exact,
         // non-colliding position. If not (rare: the pipe itself moved onto an
-        // already-stationary bird this tick), do NOT rebuild — that would
+        // already-stationary bird this tick), do NOT rebuild, that would
         // paint the grid from the still-colliding position and reintroduce the
         // overlap. lastSafeGrid already holds the last tick that was clean.
         if (contactY !== null) {
@@ -315,7 +314,7 @@ function togglePause() {
         gameLoop();
         return;
     }
-    if (!gameRunning) return;   // already over — nothing to pause
+    if (!gameRunning) return;   // already over, nothing to pause
     paused = true;
     gameRunning = false;
     draw();

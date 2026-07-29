@@ -45,7 +45,7 @@ const app = express();
 // instead of the client's, which silently collapses the per-IP rate limiter
 // into a single global bucket and locks every user out at once.
 //
-// Verify after any hosting change with GET /api/admin/diagnostics/ip — if
+// Verify after any hosting change with GET /api/admin/diagnostics/ip, if
 // `seenIp` is not your own address, this number is wrong.
 app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS || 4));
 
@@ -91,7 +91,7 @@ const writeLimiter = rateLimit({
 //
 // `skipSuccessfulRequests` is what makes a global cap safe to run: a real admin
 // signing in correctly never spends any of the budget, so the only way to
-// exhaust it is to be wrong 100 times in 15 minutes — which is the case we
+// exhaust it is to be wrong 100 times in 15 minutes, which is the case we
 // actively want locked out.
 const adminLoginGlobalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -116,7 +116,7 @@ app.use("/api/admin/login", authLimiter, adminLoginGlobalLimiter);
 app.use("/api/highscore/save", writeLimiter);
 app.use("/api/leaderboard/save", writeLimiter);
 
-// /api/admin is deliberately NOT behind checkMaintenance — an admin must still
+// /api/admin is deliberately NOT behind checkMaintenance, an admin must still
 // be able to reach the panel and turn maintenance back off while it is on.
 app.use("/api/admin", requireSameOrigin, require("./routes/adminRoutes"));
 app.use("/api/auth", checkMaintenance, require("./routes/authRoutes"));
@@ -145,7 +145,7 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   // express.json() and friends attach a status to malformed input: a body that
   // isn't valid JSON, or one over the 16kb cap. Those are the caller's fault,
-  // and calling them 500 does two bad things — it tells the client the server
+  // and calling them 500 does two bad things, it tells the client the server
   // broke when it didn't, and it buries genuine faults in a log full of noise
   // nobody caused. Answer them honestly and log them as warnings.
   const status = err.status || err.statusCode;

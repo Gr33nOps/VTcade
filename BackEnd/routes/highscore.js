@@ -4,7 +4,7 @@ const asyncRoute = require("../config/asyncRoute");
 const { requireUser } = require("../config/auth");
 
 // The separate `highscores` table is gone. It stored the same fact as
-// `leaderboard` — a player's best score per game — but was written by a
+// `leaderboard`, a player's best score per game, but was written by a
 // different endpoint, so the two drifted apart and the public leaderboard ended
 // up showing scores lower than players had actually achieved.
 //

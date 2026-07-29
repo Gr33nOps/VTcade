@@ -74,7 +74,7 @@ const CELL_W = 4;
 const WELL_COLS = (X_MAX - X_MIN + 1) / CELL_W;   // 48 / 4 = 12, the full width
 const WELL_ROWS = GROUND_ROW;                     // every row above the floor
 const WELL_X = X_MIN;                             // flush against the board's border
-const WELL_TOP = GROUND_ROW - WELL_ROWS;          // 0 — the well is the playfield
+const WELL_TOP = GROUND_ROW - WELL_ROWS;          // 0, the well is the playfield
 
 // ---- Pieces ---------------------------------------------------------------
 //
@@ -118,7 +118,7 @@ let gameStarted = false;
 let paused = false;
 let isNewRecord = false;
 // The last frame drawn while nothing was intersecting. Shown on game over so
-// the board never displays a piece buried in the stack — see gameOver().
+// the board never displays a piece buried in the stack. See gameOver().
 let lastSafeGrid = null;
 // Incremented on every restart. gameOver() captures it before awaiting so a
 // slow save can't repaint over a run the player has already restarted.
@@ -197,7 +197,7 @@ function collides(cells, px, py) {
 
 // The shared name every game exposes. In Tetris the only moment the active
 // piece can legally be inside something is the instant a new one spawns into a
-// stack that has reached the top — which is exactly what ends the run.
+// stack that has reached the top, which is exactly what ends the run.
 function checkCollision() {
     return !!piece && collides(piece.cells, piece.x, piece.y);
 }
@@ -337,7 +337,7 @@ function buildGrid() {
     // the wall.
     VTGameUI.paintGround(grid);
 
-    // The settled stack is the hazard — it is what ends the run once it reaches
+    // The settled stack is the hazard, it is what ends the run once it reaches
     // the spawn row. The falling piece is the player.
     for (let y = 0; y < WELL_ROWS; y++) {
         for (let x = 0; x < WELL_COLS; x++) {
@@ -405,7 +405,7 @@ function gameLoop() {
 
 // Run after any input that moved or locked a piece. `resetGravity` restarts the
 // drop clock, which a soft or hard drop should do and a sideways nudge should
-// not — otherwise sliding a piece left and right forever would stop it falling.
+// not, otherwise sliding a piece left and right forever would stop it falling.
 function afterInput(resetGravity) {
     if (!gameRunning) return;
 
@@ -492,7 +492,7 @@ function togglePause() {
         gameLoop();
         return;
     }
-    if (!gameRunning) return;   // already over — nothing to pause
+    if (!gameRunning) return;   // already over, nothing to pause
     paused = true;
     gameRunning = false;
     if (dropTimer) clearTimeout(dropTimer);

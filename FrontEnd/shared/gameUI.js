@@ -69,14 +69,14 @@
     //
     // 50x30 is not arbitrary: it renders as a PERFECT SQUARE on screen.
     //
-    // A Courier New cell is 0.6em wide and, at line-height 1.0, 1em tall — so
+    // A Courier New cell is 0.6em wide and, at line-height 1.0, 1em tall, so
     // 9.6 x 16 px at the base 16px font. A square board therefore needs
     //
     //     BOARD_W / BOARD_H = 16 / 9.6 = 5 / 3
     //
     // and 50x30 gives exactly 480 x 480 px. Any future change must keep that
     // 5:3 ratio or the board stops being square: 40x24, 45x27 and 60x36 also
-    // work, 50x25 (the old size) did not — it was 480x400, visibly wide.
+    // work, 50x25 (the old size) did not, it was 480x400, visibly wide.
     //
     // 50 was kept over the other 5:3 options because it leaves 48 playable
     // columns, and 48 divides by 2, 3, 4, 6, 8, 12, 16 and 24. A game with a
@@ -86,8 +86,8 @@
     const BOARD_W = 50;               // including both border columns
     const BOARD_H = 30;               // playable rows
     const PLAY_X_MIN = 1;
-    const PLAY_X_MAX = BOARD_W - 2;   // 48 — last playable column
-    const GROUND_ROW = BOARD_H - 1;   // 29 — floor line for side-scrollers
+    const PLAY_X_MAX = BOARD_W - 2;   // 48, last playable column
+    const GROUND_ROW = BOARD_H - 1;   // 29, floor line for side-scrollers
     const PANEL_W = 20;
     const DIVIDER = "━".repeat(PANEL_W); // ━
 

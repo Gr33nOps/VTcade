@@ -2,7 +2,7 @@
 // hardcoded separately in eight different files.
 //
 // In production the value is deliberately EMPTY. FrontEnd/vercel.json rewrites
-// /api/* through to the Render backend, so every request is same-origin — which
+// /api/* through to the Render backend, so every request is same-origin, which
 // is what lets the admin session ride in a first-party SameSite=Strict cookie
 // instead of a third-party one that Safari and Firefox would drop.
 //

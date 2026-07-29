@@ -3,7 +3,7 @@ const { logError } = require("../config/logger");
 
 async function checkMaintenance(req, res, next) {
     try {
-        // The system_settings row (id=1) is guaranteed to exist by migration —
+        // The system_settings row (id=1) is guaranteed to exist by migration -
         // no more find-or-create race on every request.
         const { data: settings, error } = await supabaseAdmin
             .from("system_settings")

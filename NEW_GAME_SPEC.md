@@ -1,4 +1,4 @@
-# VTcade — Adding a New Game
+# Adding a New Game to VTcade
 
 Hand this file to whoever (or whatever) builds the next game. It is written to
 be pasted as a prompt. Everything in it reflects how the three existing games
@@ -9,7 +9,7 @@ actually work today, not how they were originally written.
 ## Paste-as-prompt version
 
 > Add a new game to VTcade at `FrontEnd/games/<name>/game.html`, following the
-> existing conventions exactly. Read `FrontEnd/games/snake/game.html` first — it
+> existing conventions exactly. Read `FrontEnd/games/snake/game.html` first, it
 > is the reference implementation.
 >
 > **Do not invent new styling, glyphs, wording, or layout.** Everything visual
@@ -20,14 +20,14 @@ actually work today, not how they were originally written.
 > Required:
 > - Link, in this order: `shared/game.css`, `shared/config.js`,
 >   `shared/session.js`, `shared/gameApi.js`, `shared/gameUI.js`
-> - 50×25 board via `VTGameUI.createGrid()` / `frameBoard()`; never build the
+> - 50×30 board via `VTGameUI.createGrid()` / `frameBoard()`; never build the
 >   border by hand
 > - Only these glyphs, with these meanings: `GLYPH.PLAYER` for the thing the
 >   player controls, `GLYPH.HAZARD` for anything that kills, `GLYPH.PICKUP` for
 >   anything collectible, `GLYPH.GROUND` for a floor
 > - Side panel via `VTGameUI.panel()` with **exactly three** stat rows:
 >   `SCORE`, `HIGHSCORE`, and one game-specific stat
-> - Status text via `VTGameUI.statusLines()` — never write your own prompt
+> - Status text via `VTGameUI.statusLines()`. Never write your own prompt
 >   strings, so the wording and the fixed 2-line height stay consistent
 > - Auth guard, score saving, pause, tab-hide pause, ESC-to-dashboard, and the
 >   run-counter pattern copied from Snake (details below)
@@ -42,7 +42,7 @@ actually work today, not how they were originally written.
 
 ## The rules, in detail
 
-### 1. Visual language — never deviate
+### 1. Visual language, never deviate
 
 | Role | Constant | Character | Meaning |
 |---|---|---|---|
@@ -56,7 +56,7 @@ actually work today, not how they were originally written.
 playfield. It was a mistake and it is gone. The board's frame is the only frame
 any game gets; a game that draws its own box inside that one reads instantly as
 the odd one out, and no amount of correct behaviour makes up for it. If your
-playfield is narrower than the board, widen the cells until it isn't — see
+playfield is narrower than the board, widen the cells until it isn't, see
 sprite scale below.
 
 Use the constants, never the characters directly.
@@ -88,18 +88,18 @@ it for every glyph.
 
 ### 2. Board geometry
 Fixed at 50×30 (48 playable columns) for every game, so all games sit
-identically on the page. Use the constants — don't hardcode:
+identically on the page. Use the constants, don't hardcode:
 
 ```js
 VTGameUI.BOARD_W      // 50, including both borders
 VTGameUI.BOARD_H      // 30
 VTGameUI.PLAY_X_MIN   // 1
 VTGameUI.PLAY_X_MAX   // 48
-VTGameUI.GROUND_ROW   // 29 — floor line for side-scrollers
+VTGameUI.GROUND_ROW   // 29, floor line for side-scrollers
 ```
 
 **Imagine the board as a square, because it is one.** A Courier New cell is
-0.6em wide and 1em tall at line-height 1.0 — 9.6 × 16 px at the base font — so
+0.6em wide and 1em tall at line-height 1.0, 9.6 × 16 px at the base font, so
 a square board needs
 
 ```
@@ -117,7 +117,7 @@ over needing a border drawn around it. 40×24 leaves 38, which factors only as
 2 × 19.
 
 **Never restate these numbers.** The tests used to hardcode `50`, `25` and `24`
-in a dozen places, and when the board changed shape twelve checks failed — none
+in a dozen places, and when the board changed shape twelve checks failed, none
 because a game had broken, all because the test was describing the old board.
 
 Anything that rests on the floor sits at `GROUND_ROW - spriteHeight`. Flappy's
@@ -137,20 +137,20 @@ player sitting inside a hazard from the hazard itself.
 
 `VTGameUI.getPaintConflicts()` must read zero after every frame.
 
-### Never render the frame that detected the collision — but land on contact, not on a gap
+### Never render the frame that detected the collision, but land on contact, not on a gap
 
 A collision is only noticed after the sprite has already moved into the hazard.
 Drawing the current positions at that moment puts the player visibly inside the
 obstacle, which is not something a terminal game should ever show.
 
-The naive fix — fall back to whatever the previous tick looked like — has its
+The naive fix, fall back to whatever the previous tick looked like, has its
 own bug if the game has gravity. Velocity accumulates, so a falling sprite can
 move several rows in a single tick. Showing "the previous tick" can then leave
 a gap of multiple rows between the sprite and whatever ended the run, with
 nothing touching on screen. That looks like the run ended for no reason, which
 is worse than the overlap it replaces. Both of these are real bugs this project
-shipped, one right after fixing the other — check for the second one
-specifically, don't assume "no overlap" is the whole fix.
+shipped, one right after fixing the other. Check for the second one
+specifically. Don't assume "no overlap" is the whole fix.
 
 The correct behavior: land exactly on the point of contact. Binary-search
 between the last known-safe position and the colliding one, using the game's
@@ -181,10 +181,10 @@ function gameLoop() {
             return hit;
         });
 
-        // Rebuild the frame at the exact contact point — but ONLY if one was
+        // Rebuild the frame at the exact contact point, but ONLY if one was
         // found. A null result means even preY collides once the hazards have
         // moved to their new positions this tick (the sprite was standing
-        // still and an obstacle simply reached it — no y exists that avoids
+        // still and an obstacle simply reached it, no y exists that avoids
         // it). In that case do NOT rebuild: painting from the still-colliding
         // sprite.y reintroduces the overlap this whole mechanism exists to
         // prevent. lastSafeGrid already holds the last tick that was genuinely
@@ -208,7 +208,7 @@ draw(lastSafeGrid);
 
 Reset `lastSafeGrid` to null in `restartGame()`. Test both outcomes, not just
 the common one: a fast fall that needs the bisection, and a stationary sprite
-that forces the `null` fallback — the second one is exactly where the overlap
+that forces the `null` fallback, the second one is exactly where the overlap
 bug can silently come back if the rebuild guard is missing.
 
 ### 3. Sprite scale
@@ -221,7 +221,7 @@ bug can silently come back if the rebuild guard is missing.
 Pick by how your game uses the board, and say why in a comment.
 
 The third case is the one that caused trouble. Tetris was first built at Snake's
-1×1 scale, which is defensible in isolation — a block was exactly a snake
+1×1 scale, which is defensible in isolation, a block was exactly a snake
 segment. But a 10-column well inside a 48-column board only occupies a fifth of
 the width, so it needed side rails to be visible at all, and the result was a
 box inside a box: tiny, cluttered, and obviously not part of the same arcade.
@@ -281,9 +281,9 @@ a no-op while muted, so the calls are always safe to make.
 
 The shared panel footer already shows `[M] SOUND ON/OFF`, so no panel change is
 needed. `gameUI` reads the mute state defensively, so it does not matter if
-`sound.js` fails to load — the games just fall silent.
+`sound.js` fails to load, the games just fall silent.
 
-### 6. Scoring — the three rules that matter
+### 6. Scoring, the three rules that matter
 
 **Snapshot the score before awaiting.** Reading the shared `score` after an
 `await` is how a restart mid-save used to submit `0`:
@@ -311,7 +311,7 @@ Never set `highScore = score` inside the game loop. The panel shows the
 server-confirmed value; the live run is already shown as `SCORE`.
 
 ### 7. Networking
-Only through `createGameApi(GAME_NAME)`. Never call `fetch` directly — score
+Only through `createGameApi(GAME_NAME)`. Never call `fetch` directly, score
 submission has to be authenticated, and the server derives the username from
 the verified token. Sending a username in the body does nothing.
 
@@ -319,7 +319,7 @@ the verified token. Sending a username in the body does nothing.
 const gameApi = createGameApi(GAME_NAME);
 ```
 
-### 8. Auth guard — must halt the script
+### 8. Auth guard, must halt the script
 ```js
 const currentUser = VTSession.getUsername();
 if (!currentUser) {
@@ -348,7 +348,7 @@ Every game must get harder. Flappy originally never did.
 
 For a side-scroller, scale spacing by **distance, not frames**. The now-removed
 Runner used a frame interval while obstacles moved by speed, so raising the
-speed made the gaps proportionally wider — the difficulty partly cancelled
+speed made the gaps proportionally wider, the difficulty partly cancelled
 itself:
 ```js
 distanceSinceSpawn += gameSpeed;          // correct
@@ -359,7 +359,7 @@ Drive the ramp off something the player earns, not off time survived. Tetris
 speeds up per ten lines cleared, so standing still never makes it harder and
 clearing always costs you something; Snake shortens its tick per pickup.
 
-Always cap the ramp, and assert the cap in `tests/game-logic.js` — an uncapped
+Always cap the ramp, and assert the cap in `tests/game-logic.js`, an uncapped
 curve passes every "does it get harder" test and is still unplayable.
 
 ---
@@ -368,7 +368,7 @@ curve passes every "does it get harder" test and is still unplayable.
 
 Two places, or it won't show up:
 
-**1. The database** — the admin panel's enable/disable reads this:
+**1. The database**, the admin panel's enable/disable reads this:
 ```sql
 insert into games (title, genre, description, difficulty, is_active)
 values ('YOUR GAME', 'arcade', 'One line.', 'medium', true);
@@ -392,13 +392,13 @@ node tests/game-logic.js
 
 Add your game to that file's list. The consistency block checks that every game
 has identical board dimensions, identical panel height, three stat rows, and
-the same prompt templates — so a new game that drifts will fail the build.
+the same prompt templates, so a new game that drifts will fail the build.
 
 Also confirm by hand:
-- [ ] Die — GAME OVER appears instantly, not after a delay
-- [ ] Die, then immediately restart — the score saved is the one you earned
-- [ ] Beat your best — `NEW RECORD` shows
+- [ ] Die, GAME OVER appears instantly, not after a delay
+- [ ] Die, then immediately restart, the score saved is the one you earned
+- [ ] Beat your best, `NEW RECORD` shows
 - [ ] `P` pauses; switching tabs and back does not silently resume it
-- [ ] Log out, open the game URL directly — you're bounced to login and no
+- [ ] Log out, open the game URL directly, you're bounced to login and no
       request is sent
-- [ ] Disable the game in the admin panel — it disappears from the dashboard
+- [ ] Disable the game in the admin panel, it disappears from the dashboard

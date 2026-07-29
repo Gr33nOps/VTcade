@@ -6,7 +6,7 @@ const { requireAdmin } = require("../config/auth");
 const router = express.Router();
 
 // Listing games is public (the dashboard needs it). Creating and deleting
-// them previously had NO authentication at all — anyone who knew the URL
+// them previously had NO authentication at all, anyone who knew the URL
 // could add or delete games.
 router.post("/add", requireAdmin, asyncRoute(async (req, res) => {
     const { title, genre, description, difficulty, thumbnail } = req.body;

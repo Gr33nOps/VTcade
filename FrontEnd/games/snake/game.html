@@ -109,7 +109,7 @@ function spawnFood() {
     }
 
     if (freeCells.length === 0) {
-        // Board is completely full — the player has won; leave food where it is.
+        // Board is completely full, the player has won; leave food where it is.
         return;
     }
 
@@ -282,7 +282,7 @@ function togglePause() {
         gameLoop();
         return;
     }
-    if (!gameRunning) return;   // already over — nothing to pause
+    if (!gameRunning) return;   // already over, nothing to pause
     paused = true;
     gameRunning = false;
     draw();

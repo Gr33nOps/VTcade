@@ -21,14 +21,14 @@ const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 //
 // SameSite=Strict is the real defence: a browser will not attach the cookie to
 // a request originating from another site, so the classic hidden-form attack
-// never carries credentials in the first place. This catches the residue — an
+// never carries credentials in the first place. This catches the residue, an
 // older browser that ignores SameSite, or a future change that loosens it.
 //
 // Requests with NO Origin header pass on purpose. CSRF requires a browser, and
 // browsers always send Origin on cross-site state-changing requests; curl and
 // server-to-server callers send none at all. Failing open on a missing header
 // means a proxy that strips it can never lock an admin out of their own panel,
-// while a forged cross-site request — which cannot suppress Origin — is still
+// while a forged cross-site request, which cannot suppress Origin, is still
 // refused.
 function requireSameOrigin(req, res, next) {
     if (!MUTATING_METHODS.has(req.method)) return next();

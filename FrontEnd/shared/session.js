@@ -81,7 +81,7 @@
             saveSession(data.session, data.username || session.username);
             return data.session.access_token;
         } catch (err) {
-            // Network failure — keep the session and let the caller retry later.
+            // Network failure, keep the session and let the caller retry later.
             return session.accessToken;
         }
     }

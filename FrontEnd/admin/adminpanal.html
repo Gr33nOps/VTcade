@@ -126,7 +126,7 @@
 
         // Returns the parsed body, or throws. The previous version returned the
         // raw Response and every caller went straight to .json(), so a 401 or
-        // 500 still produced valid JSON and ran the success path — failed bans,
+        // 500 still produced valid JSON and ran the success path, failed bans,
         // deletes and maintenance toggles all looked like they had worked.
         async function apiCall(endpoint, options = {}) {
             // No Authorization header: the session rides in an httpOnly cookie
@@ -1059,7 +1059,7 @@ READY: <span class="cursor">_</span>
         // Pull the real dashboard numbers and, critically, the true maintenance
         // state. It used to be hardcoded to false on every load, which meant
         // that when maintenance was actually ON the panel showed OFF and the
-        // DISABLE option was unreachable — an admin could not turn it back off.
+        // DISABLE option was unreachable, an admin could not turn it back off.
         async function loadStats() {
             try {
                 const data = await apiCall('/stats');
@@ -1097,7 +1097,7 @@ READY: <span class="cursor">_</span>
                     return;
                 }
 
-                // Every view draws the header clock, so refresh on all of them —
+                // Every view draws the header clock, so refresh on all of them -
                 // it previously only ticked on the home screen.
                 if (!document.hidden) {
                     render();

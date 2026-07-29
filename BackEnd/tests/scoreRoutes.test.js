@@ -201,7 +201,7 @@ describe("game management authorization", () => {
 
     // These two routes live outside /api/admin, and the session cookie is
     // deliberately scoped to /api/admin so it is never attached to a player or
-    // public request. That means a browser session cannot reach them — they are
+    // public request. That means a browser session cannot reach them, they are
     // API-only, for scripts holding a token. The admin panel never calls them;
     // everything it does goes through /api/admin/*.
     //

@@ -78,7 +78,7 @@ router.post("/login", asyncRoute(async (req, res) => {
 
     // The session goes back as an httpOnly cookie and nothing else. The token
     // itself is never in the response body, so there is no point at which the
-    // browser's JavaScript has ever held it — which is what makes an XSS on
+    // browser's JavaScript has ever held it, which is what makes an XSS on
     // this page unable to walk off with an admin session.
     //
     // expiresAt is not sensitive: it is only so the panel can show a timeout
@@ -95,7 +95,7 @@ router.post("/login", asyncRoute(async (req, res) => {
 
 // Signing out now actually ends the session: the token is revoked server-side
 // AND the cookie is cleared. The panel used to just drop the token from
-// localStorage, which left it valid for the rest of its TTL — so "log out" on
+// localStorage, which left it valid for the rest of its TTL, so "log out" on
 // a shared machine was cosmetic.
 router.post("/logout", requireAdmin, asyncRoute(async (req, res) => {
     endAdminSession(req, res);
@@ -105,7 +105,7 @@ router.post("/logout", requireAdmin, asyncRoute(async (req, res) => {
 
 // Confirms what the server believes the client's address is. The Vercel rewrite
 // puts an extra proxy in front of Render's, and if `trust proxy` is set too low
-// every request looks like it came from one address — which silently collapses
+// every request looks like it came from one address, which silently collapses
 // the per-IP rate limiter into a global one and locks everybody out together.
 // Admin-gated, and it reveals nothing the caller doesn't already know.
 router.get("/diagnostics/ip", requireAdmin, asyncRoute(async (req, res) => {
@@ -205,7 +205,7 @@ router.delete("/users/:id", requireAdmin, asyncRoute(async (req, res) => {
 
     // Deleting the auth user cascades to profiles, which cascades to leaderboard.
     // The manual `highscores` cleanup that used to live here is gone with that
-    // table — it needed it precisely because it had no foreign key, which is how
+    // table, it needed it precisely because it had no foreign key, which is how
     // it drifted out of sync with the leaderboard in the first place.
     const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(req.params.id);
     if (deleteAuthError) throw deleteAuthError;

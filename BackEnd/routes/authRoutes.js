@@ -4,7 +4,7 @@ const { supabasePublic, supabaseAdmin } = require("../config/supabase");
 const router = express.Router();
 
 // Kicks off Google OAuth via Supabase's hosted authorize endpoint. A plain
-// top-level redirect (not a fetch) so no CORS/SDK is needed on the frontend —
+// top-level redirect (not a fetch) so no CORS/SDK is needed on the frontend -
 // consistent with the rest of this app's "backend does everything" pattern.
 router.get("/google", (req, res) => {
     const redirectTo = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login/oauth-callback.html`;
@@ -36,7 +36,7 @@ router.post("/google/session", async (req, res) => {
             .maybeSingle();
 
         if (!profile) {
-            // Shouldn't happen — on_auth_user_created creates this atomically —
+            // Shouldn't happen, on_auth_user_created creates this atomically -
             // but fail safely rather than crash if it somehow does.
             return res.status(500).json({ message: "Profile not found for this account" });
         }
@@ -88,7 +88,7 @@ router.post("/signup", async (req, res) => {
 
         // Email uniqueness, is_banned, etc. all fall out of Supabase Auth + the
         // on_auth_user_created trigger, which creates the profiles row atomically
-        // with the auth user — no more orphaned accounts if this step fails midway.
+        // with the auth user, no more orphaned accounts if this step fails midway.
         const { error: authError } = await supabasePublic.auth.signUp({
             email: email.toLowerCase(),
             password: password,

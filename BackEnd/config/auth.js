@@ -30,7 +30,7 @@ function signAdminToken() {
 // Hashing first means the comparison always runs over two 32-byte buffers, so
 // it is constant time in the sense that matters. The previous version returned
 // early when the lengths differed, which leaks the password's length through
-// response timing — the one thing a "constant-time" compare must not do.
+// response timing, the one thing a "constant-time" compare must not do.
 function safeEqual(a, b) {
     if (typeof a !== "string" || typeof b !== "string") return false;
     const ha = crypto.createHash("sha256").update(a, "utf8").digest();
@@ -46,7 +46,7 @@ function verifyAdminCredentials(username, password) {
 // expiry so the map drains itself instead of growing forever.
 //
 // Deliberately in-process. It covers "sign me out of this machine"; it does not
-// pretend to survive a restart, and it does not need to — every entry would
+// pretend to survive a restart, and it does not need to, every entry would
 // expire on its own within ADMIN_TOKEN_TTL, which is the real bound on how long
 // a stolen token is worth anything. A durable denylist means a database read on
 // every admin request, and that trade is not worth it at this size.
@@ -79,7 +79,7 @@ const WEAK_ADMIN_PASSWORDS = new Set([
 ]);
 
 // Returns a list of problems rather than throwing, and is called from server
-// startup rather than at import time — the test suite requires these modules
+// startup rather than at import time, the test suite requires these modules
 // and should not have to satisfy production-grade secrets to do it.
 function adminSecretProblems() {
     const problems = [];

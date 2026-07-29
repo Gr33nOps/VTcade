@@ -109,7 +109,7 @@ function boardLines(el) {
 // Board geometry, READ from the shared module rather than restated as literals.
 //
 // Every one of these used to be a hardcoded number, and when the board changed
-// shape twelve checks failed — not one of them because a game had broken, all
+// shape twelve checks failed, not one of them because a game had broken, all
 // of them because the test was describing the old board. A test that has to be
 // edited every time the thing it measures is resized is not measuring anything.
 const GEO = (() => {
@@ -232,7 +232,7 @@ console.log("\n=== TETRIS ===");
         ctx.WELL_X === 1, "WELL_X=" + ctx.WELL_X);
     // Measured in CELLS, not pixels. The cells are wider than they are tall, so
     // the well looks square on screen while still being a deep well to play in
-    // — which is the property that decides how the game feels.
+    //, which is the property that decides how the game feels.
     check("the well is at least twice as deep as it is wide",
         ctx.WELL_ROWS >= ctx.WELL_COLS * 2,
         ctx.WELL_COLS + " wide x " + ctx.WELL_ROWS + " deep");
@@ -525,7 +525,7 @@ console.log("\n=== GLYPH SAFETY AND OVERLAP ===");
     const scenarios = [
         ["snake", (c) => c.updateSnake()],
         // Gravity only. Pieces stack in the middle, nothing ever clears, and
-        // the well tops out — which restarts the run and does it again.
+        // the well tops out, which restarts the run and does it again.
         ["tetris", (c) => c.tick()],
         ["flappyBird", (c) => {
             const next = c.pipes
@@ -640,7 +640,7 @@ console.log("\n=== GAME OVER FRAME ===");
 // Gravity accumulates, so a falling sprite can move several rows in one tick.
 // Falling back to "wherever it was the previous tick" can leave a multi-row
 // gap between the sprite and whatever killed it, on screen, with the run
-// simply ending — which looks like it ended for no reason. A player must be
+// simply ending, which looks like it ended for no reason. A player must be
 // able to see what they hit.
 console.log("\n=== GAME OVER FRAME SHOWS CONTACT ===");
 {
@@ -683,7 +683,7 @@ console.log("\n=== GAME OVER FRAME SHOWS CONTACT ===");
 
     check("the bird sits touching (0 rows from) what ended the run, not floating away",
         nearestGap === 0,
-        "nearest hazard is " + nearestGap + " rows away — a player would see no cause of death");
+        "nearest hazard is " + nearestGap + " rows away, a player would see no cause of death");
 }
 
 // The fallback (no valid contact point this tick) must not resurrect the old
