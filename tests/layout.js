@@ -81,6 +81,57 @@ console.log("\n=== TWO COLUMN NAV ROWS LINE UP ===");
         misaligned + " misaligned");
 }
 
+// A lone "[ESC]   BACK TO MENU" row sitting under two-column rows in the same
+// COMMANDS block has its own label column, independent of the check above (which
+// only compares two-column rows to each other). Three screens had this: the
+// two-column rows above put their label at column 14, but the standalone row
+// used a different gutter and landed at column 19 — visibly out of step with
+// everything above it, even though each row was "aligned" by the first check.
+console.log("\n=== LONE ROWS MATCH THEIR BLOCK'S COLUMN ===");
+{
+    const ONE_COL_ROW = /^\s{2,}\[[^\]]+\]\s+\S/;
+    let lone = 0, mismatched = 0;
+
+    function labelCol(line) {
+        const m = line.match(/\[[^\]]+\](\s+)/);
+        return m ? m[0].length : null;
+    }
+
+    for (const file of htmlFiles(ROOT)) {
+        const rel = path.relative(ROOT, file).replace(/\\/g, "/");
+        const lines = fs.readFileSync(file, "utf8").split(/\r?\n/);
+        let blockCol = null;
+
+        lines.forEach((line, i) => {
+            const trimmed = line.trim();
+            const isTwo = NAV_ROW.test(line);
+            const isOne = !isTwo && ONE_COL_ROW.test(line);
+
+            if (isTwo) {
+                blockCol = labelCol(line);
+            } else if (isOne) {
+                lone++;
+                const col = labelCol(line);
+                if (blockCol !== null && col !== blockCol) {
+                    mismatched++;
+                    console.log("  FAIL  " + rel + ":" + (i + 1) +
+                        " lone row's label is at column " + col +
+                        ", the two-column rows above it use " + blockCol);
+                    failures++;
+                }
+            } else if (trimmed === "" || /^={3,}$/.test(trimmed)) {
+                // A blank line or a === divider ends the block, so a lone row
+                // on the NEXT screen is judged against nothing rather than
+                // whatever column happened to be in force on a different page.
+                blockCol = null;
+            }
+        });
+    }
+
+    check("checked " + lone + " lone command rows, none out of step with their block",
+        mismatched === 0, mismatched + " mismatched");
+}
+
 // The board glyphs are restricted to ranges that occupy exactly one cell, but
 // the menus are plain text and were never covered. Arrows are the risk: they
 // live in the Arrows block, not Box Drawing, so a font without them falls back
