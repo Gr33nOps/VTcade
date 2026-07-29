@@ -157,6 +157,7 @@ node tests/game-logic.js   # 96 game logic and consistency checks
 node tests/sound.js        # sound module against a stubbed AudioContext
 node tests/layout.js       # menu column alignment and character widths
 node tests/admin-panel.js  # admin panel menu logic
+node tests/dashboard.js    # dashboard navigation and locked-game handling
 ```
 
 The game tests execute the real game scripts against a stubbed DOM instead of

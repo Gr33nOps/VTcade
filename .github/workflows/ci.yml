@@ -94,3 +94,7 @@ jobs:
       # Drives the admin panel's real key handling against a stubbed DOM.
       - name: Admin panel tests
         run: node tests/admin-panel.js
+
+      # Drives the dashboard's real navigation against a stubbed DOM.
+      - name: Dashboard tests
+        run: node tests/dashboard.js

@@ -483,6 +483,22 @@ READY: <span class="cursor">_</span>
                 }
             }
 
+            // Games can be LOCKED (not shipped yet). The cursor must never rest
+            // on one, so keep stepping in the same direction past any run of
+            // locked entries, wrapping around the whole list rather than
+            // stopping the instant it touches one. A guard counter is the
+            // backstop if every game were ever locked at once.
+            if (currentView === "games" && list.length > 0 &&
+                (direction === "up" || direction === "down")) {
+                const step = direction === "up" ? -1 : 1;
+                let guard = 0;
+                while (list[selectedIndex] && !list[selectedIndex].available && guard < list.length) {
+                    selectedIndex = (selectedIndex + step + list.length) % list.length;
+                    guard++;
+                }
+                currentPage = Math.floor(selectedIndex / itemsPerPage);
+            }
+
             if (list.length > 0) {
                 const start = currentPage * itemsPerPage;
                 const end = Math.min(start + itemsPerPage, list.length);
@@ -530,14 +546,22 @@ READY: <span class="cursor">_</span>
             }
         }
 
+        // The sound is decided in here rather than at each call site: arrow
+        // navigation can no longer land on a locked game, but Enter and the
+        // direct-access number keys still reach launchGame() directly, and a
+        // locked one used to answer with the same "select" beep as a real
+        // launch while silently doing nothing. It plays the error beep instead.
         function launchGame(globalIndex) {
             if (currentView !== "games" || globalIndex >= games.length) return;
             const game = games[globalIndex];
-            if (game.available) {
-                localStorage.setItem("currentGame", JSON.stringify({ name: game.name, selectedAt: Date.now() }));
-                document.getElementById('loadingOverlay').classList.add('active');
-                setTimeout(() => window.location.href = game.url, 800);
+            if (!game.available) {
+                VTSound.error();
+                return;
             }
+            VTSound.select();
+            localStorage.setItem("currentGame", JSON.stringify({ name: game.name, selectedAt: Date.now() }));
+            document.getElementById('loadingOverlay').classList.add('active');
+            setTimeout(() => window.location.href = game.url, 800);
         }
 
         function logout() {
@@ -555,12 +579,15 @@ READY: <span class="cursor">_</span>
                 case "ArrowLeft": VTSound.nav(); navigate('left'); e.preventDefault(); break;
                 case "ArrowRight": VTSound.nav(); navigate('right'); e.preventDefault(); break;
                 case "Enter":
-                    VTSound.select();
+                    // "games" plays its own beep (select or error) inside
+                    // launchGame(), once it knows whether the game is locked.
                     if (currentView === "menu") {
+                        VTSound.select();
                         selectOption(selectedIndex);
                     } else if (currentView === "games") {
                         launchGame(selectedIndex);
                     } else if (currentView === "leaderboard-menu") {
+                        VTSound.select();
                         selectOption(selectedIndex - currentPage * ITEMS_PER_PAGE_GAMES);
                     }
                     e.preventDefault();
@@ -588,13 +615,17 @@ READY: <span class="cursor">_</span>
                     e.preventDefault();
                     break;
                 case "1": case "2": case "3": case "4": case "5":
-                    VTSound.select();
                     const num = parseInt(e.key) - 1;
                     if (currentView === "menu") {
+                        VTSound.select();
                         selectOption(num);
                     } else if (currentView === "games") {
+                        // launchGame() plays select or error once it knows
+                        // whether this slot is locked; out of range is the
+                        // same "nothing there" case as locked.
                         const globalIndex = currentPage * ITEMS_PER_PAGE_GAMES + num;
                         if (globalIndex < games.length) launchGame(globalIndex);
+                        else VTSound.error();
                     }
                     e.preventDefault();
                     break;
