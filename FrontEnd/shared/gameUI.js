@@ -65,29 +65,37 @@
     let paintConflicts = 0;
     let occupancy = null;
 
-    // ---- Board geometry, identical everywhere --------------------------------
+    // ---- Board geometry -------------------------------------------------------
     //
-    // 50x30 is not arbitrary: it renders as a PERFECT SQUARE on screen.
+    // Games work in CELLS. A cell is the unit every sprite is built from, and it
+    // is two characters wide by one row tall.
     //
-    // A Courier New cell is 0.6em wide and, at line-height 1.0, 1em tall, so
-    // 9.6 x 16 px at the base 16px font. A square board therefore needs
+    // That number is the whole point. A Courier New character is 0.6em wide and,
+    // at line-height 1.0, 1em tall, so one character is 9.6 x 16 px and reads as
+    // tall and thin. Two of them side by side is 19.2 x 16, near enough square.
     //
-    //     BOARD_W / BOARD_H = 16 / 9.6 = 5 / 3
+    // Before this, each game picked its own compensation and none of them
+    // matched: a Snake segment was one character (ratio 0.60, thin), a Tetris
+    // block was four (ratio 2.40, flat). Sprites across the arcade spanned a
+    // factor of four, which is why Tetris looked stretched and Snake shrunken.
+    // Every sprite is now one cell, everywhere, at 1.20.
     //
-    // and 50x30 gives exactly 480 x 480 px. Any future change must keep that
-    // 5:3 ratio or the board stops being square: 40x24, 45x27 and 60x36 also
-    // work, 50x25 (the old size) did not, it was 480x400, visibly wide.
-    //
-    // 50 was kept over the other 5:3 options because it leaves 48 playable
-    // columns, and 48 divides by 2, 3, 4, 6, 8, 12, 16 and 24. A game with a
-    // fixed playfield (Tetris) can therefore choose a cell width that spans the
-    // board exactly, with no leftover gap needing a border drawn around it.
-    // 40x24 leaves 38 playable, which factors only as 2 x 19.
-    const BOARD_W = 50;               // including both border columns
-    const BOARD_H = 30;               // playable rows
-    const PLAY_X_MIN = 1;
-    const PLAY_X_MAX = BOARD_W - 2;   // 48, last playable column
-    const GROUND_ROW = BOARD_H - 1;   // 29, floor line for side-scrollers
+    // Board size is per game and set with setBoard(), because the games are not
+    // the same shape. Snake and Flappy want a wide field; a Tetris well is
+    // narrow and deep. Forcing one board on all three is what pushed Tetris to a
+    // four character cell in the first place. What is shared is the cell, not
+    // the board.
+    const CELL_W = 2;                 // characters per cell, horizontally
+
+    let boardCols = 24;               // playable width, in cells
+    let boardRows = 24;               // playable height, in cells
+
+    // Called once by each game before it draws anything.
+    function setBoard(cols, rows) {
+        boardCols = cols;
+        boardRows = rows;
+    }
+
     const PANEL_W = 20;
     const DIVIDER = "━".repeat(PANEL_W); // ━
 
@@ -98,32 +106,35 @@
         GAME_OVER: "gameover"
     };
 
+    // The grid is exactly the playable area, in cells. The border is added at
+    // render time by frameBoard, so nothing painting into the grid has to know
+    // it exists or leave room for it.
     function createGrid() {
-        const grid = new Array(BOARD_H);
-        for (let y = 0; y < BOARD_H; y++) {
-            grid[y] = new Array(BOARD_W).fill(GLYPH.BLANK);
+        const grid = new Array(boardRows);
+        for (let y = 0; y < boardRows; y++) {
+            grid[y] = new Array(boardCols).fill(GLYPH.BLANK);
         }
         // A fresh grid starts a fresh frame.
         paintConflicts = 0;
-        occupancy = new Array(BOARD_H);
-        for (let y = 0; y < BOARD_H; y++) {
-            occupancy[y] = new Array(BOARD_W).fill(null);
+        occupancy = new Array(boardRows);
+        for (let y = 0; y < boardRows; y++) {
+            occupancy[y] = new Array(boardCols).fill(null);
         }
         return grid;
     }
 
-    // Paint a rectangle, clipped to the playable area so a sprite half off the
-    // edge can never bleed into the border. `role` is what the overlap guard
-    // compares; pass one of ROLE.*.
+    // Paint a rectangle, in CELLS, clipped to the board so a sprite half off the
+    // edge can never bleed out. `role` is what the overlap guard compares; pass
+    // one of ROLE.*.
     function paintRect(grid, x, y, w, h, glyph, role) {
         const claim = role || glyph;
 
         for (let dy = 0; dy < h; dy++) {
             const gy = Math.floor(y) + dy;
-            if (gy < 0 || gy >= BOARD_H) continue;
+            if (gy < 0 || gy >= boardRows) continue;
             for (let dx = 0; dx < w; dx++) {
                 const gx = Math.floor(x) + dx;
-                if (gx < PLAY_X_MIN || gx > PLAY_X_MAX) continue;
+                if (gx < 0 || gx >= boardCols) continue;
 
                 // The ground is a backdrop, so anything may stand on it. Two
                 // sprites claiming the same cell is a genuine intersection.
@@ -168,10 +179,17 @@
         return lo;
     }
 
+    // The bottom row of cells. Anything resting on it sits at
+    // groundRow() - spriteHeight.
+    function groundRow() {
+        return boardRows - 1;
+    }
+
     function paintGround(grid) {
-        for (let x = PLAY_X_MIN; x <= PLAY_X_MAX; x++) {
-            if (occupancy) occupancy[GROUND_ROW][x] = ROLE.GROUND;
-            grid[GROUND_ROW][x] = GLYPH.GROUND;
+        const gy = groundRow();
+        for (let x = 0; x < boardCols; x++) {
+            if (occupancy) occupancy[gy][x] = ROLE.GROUND;
+            grid[gy][x] = GLYPH.GROUND;
         }
     }
 
@@ -195,11 +213,16 @@
         }
     }
 
+    // Expands each cell to CELL_W characters and wraps the result in the border.
+    // This is the only place cells become characters, which is why no game has
+    // to know the ratio exists.
     function frameBoard(grid, status) {
-        const border = "+" + "=".repeat(BOARD_W - 2) + "+";
+        const border = "+" + "=".repeat(boardCols * CELL_W) + "+";
         let out = border + "\n";
-        for (let y = 0; y < BOARD_H; y++) {
-            out += "|" + grid[y].slice(PLAY_X_MIN, PLAY_X_MAX + 1).join("") + "|\n";
+        for (let y = 0; y < boardRows; y++) {
+            let line = "";
+            for (let x = 0; x < boardCols; x++) line += grid[y][x].repeat(CELL_W);
+            out += "|" + line + "|\n";
         }
         out += border + "\n";
         out += (status[0] || "") + "\n";
@@ -251,11 +274,13 @@
         SPRITE_GLYPH: SPRITE_GLYPH,
         ROLE: ROLE,
         STATE: STATE,
-        BOARD_W: BOARD_W,
-        BOARD_H: BOARD_H,
-        PLAY_X_MIN: PLAY_X_MIN,
-        PLAY_X_MAX: PLAY_X_MAX,
-        GROUND_ROW: GROUND_ROW,
+        CELL_W: CELL_W,
+        setBoard: setBoard,
+        // Functions, not constants: the board size is per game, so a value read
+        // once at load would be whatever the last game to load happened to set.
+        cols: function () { return boardCols; },
+        rows: function () { return boardRows; },
+        groundRow: groundRow,
         createGrid: createGrid,
         paintRect: paintRect,
         isMonospaceSafe: isMonospaceSafe,

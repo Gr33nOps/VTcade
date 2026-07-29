@@ -37,10 +37,15 @@ const gameEl = document.getElementById("game");
 const uiEl = document.getElementById("ui");
 const API_URL = VTSession.API_URL;
 const { GLYPH, STATE } = VTGameUI;
-const WIDTH = VTGameUI.BOARD_W;
-const HEIGHT = VTGameUI.BOARD_H;
-const X_MIN = VTGameUI.PLAY_X_MIN;
-const X_MAX = VTGameUI.PLAY_X_MAX;
+// A wide open field, in cells. Every sprite here is exactly one cell.
+// 20 x 24 cells is 384 x 384 px on screen: a cell is 1.2 times wider than it
+// is tall, so the board needs 5 cells across for every 6 down to come out
+// square. 24 x 24 would render 1.20 wide.
+VTGameUI.setBoard(20, 24);
+const WIDTH = VTGameUI.cols();
+const HEIGHT = VTGameUI.rows();
+const X_MIN = 0;
+const X_MAX = WIDTH - 1;
 const GAME_NAME = "SNAKE";
 const KEY_LABEL = "ARROW KEYS";
 const gameApi = createGameApi(GAME_NAME);

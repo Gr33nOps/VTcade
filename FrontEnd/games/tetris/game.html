@@ -37,11 +37,16 @@ const gameEl = document.getElementById("game");
 const uiEl = document.getElementById("ui");
 const API_URL = VTSession.API_URL;
 const { GLYPH, STATE } = VTGameUI;
-const WIDTH = VTGameUI.BOARD_W;
-const HEIGHT = VTGameUI.BOARD_H;
-const X_MIN = VTGameUI.PLAY_X_MIN;
-const X_MAX = VTGameUI.PLAY_X_MAX;
-const GROUND_ROW = VTGameUI.GROUND_ROW;
+// A narrow, deep well, which is the shape Tetris actually is. It gets its own
+// board rather than being stretched across the wide one Snake and Flappy use:
+// that is what forced a four character cell here and made the blocks look
+// flat. The cell is now the shared one, and the board fits the game.
+VTGameUI.setBoard(12, 24);
+const WIDTH = VTGameUI.cols();
+const HEIGHT = VTGameUI.rows();
+const X_MIN = 0;
+const X_MAX = WIDTH - 1;
+const GROUND_ROW = VTGameUI.groundRow();
 const GAME_NAME = "TETRIS";
 const KEY_LABEL = "SPACE";
 const gameApi = createGameApi(GAME_NAME);
@@ -58,23 +63,15 @@ if (!currentUser) {
 
 // ---- Geometry -------------------------------------------------------------
 //
-// The well IS the board. Every other game paints straight onto the playfield
-// with the board's own frame as the only border, and the first version of this
-// game did not: a 10-column well inside a 48-column board needs its own side
-// rails to be visible at all, which put a box inside the box and made this the
-// odd one out. Nothing about Tetris requires that.
+// The well IS the board, so the board's own frame is the wall and there are no
+// rails to draw. Every other game paints straight onto its playfield, and an
+// earlier version of this one did not: a narrow well inside a wide shared board
+// needed its own side rails to be visible at all, which put a box inside the box
+// and made this the odd one out.
 //
-// So a cell is CELL_W characters wide, chosen so the well spans the playable
-// width exactly: 12 x 4 = 48. The board's left and right borders are the walls,
-// there are no rails to draw, and the blocks are four times wider than before.
-//
-// 12x24 keeps the classic 1:2 well proportions (10x20 is the same shape), so
-// this plays like Tetris even though the numbers differ.
-const CELL_W = 4;
-const WELL_COLS = (X_MAX - X_MIN + 1) / CELL_W;   // 48 / 4 = 12, the full width
-const WELL_ROWS = GROUND_ROW;                     // every row above the floor
-const WELL_X = X_MIN;                             // flush against the board's border
-const WELL_TOP = GROUND_ROW - WELL_ROWS;          // 0, the well is the playfield
+// 12 wide by 24 deep is the classic 1:2 well, the same shape as 10 by 20.
+const WELL_COLS = WIDTH;          // the well is the board
+const WELL_ROWS = GROUND_ROW;     // every row above the floor line
 
 // ---- Pieces ---------------------------------------------------------------
 //
@@ -315,10 +312,10 @@ function tick() {
 
 // ---- Rendering ------------------------------------------------------------
 //
-// One well cell is CELL_W characters wide and one row tall, so everything goes
-// through here rather than writing single cells anywhere.
+// A well cell is a board cell. Kept as a named function anyway, so the mapping
+// lives in one place if the well ever stops being the whole board.
 function paintCell(grid, col, row, glyph, role) {
-    VTGameUI.paintRect(grid, WELL_X + col * CELL_W, WELL_TOP + row, CELL_W, 1, glyph, role);
+    VTGameUI.paintRect(grid, col, row, 1, 1, glyph, role);
 }
 
 function paintPieceCells(grid, cells, ox, oy, glyph, role) {

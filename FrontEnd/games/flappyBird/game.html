@@ -37,12 +37,14 @@ const gameEl = document.getElementById("game");
 const uiEl = document.getElementById("ui");
 const API_URL = VTSession.API_URL;
 const { GLYPH, STATE } = VTGameUI;
-const WIDTH = VTGameUI.BOARD_W;
-const HEIGHT = VTGameUI.BOARD_H;
-const X_MIN = VTGameUI.PLAY_X_MIN;
-const X_MAX = VTGameUI.PLAY_X_MAX;
-const GROUND_ROW = VTGameUI.GROUND_ROW;   // 29, the floor line
-const SKY_ROWS = GROUND_ROW;              // rows 0..28 are flyable
+// The same 20 x 24 cell board Snake uses, which renders as a 384 px square.
+VTGameUI.setBoard(20, 24);
+const WIDTH = VTGameUI.cols();
+const HEIGHT = VTGameUI.rows();
+const X_MIN = 0;
+const X_MAX = WIDTH - 1;
+const GROUND_ROW = VTGameUI.groundRow();   // 23, the floor line
+const SKY_ROWS = GROUND_ROW;               // rows 0..22 are flyable
 const GAME_NAME = "FLAPPY BIRD";
 const KEY_LABEL = "SPACE";
 const gameApi = createGameApi(GAME_NAME);
@@ -77,9 +79,9 @@ let pipesCleared = 0;
 let distanceSincePipe = 0;
 
 let bird = {
-    x: 10,
+    x: 5,
     y: Math.floor(HEIGHT / 2),
-    width: 2,      // the shared side-scroller player size
+    width: 2,      // cells, so 4 characters by 2 rows on screen
     height: 2,
     velocity: 0,
     gravity: 0.5,
@@ -87,15 +89,21 @@ let bird = {
 };
 
 let pipes = [];
-const pipeWidth = 3;
-// Proportional to the playfield, never absolute. The gap was a fixed 9 rows
-// when only 24 were flyable, which left 7 rows of real clearance for a 2 row
-// bird. The board is 29 flyable rows now that it is square, and leaving the
-// gap at 9 would have quietly made the game a third harder.
-const pipeGap = Math.round(SKY_ROWS * 9 / 24);   // 11 at 29 rows
-let pipeSpeed = 1;
-const PIPE_SPEED_MAX = 1.8;
-let nextPipeGap = 26;
+const pipeWidth = 2;   // cells
+// Proportional to the playfield, never absolute, so resizing the board cannot
+// quietly change the difficulty. Roughly 38% of the sky, which is what it has
+// always been; a fixed number here has twice been left behind by a resize.
+const pipeGap = Math.round(SKY_ROWS * 0.38);   // 9 at 23 rows
+// Scaled down with every other horizontal distance: the field is 20 cells
+// across where it used to be 48 characters, so the old numbers would have made
+// the game more than twice as fast.
+// 0.4 gives 2.8 seconds from a pipe spawning to reaching the bird, which is
+// what the original 48 character field gave at speed 1.0. Measured rather than
+// guessed: a narrower field at the same speed would have quietly made the game
+// harder.
+let pipeSpeed = 0.4;
+const PIPE_SPEED_MAX = 0.8;
+let nextPipeGap = 11;
 
 let leaderboard = null; 
 
@@ -203,7 +211,7 @@ function updatePipes() {
 
     if (distanceSincePipe >= nextPipeGap) {
         distanceSincePipe = 0;
-        nextPipeGap = 24 + Math.floor(Math.random() * 10);   // 24-33 columns
+        nextPipeGap = 10 + Math.floor(Math.random() * 5);   // 10-14 cells, half the field
         // Leave at least one row of pipe above and below the gap.
         const maxTop = SKY_ROWS - pipeGap - 1;
         const topHeight = 1 + Math.floor(Math.random() * maxTop);
@@ -219,7 +227,8 @@ function updatePipes() {
             VTSound.point();
             // Flappy was the only game with no difficulty curve at all.
             if (score % 5 === 0 && pipeSpeed < PIPE_SPEED_MAX) {
-                pipeSpeed = Math.min(PIPE_SPEED_MAX, pipeSpeed + 0.1);
+                // Smaller steps, because the whole scale is smaller now.
+                pipeSpeed = Math.min(PIPE_SPEED_MAX, pipeSpeed + 0.05);
             }
         }
     });
@@ -288,9 +297,9 @@ function restartGame() {
     pipes = [];
     score = 0;
     pipesCleared = 0;
-    pipeSpeed = 1;
+    pipeSpeed = 0.4;
     distanceSincePipe = 0;
-    nextPipeGap = 26;
+    nextPipeGap = 11;
     gameStarted = false;
     gameRunning = false;
     draw();

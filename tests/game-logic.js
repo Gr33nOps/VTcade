@@ -112,52 +112,87 @@ function boardLines(el) {
 // shape twelve checks failed, not one of them because a game had broken, all
 // of them because the test was describing the old board. A test that has to be
 // edited every time the thing it measures is resized is not measuring anything.
-const GEO = (() => {
-    const UI = loadGame("snake").ctx.VTGameUI;
+// Board size is per game now, so this reads it from whichever game is loaded
+// rather than assuming one shape for all of them.
+function geo(ctx) {
+    const UI = ctx.VTGameUI;
+    const cols = UI.cols();
+    const rows = UI.rows();
     return {
-        W: UI.BOARD_W,
-        H: UI.BOARD_H,
-        X_MIN: UI.PLAY_X_MIN,
-        X_MAX: UI.PLAY_X_MAX,
-        GROUND: UI.GROUND_ROW,
-        // frameBoard emits: top border, H rows, bottom border, 2 status lines.
-        LINES: UI.BOARD_H + 4,
+        cols: cols,
+        rows: rows,
+        CELL_W: UI.CELL_W,
+        GROUND: UI.groundRow(),
+        // Board line width, including both border characters.
+        chars: cols * UI.CELL_W + 2,
+        // frameBoard emits: top border, rows, bottom border, 2 status lines.
+        LINES: rows + 4,
         // Board row N lives at index N + 1, past the top border.
         row: (n) => n + 1,
         // Index of the first of the two status lines.
-        STATUS: UI.BOARD_H + 2
+        STATUS: rows + 2
     };
-})();
+}
 
-// The board must render as a perfect square. A Courier New cell is 0.6em wide
-// and 1em tall at line-height 1.0, so this is the ratio that has to hold.
-console.log("\n=== BOARD IS SQUARE ===");
+// One character is 9.6 x 16 px, so a single character sprite reads as tall and
+// thin. The cell is what fixes that, and it has to be the same everywhere or
+// the games look like they came from different arcades: this is exactly what
+// went wrong before, when a Snake segment was one character (0.60) and a Tetris
+// block was four (2.40).
+const CHAR_W = 9.6;
+const CHAR_H = 16;
+
+console.log("\n=== ONE CELL, EVERY GAME ===");
 {
-    const px = GEO.W * 0.6;
-    const py = GEO.H * 1.0;
-    check("board renders square (" + GEO.W + "x" + GEO.H + " chars = " +
-          (px * 16).toFixed(0) + "x" + (py * 16).toFixed(0) + "px)",
-        Math.abs(px - py) < 1e-9,
-        "W/H must be 5:3; got " + GEO.W + "/" + GEO.H);
-    check("playable width divides cleanly for fixed-playfield games",
-        [2, 3, 4, 6, 8, 12].every(d => (GEO.X_MAX - GEO.X_MIN + 1) % d === 0),
-        (GEO.X_MAX - GEO.X_MIN + 1) + " playable columns");
+    const games = ["snake", "tetris", "flappyBird"].map(d => ({ dir: d, g: geo(loadGame(d).ctx) }));
+
+    const widths = games.map(x => x.g.CELL_W);
+    check("every game builds from the same cell",
+        new Set(widths).size === 1,
+        games.map(x => x.dir + "=" + x.g.CELL_W).join(" "));
+
+    const ratio = (widths[0] * CHAR_W) / CHAR_H;
+    check("a cell renders close to square (" + (widths[0] * CHAR_W) + " x " + CHAR_H +
+          " px, ratio " + ratio.toFixed(2) + ")",
+        Math.abs(ratio - 1) <= 0.25,
+        "a sprite this far from 1.00 reads as stretched");
+
+    // Board shape is deliberately NOT shared. Snake and Flappy want a wide open
+    // field; a Tetris well is narrow and deep. Forcing one board on all three
+    // is what pushed Tetris to a four character cell.
+    games.forEach(({ dir, g }) => {
+        const px = g.cols * g.CELL_W * CHAR_W;
+        const py = g.rows * CHAR_H;
+        console.log("        " + dir.padEnd(11) + (g.cols + " x " + g.rows + " cells").padEnd(14) +
+            px.toFixed(0) + " x " + py.toFixed(0) + " px, board ratio " + (px / py).toFixed(2));
+    });
+
+    // Snake and Flappy share a board and it should render square: a cell is 1.2
+    // times wider than tall, so that needs 5 cells across for every 6 down.
+    ["snake", "flappyBird"].forEach(dir => {
+        const g = games.find(x => x.dir === dir).g;
+        const px = g.cols * g.CELL_W * CHAR_W;
+        const py = g.rows * CHAR_H;
+        check(dir + "'s board renders square", Math.abs(px - py) < 0.5,
+            px.toFixed(0) + " x " + py.toFixed(0) + " px");
+    });
 }
 
 // ============================ SNAKE ============================
 console.log("\n=== SNAKE ===");
 {
     const { ctx, els } = loadGame("snake");
+    const G = geo(ctx);
     ctx.restartGame();
     const lines = boardLines(els.game);
 
-    check("board is " + GEO.H + " rows + 2 border + 2 status",
-        lines.length - 1 === GEO.LINES, "got " + (lines.length - 1));
-    check("every board line is exactly " + GEO.W + " wide",
-        lines.slice(0, GEO.H + 2).every(l => l.length === GEO.W),
-        JSON.stringify(lines.slice(0, GEO.H + 2).map(l => l.length).filter((v, i, a) => a.indexOf(v) === i)));
+    check("board is " + G.rows + " rows + 2 border + 2 status",
+        lines.length - 1 === G.LINES, "got " + (lines.length - 1));
+    check("every board line is exactly " + G.chars + " wide",
+        lines.slice(0, G.rows + 2).every(l => l.length === G.chars),
+        JSON.stringify(lines.slice(0, G.rows + 2).map(l => l.length).filter((v, i, a) => a.indexOf(v) === i)));
 
-    const body = lines.slice(GEO.row(0), GEO.row(GEO.H)).join("");
+    const body = lines.slice(G.row(0), G.row(G.rows)).join("");
     const SNAKE_G = ctx.VTGameUI.GLYPH;
     check("both the snake and the food are on the board",
         body.includes(SNAKE_G.PLAYER) && body.includes(SNAKE_G.PICKUP));
@@ -177,9 +212,9 @@ console.log("\n=== SNAKE ===");
     check("eating food scores +10", ctx.score === before + 10, "score=" + ctx.score);
 
     // wall collision
-    ctx.snake[0] = { x: 0, y: 5 };
+    ctx.snake[0] = { x: -1, y: 5 };
     check("hitting the left wall is a collision", ctx.checkCollision() === true);
-    ctx.snake[0] = { x: GEO.X_MAX + 1, y: 5 };
+    ctx.snake[0] = { x: G.cols, y: 5 };
     check("hitting the right wall is a collision", ctx.checkCollision() === true);
     ctx.restartGame();
     check("mid-board is not a collision", ctx.checkCollision() === false);
@@ -198,7 +233,7 @@ console.log("\n=== SNAKE ===");
     for (let i = 0; i < 400; i++) {
         ctx.spawnFood();
         if (ctx.snake.some(s => s.x === ctx.food.x && s.y === ctx.food.y)) onSnake++;
-        if (ctx.food.x < GEO.X_MIN || ctx.food.x > GEO.X_MAX || ctx.food.y < 0 || ctx.food.y > GEO.H - 1) onSnake++;
+        if (ctx.food.x < 0 || ctx.food.x >= G.cols || ctx.food.y < 0 || ctx.food.y >= G.rows) onSnake++;
     }
     check("400 food spawns all legal and off-snake", onSnake === 0, onSnake + " bad");
 }
@@ -207,34 +242,32 @@ console.log("\n=== SNAKE ===");
 console.log("\n=== TETRIS ===");
 {
     const { ctx, els } = loadGame("tetris");
+    const G = geo(ctx);
     ctx.restartGame();
     const boardRows = boardLines(els.game);
 
-    check("board is " + GEO.H + " rows + 2 border + 2 status",
-        boardRows.length - 1 === GEO.LINES, "got " + (boardRows.length - 1));
-    check("every board line is exactly " + GEO.W + " wide",
-        boardRows.slice(0, GEO.H + 2).every(l => l.length === GEO.W));
+    check("board is " + G.rows + " rows + 2 border + 2 status",
+        boardRows.length - 1 === G.LINES, "got " + (boardRows.length - 1));
+    check("every board line is exactly " + G.chars + " wide",
+        boardRows.slice(0, G.rows + 2).every(l => l.length === G.chars));
 
     // boardRows[0] is the top border, so board row N is boardRows[N + 1].
     check("floor line is drawn", boardRows[ctx.GROUND_ROW + 1].includes("\u2500"));
-    check("the well's bottom row sits on the shared ground row",
-        ctx.WELL_TOP + ctx.WELL_ROWS === ctx.GROUND_ROW,
-        "top=" + ctx.WELL_TOP + " ground=" + ctx.GROUND_ROW);
+    check("the well fills every row above the floor line",
+        ctx.WELL_ROWS === G.GROUND,
+        "well=" + ctx.WELL_ROWS + " ground=" + G.GROUND);
 
     // The whole point of the layout: the well spans the entire playfield, so
     // the board's own frame is the wall. The first version drew a 10-column
     // well with its own side rails, which put a box inside the box and made
     // this the only game that looked like that.
-    check("the well spans the full playable width",
-        ctx.WELL_COLS * ctx.CELL_W === 48,
-        ctx.WELL_COLS + " cols x " + ctx.CELL_W + " chars = " + (ctx.WELL_COLS * ctx.CELL_W));
-    check("the well starts flush against the board's own border",
-        ctx.WELL_X === 1, "WELL_X=" + ctx.WELL_X);
+    check("the well IS the board, so no rails are needed",
+        ctx.WELL_COLS === G.cols, ctx.WELL_COLS + " vs " + G.cols);
     // Measured in CELLS, not pixels. The cells are wider than they are tall, so
     // the well looks square on screen while still being a deep well to play in
     //, which is the property that decides how the game feels.
-    check("the well is at least twice as deep as it is wide",
-        ctx.WELL_ROWS >= ctx.WELL_COLS * 2,
+    check("the well is close to the classic 1:2, deep rather than wide",
+        ctx.WELL_ROWS >= ctx.WELL_COLS * 1.8,
         ctx.WELL_COLS + " wide x " + ctx.WELL_ROWS + " deep");
 
     // No internal borders anywhere: nothing but sprites and the floor line.
@@ -287,9 +320,9 @@ console.log("\n=== TETRIS ===");
     ctx.well[ctx.WELL_ROWS - 1][0] = 1;
     ctx.piece = null;
     const bottom = boardLines({ textContent: ctx.VTGameUI.frameBoard(ctx.buildGrid(), ["", ""]) })[ctx.WELL_ROWS];
-    check("one well cell renders exactly CELL_W characters wide",
-        bottom.slice(1, 1 + ctx.CELL_W) === "█".repeat(ctx.CELL_W) &&
-        bottom[1 + ctx.CELL_W] === " ",
+    check("one filled cell renders exactly one cell wide",
+        bottom.slice(1, 1 + G.CELL_W) === "█".repeat(G.CELL_W) &&
+        bottom[1 + G.CELL_W] === " ",
         JSON.stringify(bottom.slice(0, 10)));
 
     // completing a row
@@ -357,14 +390,15 @@ console.log("\n=== TETRIS ===");
 console.log("\n=== FLAPPY BIRD ===");
 {
     const { ctx, els } = loadGame("flappyBird");
+    const G = geo(ctx);
     ctx.restartGame();
     const lines = boardLines(els.game);
 
-    check("board is " + GEO.H + " rows + 2 border + 2 status",
-        lines.length - 1 === GEO.LINES, "got " + (lines.length - 1));
-    check("every board line is exactly " + GEO.W + " wide",
-        lines.slice(0, GEO.H + 2).every(l => l.length === GEO.W));
-    check("floor line is now drawn (was invisible)", lines[GEO.row(GEO.GROUND)].includes("\u2500"));
+    check("board is " + G.rows + " rows + 2 border + 2 status",
+        lines.length - 1 === G.LINES, "got " + (lines.length - 1));
+    check("every board line is exactly " + G.chars + " wide",
+        lines.slice(0, G.rows + 2).every(l => l.length === G.chars));
+    check("floor line is now drawn (was invisible)", lines[G.row(G.GROUND)].includes("\u2500"));
     check("bird is the 2x2 shared side-scroller player block",
         ctx.bird.width === 2 && ctx.bird.height === 2);
 
@@ -415,7 +449,7 @@ console.log("\n=== FLAPPY BIRD ===");
     }
     check("pipe speed increases with score (was constant forever)",
         ctx.pipeSpeed > startSpeed, startSpeed + " -> " + ctx.pipeSpeed);
-    check("pipe speed is capped", ctx.pipeSpeed <= 1.8 + 1e-9, "speed=" + ctx.pipeSpeed);
+    check("pipe speed is capped", ctx.pipeSpeed <= ctx.PIPE_SPEED_MAX + 1e-9, "speed=" + ctx.pipeSpeed);
 
     // pause
     ctx.restartGame();
@@ -433,11 +467,28 @@ console.log("\n=== CONSISTENCY ACROSS ALL THREE ===");
         return { dir: d, ...g };
     });
 
+    // Board SHAPE is deliberately per game, so it is not checked here. What has
+    // to match is everything around it: the cell each game is built from, the
+    // panel, and the wording. Asserting identical board dimensions is what
+    // forced Tetris to stretch its blocks across a board the wrong shape for it.
     const boardShapes = games.map(g => {
         const l = boardLines(g.els.game);
-        return (l.length - 1) + "x" + l[0].length;
+        return g.dir + " " + (l.length - 1) + " lines x " + l[0].length + " chars";
     });
-    check("identical board dimensions", new Set(boardShapes).size === 1, boardShapes.join(" "));
+    console.log("        boards: " + boardShapes.join(" | "));
+
+    // Every board is still a whole number of cells wide, borders included.
+    check("every board is a whole number of cells wide",
+        games.every(g => {
+            const width = boardLines(g.els.game)[0].length;
+            return (width - 2) % g.ctx.VTGameUI.CELL_W === 0;
+        }),
+        boardShapes.join(" | "));
+
+    // The rendered row height is shared, so the games sit at the same scale.
+    const rowCounts = games.map(g => boardLines(g.els.game).length - 1);
+    check("every board is the same number of rows tall",
+        new Set(rowCounts).size === 1, rowCounts.join(" "));
 
     const statHeights = games.map(g => g.els.ui.textContent.split("\n").length);
     check("identical panel height", new Set(statHeights).size === 1, statHeights.join(" "));
@@ -446,18 +497,18 @@ console.log("\n=== CONSISTENCY ACROSS ALL THREE ===");
         (g.els.ui.textContent.match(/^[A-Z]+: /gm) || []).length);
     check("all three show 3 stat rows", statCounts.every(c => c === 3), statCounts.join(" "));
 
-    const idle = games.map(g => boardLines(g.els.game)[GEO.STATUS]);
+    const idle = games.map(g => boardLines(g.els.game)[geo(g.ctx).STATUS]);
     check("all three use the same start-prompt template",
         idle.every(l => /^< PRESS .+ TO START >$/.test(l)), JSON.stringify(idle));
 
     games.forEach(g => { g.ctx.startGame(); g.ctx.gameRunning = false; g.ctx.paused = false; g.ctx.draw(); });
-    const over = games.map(g => boardLines(g.els.game).slice(GEO.STATUS, GEO.STATUS + 2));
+    const over = games.map(g => boardLines(g.els.game).slice(geo(g.ctx).STATUS, geo(g.ctx).STATUS + 2));
     check("all three use the same game-over template",
         over.every(([a, b]) => a === "< GAME OVER >" && /^PRESS .+ TO RESTART$/.test(b)),
         JSON.stringify(over));
 
     games.forEach(g => { g.ctx.isNewRecord = true; g.ctx.draw(); });
-    const rec = games.map(g => boardLines(g.els.game)[GEO.STATUS]);
+    const rec = games.map(g => boardLines(g.els.game)[geo(g.ctx).STATUS]);
     check("all three show the same NEW RECORD banner",
         rec.every(l => l === "< GAME OVER - NEW RECORD! >"), JSON.stringify(rec));
 

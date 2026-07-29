@@ -20,8 +20,9 @@ actually work today, not how they were originally written.
 > Required:
 > - Link, in this order: `shared/game.css`, `shared/config.js`,
 >   `shared/session.js`, `shared/gameApi.js`, `shared/gameUI.js`
-> - 50×30 board via `VTGameUI.createGrid()` / `frameBoard()`; never build the
->   border by hand
+> - Declare your board in CELLS with `VTGameUI.setBoard(cols, rows)`, then use
+>   `createGrid()` / `frameBoard()`; never build the border by hand and never
+>   count characters
 > - Only these glyphs, with these meanings: `GLYPH.PLAYER` for the thing the
 >   player controls, `GLYPH.HAZARD` for anything that kills, `GLYPH.PICKUP` for
 >   anything collectible, `GLYPH.GROUND` for a floor
@@ -55,9 +56,12 @@ actually work today, not how they were originally written.
 (`│`), added so Tetris could draw side rails around a well narrower than the
 playfield. It was a mistake and it is gone. The board's frame is the only frame
 any game gets; a game that draws its own box inside that one reads instantly as
-the odd one out, and no amount of correct behaviour makes up for it. If your
-playfield is narrower than the board, widen the cells until it isn't, see
-sprite scale below.
+the odd one out, and no amount of correct behaviour makes up for it.
+
+If your playfield is narrower than your board, **make the board narrower**. Do
+not widen the cells to fill it, and do not draw rails around the gap. Both were
+tried. Tetris declares a 12×24 board for exactly this reason, and its walls are
+the board's own frame.
 
 Use the constants, never the characters directly.
 
@@ -87,41 +91,50 @@ came from breaking this:
 it for every glyph.
 
 ### 2. Board geometry
-Fixed at 50×30 (48 playable columns) for every game, so all games sit
-identically on the page. Use the constants, don't hardcode:
+
+**Work in cells. Never in characters.**
+
+A cell is the unit every sprite is built from: **2 characters wide by 1 row
+tall**. That is the single most important number here, because a character is
+9.6 × 16 px and reads as tall and thin, while two side by side is 19.2 × 16,
+near enough square.
+
+Declare your board size in cells, once, before drawing anything:
 
 ```js
-VTGameUI.BOARD_W      // 50, including both borders
-VTGameUI.BOARD_H      // 30
-VTGameUI.PLAY_X_MIN   // 1
-VTGameUI.PLAY_X_MAX   // 48
-VTGameUI.GROUND_ROW   // 29, floor line for side-scrollers
+VTGameUI.setBoard(20, 24);          // cols, rows, in CELLS
+
+VTGameUI.cols()                     // 20
+VTGameUI.rows()                     // 24
+VTGameUI.groundRow()                // 23, floor line for side-scrollers
+VTGameUI.CELL_W                     // 2, characters per cell
 ```
 
-**Imagine the board as a square, because it is one.** A Courier New cell is
-0.6em wide and 1em tall at line-height 1.0, 9.6 × 16 px at the base font, so
-a square board needs
+Coordinates run `0 .. cols-1` and `0 .. rows-1`. The border is added at render
+time by `frameBoard`, so nothing you paint has to know it exists. Expanding a
+cell to characters happens in exactly one place, which is why no game needs to
+know the ratio at all.
 
-```
-BOARD_W / BOARD_H = 16 / 9.6 = 5 / 3
-```
+**The board size is per game, and that is deliberate.** Snake and Flappy use
+20×24; Tetris uses 12×24, because a Tetris well is narrow and deep. This is the
+one rule that got reversed: all three used to share one board, and forcing a
+narrow well across a wide board is what pushed Tetris to a four character cell,
+which made its blocks render at 2.40 while a Snake segment rendered at 0.60. The
+games looked like they came from different arcades.
 
-50×30 is exactly 480 × 480 px. The board was 50×25 until it became obvious that
-this made it 480 × 400 and visibly wide. If you ever resize it, keep the 5:3
-ratio: 40×24, 45×27 and 60×36 also work. `tests/game-logic.js` asserts it.
+What is shared is **the cell, not the board**. `tests/game-logic.js` asserts
+every game uses the same `CELL_W` and that it renders close to square.
 
-50 was kept over the other 5:3 sizes because it leaves **48 playable columns**,
-and 48 divides by 2, 3, 4, 6, 8, 12, 16 and 24. A game with a fixed playfield
-can therefore pick a cell width that spans the board exactly, with nothing left
-over needing a border drawn around it. 40×24 leaves 38, which factors only as
-2 × 19.
+If your board should look square on screen, remember a cell is 1.2 times wider
+than it is tall, so you need **5 cells across for every 6 down**: 20×24 is
+384 × 384 px. A 24×24 board would render 1.20 wide.
 
-**Never restate these numbers.** The tests used to hardcode `50`, `25` and `24`
-in a dozen places, and when the board changed shape twelve checks failed, none
-because a game had broken, all because the test was describing the old board.
+**Never restate these numbers in a test.** They were hardcoded in a dozen
+places, and when the board changed shape twelve checks failed, none because a
+game had broken, all because the test was describing the old board. Read them
+from `VTGameUI`.
 
-Anything that rests on the floor sits at `GROUND_ROW - spriteHeight`. Flappy's
-bird and the bottom of Tetris's well both do this, which is why they line up.
+Anything resting on the floor sits at `groundRow() - spriteHeight`.
 
 Paint through `VTGameUI.paintRect()` rather than writing into the grid yourself,
 and pass the role as the last argument:
@@ -212,29 +225,29 @@ that forces the `null` fallback, the second one is exactly where the overlap
 bug can silently come back if the rebuild guard is missing.
 
 ### 3. Sprite scale
-- **Free-roaming grid games** (Snake-like): 1×1 cells.
-- **Side-scrollers** (Flappy-like): player **2×2**, hazards **3 wide**.
-- **Fixed-playfield games** (Tetris-like): whatever cell width makes the
-  playfield span all 48 columns exactly. Tetris uses **4 wide × 1 tall**,
-  because 12 × 4 = 48.
 
-Pick by how your game uses the board, and say why in a comment.
+**Everything is measured in cells, and one cell is the baseline sprite.**
 
-The third case is the one that caused trouble. Tetris was first built at Snake's
-1×1 scale, which is defensible in isolation, a block was exactly a snake
-segment. But a 10-column well inside a 48-column board only occupies a fifth of
-the width, so it needed side rails to be visible at all, and the result was a
-box inside a box: tiny, cluttered, and obviously not part of the same arcade.
+- Snake: segment and food are **1×1 cell**
+- Tetris: a block is **1×1 cell**
+- Flappy: the bird is **2×2 cells**, pipes **2 cells wide**
 
-The fix was to widen the cell until the well *was* the board. Consistency here
-means **filling the same canvas the same way**, not using identical sprite
-dimensions. A game that leaves four fifths of the board empty has not matched
-the others by keeping their cell size; it has just drawn a small game inside a
-big frame.
+Nothing is ever sized in characters. A sprite of N×M cells renders at
+`N × 19.2` by `M × 16` px, so its shape is the same in every game.
 
-Keep the playfield's proportions in *cells* rather than pixels: Tetris is 12×24,
-which is the same 1:2 well as the classic 10×20 even though the characters are
-wider than they are tall.
+This section previously said something different for each game, and that was the
+whole problem. Three sprite scales existed at once, and on screen they came out
+at ratios of 0.60, 0.60 and 2.40. Tetris looked flattened and Snake looked
+shrunken, because the games were compensating for the character's shape by
+different amounts, or not at all.
+
+Consistency here means **one cell everywhere**, and then choosing a board shape
+that suits the game. It does not mean forcing every game onto the same board and
+letting each one distort its sprites to fill it. That was tried and it is what
+produced the four character Tetris block.
+
+Keep a playfield's proportions in *cells*: Tetris is 12×24, the same 1:2 well as
+the classic 10×20.
 
 ### 4. Status area
 Always call `VTGameUI.statusLines(state, keyLabel, { newRecord })`. It always
