@@ -49,6 +49,7 @@
     <script src="../shared/config.js"></script>
     <script src="../shared/session.js"></script>
     <script src="../shared/sound.js"></script>
+    <script src="../shared/clipboard.js"></script>
     <script>
         const API_URL = VTSession.API_URL;
 
@@ -140,7 +141,7 @@
                 output += `<span class="success-text">SUCCESS: ${esc(successMessage)}</span>\n\n`;
             }
 
-            output += `\n================================================================================\nCOMMAND REFERENCE\n================================================================================\n\n    [↑/↓]              Navigate Fields\n    [ENTER]            Execute Selected\n    [TAB]              Switch to Login Page\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
+            output += `\n================================================================================\nCOMMAND REFERENCE\n================================================================================\n\n    [↑/↓]              Navigate Fields\n    [ENTER]            Execute Selected\n    [TAB]              Switch to Login Page\n    [CTRL+V]           Paste Into Field\n    [CTRL+C]           Copy Current Field\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
 
             terminalEl.innerHTML = output;
             announceMessages();
@@ -283,6 +284,20 @@
                 window.location.href = `${API_URL}/api/auth/google`;
             }, 500);
         }
+
+        // Terminal style paste. Ctrl+V and Ctrl+Shift+V drop the clipboard into
+        // whichever field the cursor is on; Ctrl+C copies it back out.
+        VTClipboard.attach({
+            field() {
+                if (isSubmitting || registrationComplete) return null;
+                if (currentField === 0) return { get: () => username, set: v => username = v };
+                if (currentField === 1) return { get: () => email, set: v => email = v };
+                if (currentField === 2) return { get: () => password, set: v => password = v };
+                if (currentField === 3) return { get: () => confirmPassword, set: v => confirmPassword = v };
+                return null;   // the cursor is on a button, not a field
+            },
+            redraw: render
+        });
 
         document.addEventListener("keydown", (e) => {
             if (e.key === "Tab") {

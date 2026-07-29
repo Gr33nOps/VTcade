@@ -47,6 +47,7 @@
 
     <script src="../shared/config.js"></script>
     <script src="../shared/sound.js"></script>
+    <script src="../shared/clipboard.js"></script>
     <script>
         const API_URL = window.VTCADE_API_URL;
         const terminalEl = document.getElementById("terminal");
@@ -132,6 +133,7 @@ NAVIGATION
 ================================================================================
 
     [↑/↓]     Navigate Fields           [ENTER]     Select/Submit
+    [CTRL+V]  Paste Into Field          [CTRL+C]    Copy Field
 
 ================================================================================
 
@@ -253,6 +255,18 @@ READY: <span class="cursor">_</span>
                 window.location.href = "/login/login.html";
             }, 500);
         }
+
+        // Terminal style paste. Ctrl+V and Ctrl+Shift+V drop the clipboard into
+        // whichever field the cursor is on; Ctrl+C copies it back out.
+        VTClipboard.attach({
+            field() {
+                if (isSubmitting) return null;
+                if (currentField === 0) return { get: () => username, set: v => username = v };
+                if (currentField === 1) return { get: () => password, set: v => password = v };
+                return null;   // the cursor is on a button, not a field
+            },
+            redraw: render
+        });
 
         document.addEventListener("keydown", (e) => {
             if (e.key === "ArrowDown") {

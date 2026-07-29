@@ -53,7 +53,10 @@ console.log("\n=== TWO COLUMN NAV ROWS LINE UP ===");
 
     for (const file of htmlFiles(ROOT)) {
         const rel = path.relative(ROOT, file).replace(/\\/g, "/");
-        const lines = fs.readFileSync(file, "utf8").split("\n");
+        // Split on either ending. A Windows clone with core.autocrlf checks
+        // these files out as CRLF, and a trailing \r is a line ending, not a
+        // character in the row, so counting it would fail every row.
+        const lines = fs.readFileSync(file, "utf8").split(/\r?\n/);
         let prev = null;
         let prevNo = 0;
 
@@ -95,7 +98,10 @@ console.log("\n=== MENU CHARACTERS ARE FIXED WIDTH ===");
     const offenders = new Map();
     for (const file of htmlFiles(ROOT)) {
         const rel = path.relative(ROOT, file).replace(/\\/g, "/");
-        const lines = fs.readFileSync(file, "utf8").split("\n");
+        // Split on either ending. A Windows clone with core.autocrlf checks
+        // these files out as CRLF, and a trailing \r is a line ending, not a
+        // character in the row, so counting it would fail every row.
+        const lines = fs.readFileSync(file, "utf8").split(/\r?\n/);
         lines.forEach((line, i) => {
             if (!NAV_ROW.test(line)) return;
             for (const ch of line) {

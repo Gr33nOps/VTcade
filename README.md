@@ -67,7 +67,7 @@ BackEnd/          Express API
   routes/         auth, admin, game, leaderboard, highscore, maintenance
   tests/          Jest and Supertest route tests
 FrontEnd/         Static site, served as is
-  shared/         config, session, game API, game UI, game CSS, terminal CSS
+  shared/         config, session, game API, game UI, clipboard, CSS
   games/          snake, tetris, flappyBird
   dashboard/      player menu
   admin/          admin login and panel
@@ -197,6 +197,12 @@ save on their own when a run ends.
 flaps, or hard drops. P pauses, M mutes, Escape returns to the dashboard. Tab
 switches between login and signup, and F1 opens admin access from the login
 screen.
+
+**Typing.** The text fields are characters drawn into a `<pre>`, not real
+inputs, so the browser's own clipboard has nothing to act on. Ctrl+V pastes
+into whichever field the cursor is on, and Ctrl+C copies it back out. Ctrl+Shift+V
+works too. Ctrl+Shift+C is attempted but both Chrome and Firefox reserve it for
+their inspector, so plain Ctrl+C is the reliable one.
 
 **Leaderboards.** Select LEADERBOARD from the dashboard and choose a game. The
 top ten scores are shown.
