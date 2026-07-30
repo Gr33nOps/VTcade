@@ -86,7 +86,7 @@
         // The rows below the fields, in the order they are drawn. RESEND only
         // exists once the server has told us the account is unverified.
         function actionRows() {
-            const rows = ["submit", "google", "forgot"];
+            const rows = ["submit", "google", "guest", "forgot"];
             if (needsVerification) rows.push("resend");
             return rows;
         }
@@ -101,6 +101,7 @@
         const ROW_LABELS = {
             submit: { idle: "[ LOGIN ]",                     busy: "[ LOGGING IN... ]" },
             google: { idle: "[ CONTINUE WITH GOOGLE ]",      busy: "[ REDIRECTING... ]" },
+            guest:  { idle: "[ CONTINUE AS GUEST ]",         busy: "[ ENTERING... ]" },
             forgot: { idle: "[ FORGOT PASSWORD ]",           busy: "[ SENDING RESET LINK... ]" },
             resend: { idle: "[ RESEND VERIFICATION EMAIL ]", busy: "[ SENDING... ]" }
         };
@@ -211,6 +212,7 @@
             const row = actionRows()[currentField - 2];
             if (row === "submit") submitForm();
             else if (row === "google") continueWithGoogle();
+            else if (row === "guest") continueAsGuest();
             else if (row === "forgot") requestPasswordReset();
             else if (row === "resend") resendVerification();
         }
@@ -393,6 +395,26 @@
             document.getElementById('loadingOverlay').classList.add('active');
             setTimeout(() => {
                 window.location.href = `${API_URL}/api/auth/google`;
+            }, 600);
+        }
+
+        // No account, no server round trip: this never leaves the browser. A
+        // guest gets a throwaway display name (session.js picks it) and can play
+        // every game, but VTSession.isGuest() is what keeps them off the
+        // leaderboard - the dashboard locks that menu entry, and each game skips
+        // the load/save calls entirely rather than letting them 401 quietly.
+        function continueAsGuest() {
+            if (isSubmitting) return;
+
+            isSubmitting = true;
+            pendingAction = "guest";
+            render();
+
+            VTSession.startGuestSession();
+
+            document.getElementById('loadingOverlay').classList.add('active');
+            setTimeout(() => {
+                window.location.href = "../dashboard/dashboard.html";
             }, 600);
         }
 

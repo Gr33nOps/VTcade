@@ -9,88 +9,10 @@
 
 // Headless harness that executes the REAL game scripts (not a reimplementation)
 // against stubbed DOM/session objects, then drives them and asserts behaviour.
+// Shared with tests/guest-mode.js, which needs the exact same loader.
 const fs = require("fs");
-const vm = require("vm");
 const path = require("path");
-
-const ROOT = path.join(__dirname, "..", "FrontEnd");
-
-function inlineScript(file) {
-    const html = fs.readFileSync(file, "utf8");
-    const matches = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)];
-    let src = matches.map(m => m[1]).join("\n");
-    // Top-level `let`/`const` are lexical and never become properties of the vm
-    // context, so the harness could not read or drive real game state. Only
-    // column-0 declarations are rewritten; anything indented (inside a function
-    // or block) is left exactly as the game wrote it.
-    src = src.replace(/^(let|const) /gm, "var ");
-    return src;
-}
-
-function makeEl() {
-    return {
-        textContent: "",
-        innerHTML: "",
-        classList: { add() {}, remove() {} },
-        style: {}
-    };
-}
-
-function loadGame(dir) {
-    const handlers = {};
-    const els = { game: makeEl(), ui: makeEl(), loadingOverlay: makeEl() };
-
-    const ctx = {
-        console,
-        setTimeout: () => 0,          // never auto-advance; we step manually
-        clearTimeout: () => {},
-        setInterval: () => 0,
-        clearInterval: () => {},
-        alert: () => {},
-        Math, Date, JSON, Number, String, Array, Object, Boolean, isNaN, parseInt, parseFloat,
-        Promise, URLSearchParams, Error,
-        fetch: async () => ({ ok: true, json: async () => ({}), text: async () => "" }),
-        localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-        // sound.js attaches unlock listeners on window and creates an
-        // AudioContext; stub both so the games' real VTSound.* calls run here.
-        addEventListener: () => {},
-        AudioContext: class {
-            constructor() { this.state = "running"; this.currentTime = 0; this.destination = {}; }
-            resume() { return Promise.resolve(); }
-            createGain() { return { gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
-            createOscillator() { return { type: "square", frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, start() {}, stop() {} }; }
-        },
-        document: {
-            readyState: "complete",
-            hidden: false,
-            getElementById: id => els[id] || makeEl(),
-            addEventListener: (type, fn) => { (handlers[type] ||= []).push(fn); }
-        },
-        VTSession: {
-            API_URL: "http://test",
-            getUsername: () => "tester",
-            authedFetch: async () => ({ ok: true, json: async () => ({}), text: async () => "" })
-        },
-        createGameApi: () => ({
-            loadHighScore: async () => 0,
-            saveHighScore: async () => null,
-            saveLeaderboard: async () => true,
-            loadLeaderboard: async () => []
-        })
-    };
-    ctx.window = ctx;
-    ctx.global = ctx;
-    vm.createContext(ctx);
-
-    // real shared UI module
-    vm.runInContext(fs.readFileSync(path.join(ROOT, "shared/gameUI.js"), "utf8"), ctx);
-    // real sound module, so the games' VTSound.* calls resolve
-    vm.runInContext(fs.readFileSync(path.join(ROOT, "shared/sound.js"), "utf8"), ctx);
-    // real game script
-    vm.runInContext(inlineScript(path.join(ROOT, "games", dir, "game.html")), ctx);
-
-    return { ctx, els, handlers };
-}
+const { loadGame, ROOT } = require("./helpers/loadGame");
 
 let failures = 0;
 function check(label, cond, detail) {
@@ -807,5 +729,86 @@ console.log("\n=== GAME OVER FRAME SHOWS CONTACT ===");
         "not rebuild from the still-colliding position");
 }
 
-console.log("\n" + (failures === 0 ? "ALL CHECKS PASSED" : failures + " CHECK(S) FAILED"));
-process.exit(failures ? 1 : 0);
+// Everything above fires async calls without awaiting them, relying on each
+// one resolving before its first internal `await` (documented at each call
+// site). Verifying a guest's run makes NO network call at all needs the
+// opposite: a real `await`, so every one of gameOver()'s awaited steps
+// actually runs before the count is checked. Wrapped in its own async IIFE
+// so it can run last, after every synchronous check above it.
+(async () => {
+    // Each game's own bottom-of-file auto-invoke fires initGame() once already,
+    // during loadGame() itself: document.readyState is "complete" in this
+    // harness, exactly as it is on a real page loaded normally. Let that
+    // settle, then zero the counters, so what the checks below measure is only
+    // the explicit call each test makes, not however many times the file
+    // happened to run on its own first.
+    async function settle() {
+        await new Promise((resolve) => setImmediate(resolve));
+    }
+
+    console.log("\n=== GUEST MODE: NO SCORE OR LEADERBOARD TRAFFIC REACHES THE SERVER ===");
+    {
+        for (const dir of ["flappyBird", "snake", "tetris"]) {
+            const { ctx, els, apiCalls } = loadGame(dir, { VTSession: { isGuest: () => true } });
+            await settle();
+            apiCalls.loadHighScore = 0;
+            apiCalls.loadLeaderboard = 0;
+
+            await ctx.initGame();
+            check(dir + " (guest): startup never asks the server for a highscore",
+                apiCalls.loadHighScore === 0, apiCalls.loadHighScore + " calls");
+            check(dir + " (guest): startup never asks the server for the leaderboard",
+                apiCalls.loadLeaderboard === 0, apiCalls.loadLeaderboard + " calls");
+            check(dir + " (guest): starts at highscore 0",
+                ctx.highScore === 0, "highScore=" + ctx.highScore);
+            check(dir + " (guest): the in-game panel says so instead of showing scores",
+                els.ui.textContent.includes("GUEST MODE") && els.ui.textContent.includes("SIGN IN TO VIEW"),
+                els.ui.textContent);
+
+            ctx.gameStarted = true;
+            ctx.gameRunning = true;
+            ctx.score = 42;
+            await ctx.gameOver();
+
+            check(dir + " (guest): a finished run never saves a highscore to the server",
+                apiCalls.saveHighScore === 0, apiCalls.saveHighScore + " calls");
+            check(dir + " (guest): a finished run never saves to the leaderboard",
+                apiCalls.saveLeaderboard === 0, apiCalls.saveLeaderboard + " calls");
+            check(dir + " (guest): and never re-fetches it either",
+                apiCalls.loadLeaderboard === 0, apiCalls.loadLeaderboard + " calls");
+            check(dir + " (guest): the run's score becomes this sitting's highscore locally",
+                ctx.highScore === 42, "highScore=" + ctx.highScore);
+        }
+    }
+
+    console.log("\n=== SAME CHECKS FOR A SIGNED-IN PLAYER (no regression on the common case) ===");
+    {
+        for (const dir of ["flappyBird", "snake", "tetris"]) {
+            const { ctx, els, apiCalls } = loadGame(dir);   // default stub: not a guest
+            await settle();
+            apiCalls.loadHighScore = 0;
+            apiCalls.loadLeaderboard = 0;
+
+            await ctx.initGame();
+            check(dir + ": startup does ask the server for a highscore",
+                apiCalls.loadHighScore === 1, apiCalls.loadHighScore + " calls");
+            check(dir + ": startup does ask the server for the leaderboard",
+                apiCalls.loadLeaderboard === 1, apiCalls.loadLeaderboard + " calls");
+            check(dir + ": the panel shows the normal empty-leaderboard message, not guest mode",
+                !els.ui.textContent.includes("GUEST MODE"), els.ui.textContent);
+
+            ctx.gameStarted = true;
+            ctx.gameRunning = true;
+            ctx.score = 42;
+            await ctx.gameOver();
+
+            check(dir + ": a finished run does save a highscore",
+                apiCalls.saveHighScore === 1, apiCalls.saveHighScore + " calls");
+            check(dir + ": a finished run does save to the leaderboard",
+                apiCalls.saveLeaderboard === 1, apiCalls.saveLeaderboard + " calls");
+        }
+    }
+
+    console.log("\n" + (failures === 0 ? "ALL CHECKS PASSED" : failures + " CHECK(S) FAILED"));
+    process.exit(failures ? 1 : 0);
+})();

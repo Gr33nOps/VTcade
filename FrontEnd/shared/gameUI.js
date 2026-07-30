@@ -272,7 +272,14 @@
         out += "\n" + DIVIDER + "\nLEADERBOARD:\n" + DIVIDER + "\n";
 
         const board = config.leaderboard;
-        if (board === null || board === undefined) {
+        if (config.leaderboardLocked) {
+            // A guest. Checked first and separately from `board === null`: the
+            // games never even ask the server for this, so there is nothing to
+            // tell apart from "still loading" here, only from a real empty
+            // board. Two lines, same as the "(No scores yet)" case below, so a
+            // guest's panel is not a different height from anyone else's.
+            out += "GUEST MODE\n(SIGN IN TO VIEW)\n";
+        } else if (board === null || board === undefined) {
             out += "(Loading...)\n";
         } else if (board.length === 0) {
             out += "(No scores yet)\n(Be the first!)\n";

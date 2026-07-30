@@ -183,10 +183,19 @@ a score.
 ## Usage
 
 **First visit.** Land on the login screen. Register with a username, email, and
-password, or continue with Google. Confirm your email, then sign in.
+password, or continue with Google. Confirm your email, then sign in - or skip
+all of that with CONTINUE AS GUEST, which drops you straight onto the
+dashboard under a throwaway name (`GUESTxxxx`), no account required.
 
 **Playing.** From the dashboard, select GAMES, pick a title, and play. Scores
-save on their own when a run ends.
+save on their own when a run ends - except for a guest, who has no account for
+them to save to. A guest can play every game; SCORE and HIGHSCORE still track
+the best run of that sitting, just locally, and nothing is sent to the server.
+VIEW LEADERBOARD is the one dashboard entry a guest cannot open, shown dimmed
+and marked SIGN IN REQUIRED, and each game's own leaderboard panel shows GUEST
+MODE instead of scores while playing. Sign in for real at any point (from
+login, not from inside a guest session) to start saving scores under an actual
+account.
 
 **Controls.** Arrow keys or WASD to move. Up rotates in Tetris. Space jumps,
 flaps, or hard drops. P pauses, M mutes, Escape returns to the dashboard. Tab

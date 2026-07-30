@@ -52,6 +52,10 @@ const KEY_LABEL = "SPACE";
 const gameApi = createGameApi(GAME_NAME);
 
 const currentUser = VTSession.getUsername();
+// Fixed for the life of this page: a guest never becomes a real account
+// without a full navigation back through login, so this is read once rather
+// than on every call that cares about it.
+const isGuest = VTSession.isGuest();
 
 if (!currentUser) {
     // Said in the terminal rather than an OS alert box. This site has no cursor
@@ -373,6 +377,7 @@ function draw(gridOverride) {
             { label: "LINES",     value: lines }
         ],
         leaderboard: leaderboard,
+        leaderboardLocked: isGuest,
         controls: [
             "ARROWS / WASD = MOVE",
             "UP / W = ROTATE",
@@ -447,7 +452,10 @@ async function gameOver() {
 
     await saveHighscore(finalScore);
     await saveLeaderboard(finalScore);
-    const freshLeaderboard = await gameApi.loadLeaderboard();
+    // A guest's run never reaches the leaderboard in the first place, so there
+    // is nothing fresher to re-fetch; leaderboard stays whatever it already
+    // was (null, which the panel renders as GUEST MODE, not "(Loading...)").
+    const freshLeaderboard = isGuest ? leaderboard : await gameApi.loadLeaderboard();
 
     // The player may already have restarted while those were in flight; don't
     // repaint a live game with stale end-of-run state.
@@ -502,20 +510,35 @@ function togglePause() {
     draw();
 }
 
+// The four functions below are the only place this game talks to the server
+// about scores. Every one of them short-circuits for a guest, rather than
+// letting the request go out and 401 (saves) or come back empty for a name
+// nothing was ever stored under (loads): a guest has no session token, and
+// scores earned under a name nobody else can ever type in are not something
+// worth spending a network round trip on.
 async function loadHighScore() {
+    if (isGuest) { highScore = 0; return; }   // nothing saved yet this sitting
     highScore = await gameApi.loadHighScore(currentUser);
 }
 
 async function saveHighscore(finalScore) {
+    if (isGuest) {
+        // Tracked locally so HIGHSCORE and NEW RECORD still mean something
+        // within this sitting, without ever touching the real leaderboard.
+        if (finalScore > highScore) highScore = finalScore;
+        return;
+    }
     const stored = await gameApi.saveHighScore(finalScore);
     if (stored !== null) highScore = stored;
 }
 
 async function saveLeaderboard(finalScore) {
+    if (isGuest) return;   // guests never appear on the public leaderboard
     await gameApi.saveLeaderboard(finalScore);
 }
 
 async function loadLeaderboard() {
+    if (isGuest) { leaderboard = null; draw(); return; }   // panel() shows GUEST MODE instead
     leaderboard = await gameApi.loadLeaderboard();
     draw();
 }

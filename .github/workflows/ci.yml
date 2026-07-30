@@ -104,3 +104,8 @@ jobs:
       # silently eats characters out of an email address.
       - name: Login and signup screen tests
         run: node tests/auth-screens.js
+
+      # Unit tests for shared/session.js: mainly the guest identity behind
+      # CONTINUE AS GUEST, and that it can never be confused with a real one.
+      - name: Session module tests
+        run: node tests/session.js

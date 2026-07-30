@@ -232,6 +232,7 @@ async function main() {
 
         s.respondWith({ ok: true, status: 200, body: { message: "Verification email sent." } });
         s.press("ArrowDown");        // submit -> google
+        s.press("ArrowDown");        // -> guest
         s.press("ArrowDown");        // -> forgot
         s.press("ArrowDown");        // -> resend
         s.press("Enter");
@@ -298,6 +299,29 @@ async function main() {
 
         check("no fragment, no request", s.requests.length === 0, s.requests.length + " requests");
         check("the form is drawn as usual", /USER AUTHENTICATION/.test(s.els.terminal.innerHTML));
+    }
+
+    console.log("\n=== LOGIN: CONTINUE AS GUEST ===");
+    {
+        const s = loadScreen("login/login.html");
+
+        s.press("ArrowDown");   // EMAIL -> PASSWORD
+        s.press("ArrowDown");   // PASSWORD -> [ LOGIN ]
+        s.press("ArrowDown");   // -> [ CONTINUE WITH GOOGLE ]
+        s.press("ArrowDown");   // -> [ CONTINUE AS GUEST ]
+        check("arrow navigation reaches a row labelled CONTINUE AS GUEST",
+            /CONTINUE AS GUEST/.test(s.els.terminal.innerHTML));
+
+        s.press("Enter");
+
+        check("no request was made; guest mode never touches the server",
+            s.requests.length === 0, s.requests.length + " requests");
+        check("the browser is marked as a guest", s.store.vtcadeGuest === "1",
+            JSON.stringify(s.store));
+        check("a throwaway display name was picked",
+            /^GUEST\d{4}$/.test(s.store.currentUser || ""), s.store.currentUser);
+        check("no real session token exists for a guest",
+            s.store.vtcadeSession === undefined, s.store.vtcadeSession);
     }
 
     console.log("\n=== SIGNUP: SAME KEYS, SAME RULES ===");

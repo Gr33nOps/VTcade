@@ -65,6 +65,24 @@
         const ITEMS_PER_PAGE_SCORES = 10;
         let currentView = "menu";
         let username = "UNKNOWN";
+        // Fixed for the life of this page: nothing on the dashboard turns a
+        // guest into a real account or back, so there is no case where this
+        // needs to be re-read after load.
+        const isGuest = VTSession.isGuest();
+
+        // The main menu, as a locked-aware list rather than the plain string
+        // array it used to be. VIEW LEADERBOARD needs a real session (reading it
+        // is free, but a guest never has scores worth showing, and the games
+        // that write to it already refuse a guest's writes); everything else is
+        // open to anyone who got past the login screen at all.
+        function menuItems() {
+            return [
+                { id: 1, name: "GAMES", available: true },
+                { id: 2, name: "MY HIGH SCORES", available: true },
+                { id: 3, name: "VIEW LEADERBOARD", available: !isGuest },
+                { id: 4, name: "LOGOUT", available: true }
+            ];
+        }
         let userHighscores = {};
         let leaderboardData = [];
         let totalGamesPlayed = 0;
@@ -192,18 +210,21 @@ USER DASHBOARD
 
 `;
 
-            const menuItems = [
-                { id: 1, name: "GAMES" },
-                { id: 2, name: "MY HIGH SCORES" },
-                { id: 3, name: "VIEW LEADERBOARD" },
-                { id: 4, name: "LOGOUT" }
-            ];
-
-            menuItems.forEach((item, index) => {
+            // Rendered exactly like a locked game in the GAMES list: the row
+            // stays visible and in place, just dimmed and marked, rather than
+            // disappearing (which would shift every row below it and make the
+            // menu a different shape depending on who is looking at it).
+            menuItems().forEach((item, index) => {
                 const isSelected = index === selectedIndex;
                 const prefix = isSelected ? '>>>' : '   ';
                 const line = `${prefix} [${item.id}] ${item.name}`;
-                output += isSelected ? `<span class="highlight">${line}</span>\n` : line + '\n';
+                if (!item.available) {
+                    output += `<span class="dim">${line}  [SIGN IN REQUIRED]</span>\n`;
+                } else if (isSelected) {
+                    output += `<span class="highlight">${line}</span>\n`;
+                } else {
+                    output += line + '\n';
+                }
             });
 
             output += `
@@ -435,7 +456,8 @@ READY: <span class="cursor">_</span>
             let maxIndex = 0;
 
             if (currentView === "menu") {
-                maxIndex = 3;
+                list = menuItems();
+                maxIndex = list.length - 1;
             } else if (currentView === "games") {
                 list = games;
                 maxIndex = games.length - 1;
@@ -483,12 +505,13 @@ READY: <span class="cursor">_</span>
                 }
             }
 
-            // Games can be LOCKED (not shipped yet). The cursor must never rest
-            // on one, so keep stepping in the same direction past any run of
-            // locked entries, wrapping around the whole list rather than
-            // stopping the instant it touches one. A guard counter is the
-            // backstop if every game were ever locked at once.
-            if (currentView === "games" && list.length > 0 &&
+            // Games can be LOCKED (not shipped yet), and for a guest so can VIEW
+            // LEADERBOARD. Either way the cursor must never rest on the locked
+            // entry, so keep stepping in the same direction past any run of
+            // them, wrapping around the whole list rather than stopping the
+            // instant it touches one. A guard counter is the backstop if every
+            // entry were ever locked at once.
+            if ((currentView === "games" || currentView === "menu") && list.length > 0 &&
                 (direction === "up" || direction === "down")) {
                 const step = direction === "up" ? -1 : 1;
                 let guard = 0;
@@ -509,8 +532,20 @@ READY: <span class="cursor">_</span>
             render();
         }
 
+        // The sound is decided in here, not by the caller: Enter and the
+        // direct-access number keys both reach this directly, and a locked menu
+        // entry (VIEW LEADERBOARD, for a guest) used to have no way to say so
+        // other than the same "select" beep a real choice uses, while silently
+        // doing nothing. See launchGame() below for the same fix applied first.
         async function selectOption(index) {
             if (currentView === "menu") {
+                const item = menuItems()[index];
+                if (!item || !item.available) {
+                    VTSound.error();
+                    return;
+                }
+                VTSound.select();
+
                 if (index === 0) {
                     currentView = "games";
                     currentPage = 0;
@@ -579,10 +614,10 @@ READY: <span class="cursor">_</span>
                 case "ArrowLeft": VTSound.nav(); navigate('left'); e.preventDefault(); break;
                 case "ArrowRight": VTSound.nav(); navigate('right'); e.preventDefault(); break;
                 case "Enter":
-                    // "games" plays its own beep (select or error) inside
-                    // launchGame(), once it knows whether the game is locked.
+                    // "menu" and "games" each play their own beep (select or
+                    // error) inside selectOption()/launchGame(), once they know
+                    // whether the target is locked.
                     if (currentView === "menu") {
-                        VTSound.select();
                         selectOption(selectedIndex);
                     } else if (currentView === "games") {
                         launchGame(selectedIndex);
@@ -617,7 +652,10 @@ READY: <span class="cursor">_</span>
                 case "1": case "2": case "3": case "4": case "5":
                     const num = parseInt(e.key) - 1;
                     if (currentView === "menu") {
-                        VTSound.select();
+                        // selectOption() plays select or error once it knows
+                        // whether this entry is locked; out of range (5 has
+                        // never mapped to anything) gets the same treatment
+                        // now instead of a select beep that did nothing.
                         selectOption(num);
                     } else if (currentView === "games") {
                         // launchGame() plays select or error once it knows
