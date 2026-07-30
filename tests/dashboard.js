@@ -154,36 +154,49 @@ console.log("\n=== SAME CHECK WITH EVERY GAME AVAILABLE (no regression on the co
         ctx.selectedIndex === ctx.games.length - 1, "index=" + ctx.selectedIndex);
 }
 
-console.log("\n=== GUEST: VIEW LEADERBOARD IS LOCKED ===");
+console.log("\n=== GUEST: MY HIGH SCORES AND VIEW LEADERBOARD ARE BOTH LOCKED ===");
 {
     const { ctx, soundCalls } = loadDashboard({ VTSession: { isGuest: () => true } });
     ctx.currentView = "menu";
     ctx.selectedIndex = 0;
     ctx.currentPage = 0;
 
-    check("three of the four menu entries are open to a guest",
-        ctx.menuItems().filter(i => i.available).length === 3,
+    // Both read from the same leaderboard table a guest's games never write
+    // to, so an open MY HIGH SCORES could only ever show zeros - the same
+    // reason VIEW LEADERBOARD is locked applies here too.
+    check("only GAMES and LOGOUT are open to a guest",
+        ctx.menuItems().filter(i => i.available).length === 2,
         ctx.menuItems().map(i => i.name + ":" + i.available).join(" "));
-    check("VIEW LEADERBOARD specifically is the locked one",
+    check("MY HIGH SCORES specifically is locked",
+        ctx.menuItems()[1].name === "MY HIGH SCORES" && ctx.menuItems()[1].available === false);
+    check("VIEW LEADERBOARD specifically is locked",
         ctx.menuItems()[2].name === "VIEW LEADERBOARD" && ctx.menuItems()[2].available === false);
 
-    // Arrow navigation must skip it entirely, the same way a locked game is
-    // skipped in the games list: the cursor should never rest on it.
+    // Arrow navigation must skip both entirely, the same way a locked game is
+    // skipped in the games list: the cursor should never rest on either.
     for (let i = 0; i < 4; i++) {
         ctx.navigate("down");
-        check("after " + (i + 1) + " down-press(es), the cursor is not on the locked entry",
+        check("after " + (i + 1) + " down-press(es), the cursor is not on a locked entry",
             ctx.menuItems()[ctx.selectedIndex].available,
             "resting on " + ctx.menuItems()[ctx.selectedIndex].name);
     }
 
-    // Direct number-key access can still reach it, and must say no rather than
-    // silently doing nothing behind a misleading "select" beep.
+    // Direct number-key access can still reach either, and must say no rather
+    // than silently doing nothing behind a misleading "select" beep.
     soundCalls.length = 0;
-    ctx.selectOption(2);
-    check("selecting the locked entry directly plays the error beep, not select",
+    ctx.selectOption(1);
+    check("selecting MY HIGH SCORES directly plays the error beep, not select",
         soundCalls.includes("error") && !soundCalls.includes("select"),
         soundCalls.join(","));
     check("and it does not change the view",
+        ctx.currentView === "menu", ctx.currentView);
+
+    soundCalls.length = 0;
+    ctx.selectOption(2);
+    check("selecting VIEW LEADERBOARD directly plays the error beep, not select",
+        soundCalls.includes("error") && !soundCalls.includes("select"),
+        soundCalls.join(","));
+    check("and it does not change the view either",
         ctx.currentView === "menu", ctx.currentView);
 
     soundCalls.length = 0;

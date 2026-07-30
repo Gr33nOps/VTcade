@@ -71,14 +71,14 @@
         const isGuest = VTSession.isGuest();
 
         // The main menu, as a locked-aware list rather than the plain string
-        // array it used to be. VIEW LEADERBOARD needs a real session (reading it
-        // is free, but a guest never has scores worth showing, and the games
-        // that write to it already refuse a guest's writes); everything else is
-        // open to anyone who got past the login screen at all.
+        // array it used to be. MY HIGH SCORES and VIEW LEADERBOARD both read
+        // from the same leaderboard table a guest's games never write to, so a
+        // guest sees the same lock on both rather than an open screen that can
+        // only ever show zeros. GAMES and LOGOUT need no account at all.
         function menuItems() {
             return [
                 { id: 1, name: "GAMES", available: true },
-                { id: 2, name: "MY HIGH SCORES", available: true },
+                { id: 2, name: "MY HIGH SCORES", available: !isGuest },
                 { id: 3, name: "VIEW LEADERBOARD", available: !isGuest },
                 { id: 4, name: "LOGOUT", available: true }
             ];

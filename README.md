@@ -191,10 +191,11 @@ dashboard under a throwaway name (`GUESTxxxx`), no account required.
 save on their own when a run ends - except for a guest, who has no account for
 them to save to. A guest can play every game; SCORE still counts the current
 run, but HIGHSCORE reads LOCKED and the in-game leaderboard panel shows GUEST
-MODE instead of scores, the same way VIEW LEADERBOARD is the one dashboard
-entry a guest cannot open (shown dimmed and marked SIGN IN REQUIRED). Sign in
-for real at any point (from login, not from inside a guest session) to start
-saving scores under an actual account.
+MODE instead of scores. MY HIGH SCORES and VIEW LEADERBOARD are the two
+dashboard entries a guest cannot open, both shown dimmed and marked SIGN IN
+REQUIRED, for the same reason: both read from the leaderboard table a guest's
+games never write to. Sign in for real at any point (from login, not from
+inside a guest session) to start saving scores under an actual account.
 
 **Controls.** Arrow keys or WASD to move. Up rotates in Tetris. Space jumps,
 flaps, or hard drops. P pauses, M mutes, Escape returns to the dashboard. Tab
