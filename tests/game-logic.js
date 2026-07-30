@@ -209,7 +209,9 @@ console.log("\n=== SNAKE ===");
     ctx.food.y = ctx.snake[0].y;
     const before = ctx.score;
     ctx.updateSnake();
-    check("eating food scores +10", ctx.score === before + 10, "score=" + ctx.score);
+    // One flat point per pellet, matching Tetris (1 per line) and Flappy
+    // (1 per pipe). This used to be +10.
+    check("eating food scores +1", ctx.score === before + 1, "score=" + ctx.score);
 
     // wall collision
     ctx.snake[0] = { x: -1, y: 5 };
@@ -335,8 +337,11 @@ console.log("\n=== TETRIS ===");
     ctx.hardDrop();
     check("completing a row clears it and counts the line",
         ctx.lines === 1, "lines=" + ctx.lines);
-    check("a single clear is worth at least 100",
-        ctx.score >= 100, "score=" + ctx.score);
+    // Matches Snake (+1 per pellet) and Flappy (+1 per pipe): a fixed amount
+    // per unit of success, not a table scaled by whatever level you happen to
+    // be on. This used to be "at least 100" under Nintendo-style scoring.
+    check("a single clear is worth exactly 1 point",
+        ctx.score === 1, "score=" + ctx.score);
     check("the row above the cleared one drops into its place",
         ctx.well[ctx.WELL_ROWS - 1][0] === 1 && ctx.well[ctx.WELL_ROWS - 1][2] === 0,
         JSON.stringify(ctx.well[ctx.WELL_ROWS - 1]));
@@ -349,9 +354,41 @@ console.log("\n=== TETRIS ===");
     check("clearLines removes four full rows in one pass", ctx.clearLines() === 4);
     check("the well is empty afterwards",
         ctx.well.every(row => row.every(v => v === 0)));
-    check("a four-line clear beats four single clears, so building a well pays",
-        ctx.LINE_SCORES[4] > 4 * ctx.LINE_SCORES[1],
-        ctx.LINE_SCORES[4] + " vs " + (4 * ctx.LINE_SCORES[1]));
+
+    // four at once, through the real scoring path this time: a well missing one
+    // column for its bottom four rows, completed by a vertical I piece dropped
+    // straight into the gap.
+    ctx.well = ctx.emptyWell();
+    const GAP_COL = 5;
+    for (let y = ctx.WELL_ROWS - 4; y < ctx.WELL_ROWS; y++) {
+        for (let x = 0; x < ctx.WELL_COLS; x++) ctx.well[y][x] = (x === GAP_COL) ? 0 : 1;
+    }
+    // rotateCW(I) puts its column of four 1s at cells[*][2], not cells[*][1], so
+    // this is derived from the real rotation rather than hand-typed and wrong.
+    const vertI = ctx.rotateCW(ctx.PIECES.I);
+    ctx.piece = { name: "I", cells: vertI, x: GAP_COL - 2, y: ctx.WELL_ROWS - 4 };
+    ctx.lines = 0;
+    ctx.score = 0;
+    ctx.lockPiece();
+    check("the piece actually landed in the gap and cleared all four rows",
+        ctx.lines === 4, "lines=" + ctx.lines);
+    check("four lines cleared at once score no more than four cleared separately",
+        ctx.score === 4, "score=" + ctx.score);
+
+    // dropping must not add anything on its own; only a clear pays
+    ctx.restartGame();
+    ctx.well = ctx.emptyWell();
+    ctx.piece = { name: "O", cells: [[1, 1], [1, 1]], x: 0, y: 0 };
+    ctx.score = 0;
+    ctx.softDrop();
+    check("soft drop scores nothing by itself", ctx.score === 0, "score=" + ctx.score);
+    ctx.restartGame();
+    ctx.well = ctx.emptyWell();
+    ctx.piece = { name: "O", cells: [[1, 1], [1, 1]], x: 0, y: 0 };
+    ctx.score = 0;
+    ctx.hardDrop();
+    check("hard drop with no completed line scores nothing either",
+        ctx.score === 0, "score=" + ctx.score);
 
     // a hard drop must land ON the stack, not through it
     ctx.restartGame();

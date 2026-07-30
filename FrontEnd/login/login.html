@@ -452,11 +452,110 @@
             e.preventDefault();
         }, { passive: false });
 
+        // ---- Arriving from a confirmation email --------------------------------
+        //
+        // Supabase sends the link in "Confirm your signup" back to this page with
+        // a real, already-authenticated session in the URL fragment. This screen
+        // ignored it and drew an empty login form, so confirming your address was
+        // followed by being asked for the password you had just set, for no
+        // reason. Adopting the session lands a confirmed account on the dashboard.
+        //
+        // The same fragment carries the failure case, and that was ignored too: an
+        // expired link silently produced a blank login screen with no explanation.
+        function readLinkFragment() {
+            const raw = window.location.hash.startsWith('#')
+                ? window.location.hash.slice(1)
+                : window.location.hash;
+            if (!raw) return null;
+
+            const params = new URLSearchParams(raw);
+            const found = {
+                raw,
+                accessToken: params.get('access_token'),
+                refreshToken: params.get('refresh_token'),
+                expiresAt: params.get('expires_at'),
+                expiresIn: params.get('expires_in'),
+                type: params.get('type'),
+                error: params.get('error_description') || params.get('error')
+            };
+
+            // Tokens in the address bar are kept by the session history. They have
+            // been read now.
+            if (window.history && history.replaceState) {
+                history.replaceState(null, "", window.location.pathname + window.location.search);
+            }
+
+            return (found.accessToken || found.error) ? found : null;
+        }
+
+        async function adoptLinkSession() {
+            const link = readLinkFragment();
+            if (!link) return false;
+
+            if (link.error) {
+                errorMessage = link.error;
+                render();
+                return false;
+            }
+
+            // A recovery token is permission to SET a password, not to skip it.
+            // Turning one into a login session would mean a leaked reset link is a
+            // way in. Recovery links point at reset-password.html; this only
+            // matters if that ever changes.
+            // link.raw, not window.location.hash: the fragment has already been
+            // stripped from the address bar by this point.
+            if (link.type === "recovery") {
+                window.location.href = "reset-password.html#" + link.raw;
+                return true;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/api/auth/session`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ access_token: link.accessToken })
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    errorMessage = data?.message || "That link is no longer valid. Sign in below.";
+                    render();
+                    return false;
+                }
+
+                VTSession.saveSession({
+                    access_token: link.accessToken,
+                    refresh_token: link.refreshToken,
+                    expires_at: link.expiresAt ? Number(link.expiresAt) : undefined,
+                    expires_in: link.expiresIn ? Number(link.expiresIn) : undefined
+                }, data.username);
+
+                successMessage = `Email confirmed. Welcome, ${data.username}`;
+                render();
+
+                setTimeout(() => {
+                    window.location.href = "../dashboard/dashboard.html";
+                }, 900);
+                return true;
+
+            } catch (err) {
+                errorMessage = "Network error confirming that link. Sign in below.";
+                render();
+                return false;
+            }
+        }
+
         render();
-        
-        setTimeout(() => {
-            document.getElementById('loadingOverlay').classList.remove('active');
-        }, 500);
+
+        // The overlay starts on. It stays on while a link session is being
+        // adopted, so nobody sees a login form for the half second before being
+        // sent to the dashboard anyway.
+        adoptLinkSession().then((handled) => {
+            if (handled) return;
+            setTimeout(() => {
+                document.getElementById('loadingOverlay').classList.remove('active');
+            }, 500);
+        });
     </script>
 </body>
 </html>

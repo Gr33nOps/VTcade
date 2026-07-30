@@ -107,9 +107,6 @@ const PIECES = {
 };
 const PIECE_NAMES = ["I", "J", "L", "O", "S", "T", "Z"];
 
-// Nintendo-style: a four-line clear is worth more than four single clears, so
-// there is a reason to build a well rather than shave the top off every turn.
-const LINE_SCORES = [0, 100, 300, 500, 800];
 const MAX_LEVEL = 15;
 
 let score = 0;
@@ -281,9 +278,15 @@ function lockPiece() {
 
     const cleared = clearLines();
     if (cleared > 0) {
-        // Score with the level in force BEFORE the clear, so the same stack is
-        // worth the same whether or not it happens to tip you over a level.
-        score += LINE_SCORES[cleared] * level();
+        // One flat point per line, the same logic Snake and Flappy use: a fixed
+        // amount per unit of success (10 per pellet, 1 per pipe), nothing scaled
+        // by a table or a level multiplier. This used to run 0/100/300/500/800
+        // times the current level, which made a single clear worth anywhere from
+        // 100 to 12000 depending on when it happened, and a four-line clear worth
+        // more per line than four separate ones, on purpose, to reward building a
+        // well. That is real Tetris scoring, but it is not this site's: every
+        // other game pays the same for the same result every time.
+        score += cleared;
         lines += cleared;
         if (cleared === 4) VTSound.success(); else VTSound.point();
     } else {
@@ -293,18 +296,16 @@ function lockPiece() {
     spawnPiece();
 }
 
+// Soft and hard drop used to score a bonus for the drop itself, on top of
+// whatever the resulting line clears paid. Snake never scored for moving
+// toward the pellet and Flappy never scored for flapping; only lockPiece(),
+// on an actual clear, should move the score here either.
 function softDrop() {
-    if (tryMove(0, 1)) {
-        score += 1;
-    } else {
-        lockPiece();
-    }
+    if (!tryMove(0, 1)) lockPiece();
 }
 
 function hardDrop() {
-    let dist = 0;
-    while (tryMove(0, 1)) dist++;
-    score += dist * 2;
+    while (tryMove(0, 1)) { /* fall until blocked */ }
     VTSound.jump();
     lockPiece();
 }

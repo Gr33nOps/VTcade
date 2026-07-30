@@ -95,7 +95,15 @@ let bird = {
     // Scaled to the shorter sky: 23 flyable rows where there were 29, so the
     // same numbers would have sent the bird across the screen far faster.
     gravity: 0.4,
-    jump: -2
+    // A -2 flap only ever climbed about 4 rows before gravity turned it back
+    // (5 ticks: -2,-1.6,-1.2,-0.8,-0.4 = -6 total, but the first tick is set
+    // directly rather than accumulated). Against an 8-row gap that is more than
+    // enough clearance from a single, barely-timed tap, so pipes went by with
+    // almost no piloting. -2.4 buys roughly 2 more rows of climb per flap,
+    // snappier and closer to a real flap, without turning the gap into a
+    // needle: a flap still cannot overshoot into the pipe above it from a
+    // sensible starting height.
+    jump: -2.4
 };
 
 let pipes = [];

@@ -200,7 +200,10 @@ function updateSnake() {
     snake.unshift(head);
     
     if (head.x === food.x && head.y === food.y) {
-        score += 10;
+        // One flat point per pellet, matching Tetris (1 per line) and Flappy
+        // (1 per pipe): every game now pays the same fixed amount per unit of
+        // success, nothing scaled or bonused.
+        score += 1;
         VTSound.eat();
         spawnFood();
         if (speed > 80) {

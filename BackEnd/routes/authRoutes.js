@@ -126,10 +126,15 @@ router.get("/google", (req, res) => {
     res.redirect(authorizeUrl);
 });
 
-// The callback page lands here with the access_token Supabase issued after
-// Google auth completed. We verify it server-side and hand back the same
-// { username, email } shape the normal /login endpoint returns.
-router.post("/google/session", asyncRoute(async (req, res) => {
+// Adopts a session Supabase issued somewhere other than our own login form: the
+// Google callback, and the link in a confirmation email. Both arrive at a page
+// with an access_token in the URL fragment and nothing else; this verifies it
+// server-side and hands back the same { username, email } shape /login returns.
+//
+// Nothing about it was ever Google-specific, and it is now mounted at both paths:
+// /session for what it does, /google/session because the callback page in the
+// wild still posts there.
+const adoptSession = asyncRoute(async (req, res) => {
     const { access_token } = req.body;
 
     if (!access_token) {
@@ -152,8 +157,9 @@ router.post("/google/session", asyncRoute(async (req, res) => {
         return res.status(403).json({ message: BANNED_MESSAGE, isBanned: true });
     }
 
-    // A Google account arrives already confirmed, and nothing used to record
-    // that here, so these profiles sat at is_verified = false forever.
+    // Both routes into here mean the address is confirmed: Google vouches for it,
+    // and the emailed link cannot be followed without receiving it. Nothing used
+    // to record that, so these profiles sat at is_verified = false forever.
     profile = await syncVerified(profile, data.user);
 
     res.json({
@@ -161,7 +167,10 @@ router.post("/google/session", asyncRoute(async (req, res) => {
         username: profile.username,
         email: profile.email
     });
-}));
+});
+
+router.post("/session", adoptSession);
+router.post("/google/session", adoptSession);
 
 router.post("/signup", asyncRoute(async (req, res) => {
     const username = typeof req.body.username === "string" ? req.body.username.trim() : "";

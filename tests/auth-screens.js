@@ -42,7 +42,8 @@ function makeEl() {
 }
 
 // Loads a screen's real inline script on top of the real shared modules.
-function loadScreen(relPath) {
+// `hash` stands in for the URL fragment a Supabase email link arrives with.
+function loadScreen(relPath, hash = "") {
     const html = fs.readFileSync(path.join(ROOT, relPath), "utf8");
     let src = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
         .map(m => m[1]).join("\n");
@@ -84,8 +85,8 @@ function loadScreen(relPath) {
             removeItem(k) { delete store[k]; }
         },
         addEventListener: () => {},
-        location: { hostname: "localhost", href: "", hash: "", replace() {} },
-        history: { replaceState() {} },
+        location: { hostname: "localhost", href: "", pathname: relPath, search: "", hash, replace() {} },
+        history: { replaceState(state, title, url) { ctx.location.hash = ""; ctx.location.replacedWith = url; } },
         AudioContext: class {
             constructor() { this.state = "running"; this.currentTime = 0; this.destination = {}; }
             resume() { return Promise.resolve(); }
@@ -239,6 +240,64 @@ async function main() {
         const last = s.requests.at(-1);
         check("selecting it calls the resend endpoint",
             !!last && /resend-verification$/.test(last.url), last && last.url);
+    }
+
+    console.log("\n=== LOGIN: A CONFIRMATION LINK SIGNS YOU IN ===");
+    {
+        // What Supabase appends to emailRedirectTo once the address is confirmed.
+        const s = loadScreen("login/login.html",
+            "#access_token=conf-token&refresh_token=conf-refresh&expires_in=3600&token_type=bearer&type=signup");
+        s.respondWith({ ok: true, status: 200, body: { username: "player", email: "player@example.com" } });
+        await s.settle();
+        await s.settle();
+
+        const first = s.requests[0];
+        check("the token in the fragment is verified with the server",
+            !!first && /\/api\/auth\/session$/.test(first.url), first && first.url);
+        check("it sends the token from the link",
+            first && first.body.access_token === "conf-token", first && JSON.stringify(first.body));
+        check("the session is stored, so no second login is needed",
+            !!s.store.vtcadeSession && s.store.vtcadeSession.includes("conf-token"),
+            s.store.vtcadeSession);
+        check("the screen confirms rather than asking for a password",
+            /Email confirmed/i.test(s.els.terminal.innerHTML));
+        check("the tokens are cleared out of the address bar", s.ctx.location.hash === "",
+            s.ctx.location.hash);
+    }
+
+    console.log("\n=== LOGIN: A DEAD LINK SAYS SO ===");
+    {
+        const s = loadScreen("login/login.html",
+            "#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired");
+        await s.settle();
+
+        check("nothing is sent to the server", s.requests.length === 0, s.requests.length + " requests");
+        check("the reason is shown on the login screen",
+            /Email link is invalid or has expired/.test(s.els.terminal.innerHTML));
+        check("the login form is still usable", s.ctx.currentField === 0);
+    }
+
+    console.log("\n=== LOGIN: A RECOVERY TOKEN IS NOT A LOGIN ===");
+    {
+        // A reset link is permission to set a password, not to skip it.
+        const s = loadScreen("login/login.html",
+            "#access_token=recovery-token&refresh_token=r&expires_in=3600&type=recovery");
+        await s.settle();
+
+        check("it is handed to the reset screen, not adopted",
+            /reset-password\.html#/.test(s.ctx.location.href), s.ctx.location.href);
+        check("no session was stored", !s.store.vtcadeSession, s.store.vtcadeSession);
+        check("the fragment survives the handover",
+            /access_token=recovery-token/.test(s.ctx.location.href));
+    }
+
+    console.log("\n=== LOGIN: A NORMAL VISIT IS UNAFFECTED ===");
+    {
+        const s = loadScreen("login/login.html");
+        await s.settle();
+
+        check("no fragment, no request", s.requests.length === 0, s.requests.length + " requests");
+        check("the form is drawn as usual", /USER AUTHENTICATION/.test(s.els.terminal.innerHTML));
     }
 
     console.log("\n=== SIGNUP: SAME KEYS, SAME RULES ===");

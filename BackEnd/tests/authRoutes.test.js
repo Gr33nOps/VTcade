@@ -264,6 +264,64 @@ describe("signup", () => {
     });
 });
 
+// Used by the Google callback and by the link in a confirmation email, which is
+// what lets a confirmed account land signed in instead of being asked for the
+// password it just set.
+describe("adopting a session issued elsewhere", () => {
+    test.each([
+        ["/api/auth/session"],
+        ["/api/auth/google/session"]
+    ])("%s verifies the token and returns the profile", async (path) => {
+        mock.setAuth("getUser", { data: { user: USER }, error: null });
+        mock.setTable("profiles", profile());
+
+        const res = await request(app).post(path).send({ access_token: "link-token" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.username).toBe("player");
+        expect(mock.client.auth.getUser).toHaveBeenCalledWith("link-token");
+    });
+
+    test("an expired link token is refused", async () => {
+        mock.setAuth("getUser", { data: { user: null }, error: { message: "token is expired" } });
+
+        const res = await request(app)
+            .post("/api/auth/session")
+            .send({ access_token: "stale" });
+
+        expect(res.status).toBe(401);
+    });
+
+    test("a banned account cannot adopt a session", async () => {
+        mock.setAuth("getUser", { data: { user: USER }, error: null });
+        mock.setTable("profiles", profile({ is_banned: true }));
+
+        const res = await request(app)
+            .post("/api/auth/session")
+            .send({ access_token: "link-token" });
+
+        expect(res.status).toBe(403);
+        expect(mock.client.auth.admin.signOut).toHaveBeenCalledWith("link-token", "global");
+    });
+
+    // Following the emailed link proves the address receives mail, so the mirror
+    // of Supabase's own confirmation flag has to move with it.
+    test("confirming marks the profile verified", async () => {
+        mock.setAuth("getUser", { data: { user: USER }, error: null });
+        mock.setTable("profiles", profile({ is_verified: false }));
+
+        const res = await request(app)
+            .post("/api/auth/session")
+            .send({ access_token: "link-token" });
+
+        expect(res.status).toBe(200);
+        const updated = mock.client.from.mock.results
+            .map((r) => r.value)
+            .find((b) => b.update.mock.calls.length);
+        expect(updated.update).toHaveBeenCalledWith({ is_verified: true });
+    });
+});
+
 describe("resend verification", () => {
     test("sends for an account that is not banned", async () => {
         mock.setTable("profiles", { data: { is_banned: false }, error: null });
