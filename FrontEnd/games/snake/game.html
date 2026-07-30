@@ -168,8 +168,7 @@ function draw(gridOverride) {
             { label: "SCORE",     value: score },
             // Locked for the same reason the leaderboard is: a guest has no
             // account for a highscore to belong to.
-            { label: "HIGHSCORE", value: isGuest ? "LOCKED" : highScore },
-            { label: "LENGTH",    value: snake.length }
+            { label: "HIGHSCORE", value: isGuest ? "LOCKED" : highScore }
         ],
         leaderboard: leaderboard,
         leaderboardLocked: isGuest,

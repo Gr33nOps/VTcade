@@ -82,7 +82,6 @@ let isNewRecord = false;
 // The last frame drawn while nothing was intersecting. Shown on game
 // over so the board never displays the sprite buried in the hazard.
 let lastSafeGrid = null;
-let pipesCleared = 0;
 // Distance travelled since the last pipe, in columns, so difficulty scaling
 // tightens the spacing instead of leaving it fixed.
 let distanceSincePipe = 0;
@@ -177,8 +176,7 @@ function draw(gridOverride) {
             { label: "SCORE",     value: score },
             // Locked for the same reason the leaderboard is: a guest has no
             // account for a highscore to belong to.
-            { label: "HIGHSCORE", value: isGuest ? "LOCKED" : highScore },
-            { label: "PIPES",     value: pipesCleared }
+            { label: "HIGHSCORE", value: isGuest ? "LOCKED" : highScore }
         ],
         leaderboard: leaderboard,
         leaderboardLocked: isGuest,
@@ -255,7 +253,6 @@ function updatePipes() {
         pipe.x -= PIPE_STEP;
         if (pipe.x + pipeWidth < bird.x && !pipe.passed) {
             score++;
-            pipesCleared++;
             pipe.passed = true;
             VTSound.point();
             // Flappy was the only game with no difficulty curve at all. The
@@ -340,7 +337,6 @@ function restartGame() {
     bird.velocity = 0;
     pipes = [];
     score = 0;
-    pipesCleared = 0;
     tickMs = TICK_SLOWEST;
     distanceSincePipe = 0;
     nextPipeGap = 11;

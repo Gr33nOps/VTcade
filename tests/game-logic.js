@@ -460,9 +460,12 @@ console.log("\n=== CONSISTENCY ACROSS ALL THREE ===");
     const statHeights = games.map(g => g.els.ui.textContent.split("\n").length);
     check("identical panel height", new Set(statHeights).size === 1, statHeights.join(" "));
 
+    // SCORE and HIGHSCORE only now; the third, game-specific counter (PIPES,
+    // LENGTH, LINES) was dropped from all three at once, so this stays a
+    // cross-game consistency check rather than a fixed constant.
     const statCounts = games.map(g =>
         (g.els.ui.textContent.match(/^[A-Z]+: /gm) || []).length);
-    check("all three show 3 stat rows", statCounts.every(c => c === 3), statCounts.join(" "));
+    check("all three show 2 stat rows", statCounts.every(c => c === 2), statCounts.join(" "));
 
     const idle = games.map(g => boardLines(g.els.game)[geo(g.ctx).STATUS]);
     check("all three use the same start-prompt template",
