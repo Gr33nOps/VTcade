@@ -373,7 +373,9 @@ function draw(gridOverride) {
         title: GAME_NAME,
         stats: [
             { label: "SCORE",     value: score },
-            { label: "HIGHSCORE", value: highScore },
+            // Locked for the same reason the leaderboard is: a guest has no
+            // account for a highscore to belong to.
+            { label: "HIGHSCORE", value: isGuest ? "LOCKED" : highScore },
             { label: "LINES",     value: lines }
         ],
         leaderboard: leaderboard,
@@ -436,8 +438,10 @@ async function gameOver() {
     const finalScore = score;
     const runAtDeath = runCounter;
 
-    // Compare against the best we knew *before* the save overwrites it.
-    isNewRecord = finalScore > highScore;
+    // Compare against the best we knew *before* the save overwrites it. A
+    // guest's HIGHSCORE is locked, the same as the leaderboard, so there is no
+    // stored best to compare against and "new record" cannot mean anything.
+    isNewRecord = !isGuest && finalScore > highScore;
 
     if (isNewRecord && finalScore > 0) VTSound.newRecord(); else VTSound.gameOver();
 
@@ -517,17 +521,12 @@ function togglePause() {
 // scores earned under a name nobody else can ever type in are not something
 // worth spending a network round trip on.
 async function loadHighScore() {
-    if (isGuest) { highScore = 0; return; }   // nothing saved yet this sitting
+    if (isGuest) return;   // locked; draw() never reads highScore for a guest
     highScore = await gameApi.loadHighScore(currentUser);
 }
 
 async function saveHighscore(finalScore) {
-    if (isGuest) {
-        // Tracked locally so HIGHSCORE and NEW RECORD still mean something
-        // within this sitting, without ever touching the real leaderboard.
-        if (finalScore > highScore) highScore = finalScore;
-        return;
-    }
+    if (isGuest) return;   // locked, the same as the leaderboard; nothing to save
     const stored = await gameApi.saveHighScore(finalScore);
     if (stored !== null) highScore = stored;
 }

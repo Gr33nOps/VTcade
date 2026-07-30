@@ -78,10 +78,21 @@ Email clients are not browsers, so the site's CSS could not simply be reused.
   sideways. A 2px green border reads the same and cannot overflow.
 * **The button is a table cell with `bgcolor`**, not a styled `<a>`, because
   Outlook drops padding on links. Green block, black text: the same treatment
-  the site gives the row your cursor is on.
+  the site gives the row your cursor is on. No bold, no letter-spacing added on
+  top of it - the site's `.highlight` class doesn't use either, so a button that
+  did would be its own thing rather than a piece of the site.
+* **Exactly two colours: `#00ff00` and `#00aa00`.** That is the site's whole
+  palette. `terminal.css` deliberately collapsed what used to be a red, a
+  yellow and three shades of green into one `#00ff00`, keeping only `#00aa00`
+  as `.dim` for secondary text - see the comment block titled "Everything is
+  green" at the top of that file. An earlier version of these templates used
+  four different greens nobody asked for and no bold/letter-spacing the site
+  doesn't have either, which is exactly what made it read as a different,
+  fancier product bolted onto the site rather than a plain extension of it.
 * **No scanlines, no flicker, no web font.** Animation and overlays do not
   survive an email client, and `Courier New` is already the site's typeface and
-  is present everywhere.
+  is present everywhere. Every cell restates it explicitly rather than
+  inheriting it, because Outlook drops inherited font-family on nested tags.
 * **The link is repeated as plain text**, since some clients refuse to render the
   button at all.
 

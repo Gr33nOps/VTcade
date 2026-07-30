@@ -759,8 +759,8 @@ console.log("\n=== GAME OVER FRAME SHOWS CONTACT ===");
                 apiCalls.loadHighScore === 0, apiCalls.loadHighScore + " calls");
             check(dir + " (guest): startup never asks the server for the leaderboard",
                 apiCalls.loadLeaderboard === 0, apiCalls.loadLeaderboard + " calls");
-            check(dir + " (guest): starts at highscore 0",
-                ctx.highScore === 0, "highScore=" + ctx.highScore);
+            check(dir + " (guest): the HIGHSCORE stat reads LOCKED, not a number",
+                /HIGHSCORE: LOCKED/.test(els.ui.textContent), els.ui.textContent);
             check(dir + " (guest): the in-game panel says so instead of showing scores",
                 els.ui.textContent.includes("GUEST MODE") && els.ui.textContent.includes("SIGN IN TO VIEW"),
                 els.ui.textContent);
@@ -776,8 +776,10 @@ console.log("\n=== GAME OVER FRAME SHOWS CONTACT ===");
                 apiCalls.saveLeaderboard === 0, apiCalls.saveLeaderboard + " calls");
             check(dir + " (guest): and never re-fetches it either",
                 apiCalls.loadLeaderboard === 0, apiCalls.loadLeaderboard + " calls");
-            check(dir + " (guest): the run's score becomes this sitting's highscore locally",
-                ctx.highScore === 42, "highScore=" + ctx.highScore);
+            check(dir + " (guest): HIGHSCORE stays locked even after a scoring run",
+                /HIGHSCORE: LOCKED/.test(els.ui.textContent), els.ui.textContent);
+            check(dir + " (guest): a run never claims to be a new record with nothing to compare against",
+                ctx.isNewRecord === false, "isNewRecord=" + ctx.isNewRecord);
         }
     }
 
@@ -796,6 +798,9 @@ console.log("\n=== GAME OVER FRAME SHOWS CONTACT ===");
                 apiCalls.loadLeaderboard === 1, apiCalls.loadLeaderboard + " calls");
             check(dir + ": the panel shows the normal empty-leaderboard message, not guest mode",
                 !els.ui.textContent.includes("GUEST MODE"), els.ui.textContent);
+            check(dir + ": HIGHSCORE shows a real number, not LOCKED",
+                /HIGHSCORE: 0\b/.test(els.ui.textContent) && !els.ui.textContent.includes("LOCKED"),
+                els.ui.textContent);
 
             ctx.gameStarted = true;
             ctx.gameRunning = true;
