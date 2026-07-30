@@ -32,11 +32,17 @@ body {
        viewport and silently cut off the bottom ~200px. Same for any window
        a user drags shorter.
 
-       The tallest page is ~44em (logo + the dashboard's longest view), and
-       the widest content is the 80-column rule at 0.875em = 42em. Dividing
-       the smaller viewport axis by 44 therefore always fits, with the 16px
-       cap meaning nothing changes on a normal desktop. */
-    font-size: clamp(6px, min(calc((100vw - 40px) / 44), calc((100vh - 40px) / 44)), 16px);
+       The tallest page is ~46em and the widest content is the 80-column rule
+       at 0.875em = 42em. Dividing the smaller viewport axis by 46 therefore
+       always fits, with the 16px cap meaning nothing changes on a normal
+       desktop.
+
+       The divisor was 44, measured against the dashboard's longest view. Login
+       is now the tallest: at its fullest (an error, plus the resend row that
+       appears for an unverified account, plus its COMMANDS block) it reaches
+       ~45.6em, which the old number cut off at the bottom with no scroll, no
+       wheel and no key to reach it with. Recount this if a screen grows. */
+    font-size: clamp(6px, min(calc((100vw - 40px) / 46), calc((100vh - 40px) / 46)), 16px);
 
     line-height: 1.4;
     text-shadow: 0 0 4px #00ff00;
@@ -77,10 +83,15 @@ pre {
     animation: flicker 0.15s infinite alternate;
 }
 
+/* Sized against the LOGO, not the body: this span lives inside `.logo`, so its
+   em is already 0.625em of the page. `font-size: 0.875em` therefore resolved to
+   0.547em, about 9px on a desktop, which is why the tagline read as fine print
+   under a banner six times its size. 1.4em of the logo is 0.875em of the body,
+   the same size as the terminal text on every screen. */
 .subtitle {
-    font-size: 0.875em;
+    font-size: 1.4em;
     text-align: center;
-    margin-top: 5px;
+    margin-top: 0.4em;
     display: block;
     color: #00ff00;
 }

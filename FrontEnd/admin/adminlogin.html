@@ -47,6 +47,7 @@
 
     <script src="../shared/config.js"></script>
     <script src="../shared/sound.js"></script>
+    <script src="../shared/keys.js"></script>
     <script src="../shared/clipboard.js"></script>
     <script>
         const API_URL = window.VTCADE_API_URL;
@@ -132,8 +133,9 @@ ADMIN LOGIN
 COMMANDS
 ================================================================================
 
-    [↑/↓]     NAVIGATE FIELDS           [ENTER]     SELECT
+    [↑/↓]     NAVIGATE FIELDS           [ENTER]     NEXT FIELD / SELECT
     [CTRL+V]  PASTE INTO FIELD          [CTRL+C]    COPY FIELD
+    [ESC]     BACK TO USER LOGIN        [F2]        SOUND ${VTSound.isMuted() ? "OFF" : "ON"}
 
 ================================================================================
 
@@ -268,19 +270,17 @@ READY: <span class="cursor">_</span>
             redraw: render
         });
 
-                // VTCADE_GLOBAL_KEYS: the two keys that mean the same thing on every
-        // screen. M toggles the shared mute flag, ESC goes back one step. They
-        // used to work only on the games, the dashboard and the admin panel,
-        // so the first screen anyone lands on honoured neither.
+        // This is a screen you type into, so the sound toggle is F2, not M: see
+        // shared/keys.js for why M could not stay. ESC still goes back a step.
         function handleGlobalKeys(e) {
-            if (e.ctrlKey || e.metaKey || e.altKey) return false;
-
-            if (e.key === "m" || e.key === "M") {
+            if (VTKeys.isSoundToggle(e)) {
                 e.preventDefault();
                 VTSound.toggleMute();
                 render();
                 return true;
             }
+
+            if (e.ctrlKey || e.metaKey || e.altKey) return false;
 
             if (e.key === "Escape") {
                 e.preventDefault();
@@ -294,7 +294,32 @@ READY: <span class="cursor">_</span>
             return false;
         }
 
-document.addEventListener("keydown", (e) => {
+        // ENTER did nothing while the cursor was on a field, so the only route to
+        // [ LOGIN ] was the down arrow. It now walks the fields and submits from
+        // the last one.
+        function advanceOrActivate() {
+            if (isSubmitting) return;
+
+            if (currentField === 0) {
+                VTSound.nav();
+                currentField = 1;
+                render();
+                return;
+            }
+            if (currentField === 1) {
+                currentField = 2;          // the [ LOGIN ] row
+                VTSound.select();
+                render();
+                submitForm();
+                return;
+            }
+
+            VTSound.select();
+            if (currentField === 2) submitForm();
+            else if (currentField === 3) goToUserLogin();
+        }
+
+        document.addEventListener("keydown", (e) => {
             if (handleGlobalKeys(e)) return;
             if (e.key === "ArrowDown") {
                 e.preventDefault();
@@ -304,13 +329,8 @@ document.addEventListener("keydown", (e) => {
                 navigateField('prev');
             } else if (e.key === "Enter") {
                 e.preventDefault();
-                VTSound.select();
-                if (currentField === 2) {
-                    submitForm();
-                } else if (currentField === 3) {
-                    goToUserLogin();
-                }
-            } else if (e.key === "Backspace" || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
+                advanceOrActivate();
+            } else if (e.key === "Backspace" || VTKeys.isTypedChar(e)) {
                 e.preventDefault();
                 handleTyping(e.key);
             }

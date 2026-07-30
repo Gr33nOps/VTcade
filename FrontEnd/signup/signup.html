@@ -49,9 +49,21 @@
     <script src="../shared/config.js"></script>
     <script src="../shared/session.js"></script>
     <script src="../shared/sound.js"></script>
+    <script src="../shared/keys.js"></script>
     <script src="../shared/clipboard.js"></script>
     <script>
         const API_URL = VTSession.API_URL;
+
+        // Catches the addresses that cannot possibly work (no @, no dot after
+        // it, a space in the middle) before the round trip. A signup did reach
+        // Supabase with a malformed address and came back with its wording,
+        // "Unable to validate email address: invalid format", which tells the
+        // player nothing about what to change.
+        const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+        // Matches what the server accepts, so the rule is stated once on screen
+        // instead of being discovered one rejection at a time.
+        const USERNAME_RE = /^[A-Za-z0-9_-]{3,20}$/;
 
         const terminalEl = document.getElementById("terminal");
 
@@ -73,6 +85,7 @@
         let successMessage = "";
         let isSubmitting = false;
         let registrationComplete = false;
+        let pendingAction = null;   // which row's request is in flight
 
         function render() {
             const fields = ["USERNAME", "EMAIL", "PASSWORD", "CONFIRM PASSWORD"];
@@ -86,9 +99,23 @@
                 output += `<span class="warning-text">⚠ EMAIL VERIFICATION REQUIRED</span>\n\n`;
                 output += `Please check your inbox for a verification email.\n`;
                 output += `You must verify your email before you can login.\n\n`;
-                output += `Once verified, press [TAB] to go to login page.\n\n`;
+
+                if (errorMessage) {
+                    output += `<span class="error-text">ERROR: ${esc(errorMessage)}</span>\n\n`;
+                }
+                if (successMessage) {
+                    output += `<span class="success-text">SUCCESS: ${esc(successMessage)}</span>\n\n`;
+                }
+
+                // Nothing is typed on this screen, so a letter key is free, and
+                // an unverified account with no way to ask for another email is
+                // a locked door.
+                output += `    [TAB]              GO TO LOGIN\n`;
+                output += `    [R]                ${isSubmitting ? "SENDING..." : "RESEND VERIFICATION EMAIL"}\n`;
+                output += `    [F2]               SOUND ${VTSound.isMuted() ? "OFF" : "ON"}\n\n`;
                 output += `================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
                 terminalEl.innerHTML = output;
+                announceMessages();
                 return;
             }
 
@@ -112,7 +139,10 @@
 
             const submitSelected = currentField === 4;
             const submitPrefix = submitSelected ? '>>>' : '   ';
-            const submitText = isSubmitting ? '[ REGISTERING... ]' : '[ REGISTER ]';
+            // Only the row that is actually waiting says so. Both rows used to
+            // switch on the same flag, so registering also made the Google row
+            // claim it was redirecting.
+            const submitText = pendingAction === "submit" ? '[ REGISTERING... ]' : '[ REGISTER ]';
             let submitLine = `${submitPrefix} ${submitText}`;
 
             if (submitSelected) {
@@ -123,7 +153,7 @@
 
             const googleSelected = currentField === 5;
             const googlePrefix = googleSelected ? '>>>' : '   ';
-            const googleText = isSubmitting ? '[ REDIRECTING... ]' : '[ CONTINUE WITH GOOGLE ]';
+            const googleText = pendingAction === "google" ? '[ REDIRECTING... ]' : '[ CONTINUE WITH GOOGLE ]';
             let googleLine = `${googlePrefix} ${googleText}`;
 
             if (googleSelected) {
@@ -141,7 +171,7 @@
                 output += `<span class="success-text">SUCCESS: ${esc(successMessage)}</span>\n\n`;
             }
 
-            output += `\n================================================================================\nCOMMANDS\n================================================================================\n\n    [↑/↓]              NAVIGATE FIELDS\n    [ENTER]            SELECT\n    [TAB]              SWITCH TO LOGIN\n    [CTRL+V]           PASTE INTO FIELD\n    [CTRL+C]           COPY FIELD\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
+            output += `\n================================================================================\nCOMMANDS\n================================================================================\n\n    [↑/↓]              NAVIGATE FIELDS\n    [ENTER]            NEXT FIELD / SELECT\n    [TAB]              SWITCH TO LOGIN\n    [F2]               SOUND ${VTSound.isMuted() ? "OFF" : "ON"}\n    [CTRL+V]           PASTE INTO FIELD\n    [CTRL+C]           COPY FIELD\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
 
             terminalEl.innerHTML = output;
             announceMessages();
@@ -201,15 +231,60 @@
             render();
         }
 
+        // ENTER did nothing at all while the cursor was on a field, so the only
+        // way to reach [ REGISTER ] was to know about the down arrow. It now
+        // walks the fields and submits from the last one.
+        function advanceOrActivate() {
+            if (isSubmitting || registrationComplete) return;
+
+            if (currentField < 3) {
+                VTSound.nav();
+                currentField += 1;
+                errorMessage = "";
+                successMessage = "";
+                render();
+                return;
+            }
+
+            if (currentField === 3) {
+                currentField = 4;          // the [ REGISTER ] row
+                VTSound.select();
+                render();
+                submitForm();
+                return;
+            }
+
+            VTSound.select();
+            if (currentField === 4) submitForm();
+            else if (currentField === 5) continueWithGoogle();
+        }
+
         async function submitForm() {
             if (isSubmitting || registrationComplete) return;
-            if (currentField !== 4) return;
 
             errorMessage = "";
             successMessage = "";
 
+            // Pasted values arrive with stray spaces, and a trailing space in a
+            // username or an address is invisible on screen and fatal on the
+            // server.
+            username = username.trim();
+            email = email.trim();
+
             if (!username || !email || !password || !confirmPassword) {
                 errorMessage = "All fields are required";
+                render();
+                return;
+            }
+
+            if (!USERNAME_RE.test(username)) {
+                errorMessage = "Username must be 3-20 characters: letters, numbers, - and _ only";
+                render();
+                return;
+            }
+
+            if (!EMAIL_RE.test(email)) {
+                errorMessage = "That is not a valid email address";
                 render();
                 return;
             }
@@ -227,6 +302,7 @@
             }
 
             isSubmitting = true;
+            pendingAction = "submit";
             render();
 
             try {
@@ -238,23 +314,26 @@
 
                 const data = await res.json();
 
+                isSubmitting = false;
+                pendingAction = null;
+
                 if (!res.ok) {
                     errorMessage = data?.message || "Registration failed";
-                    isSubmitting = false;
                     render();
                     return;
                 }
 
                 if (data.requiresVerification) {
                     registrationComplete = true;
-                    isSubmitting = false;
                     VTSound.success();
                     render();
-                } else {
-                    localStorage.setItem("currentUser", data.username || username);
-                    
+                } else if (data.session) {
+                    // The "confirmations turned off in Supabase" path. Store the
+                    // real session: this used to save a username on its own, and
+                    // a name with no token behind it cannot authenticate a score
+                    // submission, so the first game would 401.
+                    VTSession.saveSession(data.session, data.username || username);
                     successMessage = "Registration successful! Redirecting...";
-                    isSubmitting = false;
                     render();
 
                     setTimeout(() => {
@@ -263,20 +342,61 @@
                             window.location.href = "../dashboard/dashboard.html";
                         }, 300);
                     }, 600);
+                } else {
+                    successMessage = "Registration successful! Please sign in.";
+                    render();
+
+                    setTimeout(() => {
+                        document.getElementById('loadingOverlay').classList.add('active');
+                        setTimeout(() => {
+                            window.location.href = "../login/login.html";
+                        }, 300);
+                    }, 900);
                 }
 
             } catch (err) {
                 errorMessage = "Network error";
                 isSubmitting = false;
+                pendingAction = null;
                 render();
             }
         }
 
+        // Only offered on the completion screen, where the address is known to
+        // have just been registered.
+        async function resendVerification() {
+            if (isSubmitting || !registrationComplete) return;
+
+            errorMessage = "";
+            successMessage = "";
+            isSubmitting = true;
+            render();
+
+            try {
+                const res = await fetch(`${API_URL}/api/auth/resend-verification`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    successMessage = data?.message || "Verification email sent. Check your inbox.";
+                } else {
+                    errorMessage = data?.message || "Could not send the verification email";
+                }
+            } catch (err) {
+                errorMessage = "Network error";
+            }
+
+            isSubmitting = false;
+            render();
+        }
+
         function continueWithGoogle() {
             if (isSubmitting || registrationComplete) return;
-            if (currentField !== 5) return;
 
             isSubmitting = true;
+            pendingAction = "google";
             render();
 
             document.getElementById('loadingOverlay').classList.add('active');
@@ -299,21 +419,18 @@
             redraw: render
         });
 
-                // VTCADE_GLOBAL_KEYS: the two keys that mean the same thing on every
-        // screen. M toggles the shared mute flag, ESC goes back one step. They
-        // used to work only on the games, the dashboard and the admin panel,
-        // so the first screen anyone lands on honoured neither.
+        // This is a screen you type into, so the sound toggle is F2, not M: see
+        // shared/keys.js for why M could not stay. ESC still goes back to login,
+        // as it does everywhere below the root.
         function handleGlobalKeys(e) {
-            if (e.ctrlKey || e.metaKey || e.altKey) return false;
-
-            if (e.key === "m" || e.key === "M") {
+            if (VTKeys.isSoundToggle(e)) {
                 e.preventDefault();
                 VTSound.toggleMute();
                 render();
                 return true;
             }
 
-            if (e.key === "Escape") {
+            if (e.key === "Escape" && !e.ctrlKey && !e.metaKey && !e.altKey) {
                 e.preventDefault();
                 VTSound.back();
                 const overlay = document.getElementById("loadingOverlay");
@@ -322,10 +439,19 @@
                 return true;
             }
 
+            // R only means "resend" on the completion screen, where there is no
+            // field to type it into.
+            if (registrationComplete && (e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                VTSound.select();
+                resendVerification();
+                return true;
+            }
+
             return false;
         }
 
-document.addEventListener("keydown", (e) => {
+        document.addEventListener("keydown", (e) => {
             if (handleGlobalKeys(e)) return;
             if (e.key === "Tab") {
                 e.preventDefault();
@@ -341,13 +467,8 @@ document.addEventListener("keydown", (e) => {
                 navigateField('prev');
             } else if (e.key === "Enter") {
                 e.preventDefault();
-                if (!registrationComplete) VTSound.select();
-                if (currentField === 4 && !registrationComplete) {
-                    submitForm();
-                } else if (currentField === 5 && !registrationComplete) {
-                    continueWithGoogle();
-                }
-            } else if (e.key === "Backspace" || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
+                advanceOrActivate();
+            } else if (e.key === "Backspace" || VTKeys.isTypedChar(e)) {
                 e.preventDefault();
                 handleTyping(e.key);
             }

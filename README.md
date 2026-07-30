@@ -193,6 +193,11 @@ flaps, or hard drops. P pauses, M mutes, Escape returns to the dashboard. Tab
 switches between login and signup, and F1 opens admin access from the login
 screen.
 
+On the four screens you type into (login, signup, admin login, password reset)
+every printable key belongs to the field, so the sound toggle there is **F2**,
+not M, and each of those screens advertises it. Enter moves to the next field
+and submits from the last one.
+
 **Typing.** The text fields are characters drawn into a `<pre>`, not real inputs,
 so the browser's own clipboard has nothing to act on. Ctrl+V and Ctrl+Shift+V
 paste into whichever field the cursor is on, and Ctrl+C copies it back out.
@@ -230,9 +235,9 @@ anything calling the API directly. See Deployment for why the proxy exists.
 | POST | `/api/auth/google/session` | Verifies the token Google returned |
 | POST | `/api/auth/refresh` | Exchanges a refresh token for a new session |
 | POST | `/api/auth/forgot-password` | Sends a reset link |
-| POST | `/api/auth/reset-password` | Sets a new password |
+| POST | `/api/auth/reset-password` | Sets a new password, and ends every session that had the old one |
 | POST | `/api/auth/resend-verification` | Resends the confirmation email |
-| POST | `/api/auth/logout` | Ends the session |
+| POST | `/api/auth/logout` | Ends the session named by the bearer token |
 
 **Games and scores**
 

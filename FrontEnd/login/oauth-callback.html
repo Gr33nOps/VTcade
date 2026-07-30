@@ -79,6 +79,13 @@
 
             const { access_token, refresh_token, expires_in, error, error_description } = parseHashParams();
 
+            // The tokens rode in on the URL fragment, which the address bar
+            // shows and the session history keeps. Nothing needs them there once
+            // they have been read.
+            if (window.history && history.replaceState) {
+                history.replaceState(null, "", window.location.pathname + window.location.search);
+            }
+
             if (error) {
                 showError(error_description || error);
                 return;

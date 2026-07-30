@@ -47,9 +47,17 @@
     <script src="../shared/config.js"></script>
     <script src="../shared/session.js"></script>
     <script src="../shared/sound.js"></script>
+    <script src="../shared/keys.js"></script>
     <script src="../shared/clipboard.js"></script>
     <script>
         const API_URL = VTSession.API_URL;
+
+        // Enough to catch the addresses that cannot possibly work: no @, no
+        // dot after it, or a space in the middle. Anything subtler is Supabase's
+        // job. Without this the server answered a mistyped address with
+        // "Unable to validate email address: invalid format", which is its
+        // wording, not ours, and it appeared after a round trip.
+        const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
         
         const terminalEl = document.getElementById("terminal");
 
@@ -68,6 +76,34 @@
         let errorMessage = "";
         let successMessage = "";
         let isSubmitting = false;
+
+        // Set when the server says the account exists but its email was never
+        // confirmed. That was a dead end: the backend has always had a
+        // /resend-verification endpoint and no screen ever called it, so the
+        // only way out was to hunt for an email that might have expired.
+        let needsVerification = false;
+
+        // The rows below the fields, in the order they are drawn. RESEND only
+        // exists once the server has told us the account is unverified.
+        function actionRows() {
+            const rows = ["submit", "google", "forgot"];
+            if (needsVerification) rows.push("resend");
+            return rows;
+        }
+
+        function lastFieldIndex() {
+            return 2 + actionRows().length - 1;
+        }
+
+        // Only the row whose request is actually in flight shows a busy label.
+        let pendingAction = null;
+
+        const ROW_LABELS = {
+            submit: { idle: "[ LOGIN ]",                     busy: "[ LOGGING IN... ]" },
+            google: { idle: "[ CONTINUE WITH GOOGLE ]",      busy: "[ REDIRECTING... ]" },
+            forgot: { idle: "[ FORGOT PASSWORD ]",           busy: "[ SENDING RESET LINK... ]" },
+            resend: { idle: "[ RESEND VERIFICATION EMAIL ]", busy: "[ SENDING... ]" }
+        };
 
         function render() {
             const fields = ["EMAIL", "PASSWORD"];
@@ -93,37 +129,16 @@
 
             output += '\n';
 
-            const submitSelected = currentField === 2;
-            const submitPrefix = submitSelected ? '>>>' : '   ';
-            const submitText = isSubmitting ? '[ LOGGING IN... ]' : '[ LOGIN ]';
-            let submitLine = `${submitPrefix} ${submitText}`;
-
-            if (submitSelected) {
-                output += `<span class="highlight">${submitLine}</span>\n`;
-            } else {
-                output += submitLine + '\n';
-            }
-
-            const googleSelected = currentField === 3;
-            const googlePrefix = googleSelected ? '>>>' : '   ';
-            const googleText = isSubmitting ? '[ REDIRECTING... ]' : '[ CONTINUE WITH GOOGLE ]';
-            let googleLine = `${googlePrefix} ${googleText}`;
-
-            if (googleSelected) {
-                output += `<span class="highlight">${googleLine}</span>\n`;
-            } else {
-                output += googleLine + '\n';
-            }
-
-            const forgotSelected = currentField === 4;
-            const forgotPrefix = forgotSelected ? '>>>' : '   ';
-            const forgotLine = `${forgotPrefix} [ FORGOT PASSWORD ]`;
-
-            if (forgotSelected) {
-                output += `<span class="highlight">${forgotLine}</span>\n`;
-            } else {
-                output += forgotLine + '\n';
-            }
+            // One busy label at a time. Every row used to switch to its own
+            // "..." text off the single isSubmitting flag, so asking for a
+            // password reset also made [ LOGIN ] claim it was logging in.
+            actionRows().forEach((row, i) => {
+                const index = 2 + i;
+                const selected = currentField === index;
+                const label = ROW_LABELS[row][pendingAction === row ? "busy" : "idle"];
+                const line = `${selected ? '>>>' : '   '} ${label}`;
+                output += selected ? `<span class="highlight">${line}</span>\n` : line + '\n';
+            });
 
             output += '\n';
 
@@ -134,7 +149,7 @@
                 output += `<span class="success-text">SUCCESS: ${esc(successMessage)}</span>\n\n`;
             }
 
-            output += `\n================================================================================\nCOMMANDS\n================================================================================\n\n    [↑/↓]              NAVIGATE FIELDS\n    [ENTER]            SELECT\n    [TAB]              SWITCH TO SIGNUP\n    [F1]               ADMIN ACCESS\n    [CTRL+V]           PASTE INTO FIELD\n    [CTRL+C]           COPY FIELD\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
+            output += `\n================================================================================\nCOMMANDS\n================================================================================\n\n    [↑/↓]              NAVIGATE FIELDS\n    [ENTER]            NEXT FIELD / SELECT\n    [TAB]              SWITCH TO SIGNUP\n    [F1]               ADMIN ACCESS\n    [F2]               SOUND ${VTSound.isMuted() ? "OFF" : "ON"}\n    [CTRL+V]           PASTE INTO FIELD\n    [CTRL+C]           COPY FIELD\n\n================================================================================\n\nREADY: <span class="cursor">_</span>\n\n`;
 
             terminalEl.innerHTML = output;
             announceMessages();
@@ -154,18 +169,50 @@
         }
 
         function navigateField(direction) {
-            VTSound.nav();
+            // The beep used to be played before this guard, so the screen
+            // answered keys it was about to ignore.
             if (isSubmitting) return;
-            
+            VTSound.nav();
+
             errorMessage = "";
             successMessage = "";
-            
+
+            const last = lastFieldIndex();
             if (direction === 'next') {
-                currentField = currentField < 4 ? currentField + 1 : 0;
+                currentField = currentField < last ? currentField + 1 : 0;
             } else if (direction === 'prev') {
-                currentField = currentField > 0 ? currentField - 1 : 4;
+                currentField = currentField > 0 ? currentField - 1 : last;
             }
             render();
+        }
+
+        // ENTER used to do nothing whatsoever while the cursor was on a field:
+        // you had to know to press the down arrow twice to reach [ LOGIN ]. It
+        // now does what it does in every other form, moving to the next field
+        // and submitting from the last one.
+        function advanceOrActivate() {
+            if (isSubmitting) return;
+
+            if (currentField === 0) {
+                VTSound.nav();
+                currentField = 1;
+                render();
+                return;
+            }
+            if (currentField === 1) {
+                currentField = 2;          // the [ LOGIN ] row
+                VTSound.select();
+                render();
+                submitForm();
+                return;
+            }
+
+            VTSound.select();
+            const row = actionRows()[currentField - 2];
+            if (row === "submit") submitForm();
+            else if (row === "google") continueWithGoogle();
+            else if (row === "forgot") requestPasswordReset();
+            else if (row === "resend") resendVerification();
         }
 
         function handleTyping(key) {
@@ -188,36 +235,54 @@
 
         async function submitForm() {
             if (isSubmitting) return;
-            if (currentField !== 2) return;
-            
+
             errorMessage = "";
             successMessage = "";
-            
+            needsVerification = false;
+            // Dropping the resend row must not leave the cursor past the last one.
+            if (currentField > lastFieldIndex()) currentField = lastFieldIndex();
+
+            // A pasted address routinely arrives with a trailing space, and the
+            // server lower-cases but never trimmed, so that space became part of
+            // the address it looked up: a correct password, rejected.
+            email = email.trim();
+
             if (!email || !password) {
                 errorMessage = "All fields are required";
                 render();
                 return;
             }
-            
+
+            if (!EMAIL_RE.test(email)) {
+                errorMessage = "That is not a valid email address";
+                render();
+                return;
+            }
+
             isSubmitting = true;
+            pendingAction = "submit";
             render();
-            
+
             try {
                 const res = await fetch(`${API_URL}/api/auth/login`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email, password })
                 });
-                
+
                 const data = await res.json();
-                
+
                 if (!res.ok) {
                     errorMessage = data?.message || "Login failed";
+                    // Puts a [ RESEND VERIFICATION EMAIL ] row on screen rather
+                    // than leaving the account stranded.
+                    needsVerification = !!data?.requiresVerification;
                     isSubmitting = false;
+                    pendingAction = null;
                     render();
                     return;
                 }
-                
+
                 // Store the real Supabase session, not just a display name.
                 // The backend now verifies this token on every score submission.
                 if (data.session) {
@@ -228,18 +293,20 @@
 
                 successMessage = "Authentication successful";
                 isSubmitting = false;
+                pendingAction = null;
                 render();
-                
+
                 setTimeout(() => {
                     document.getElementById('loadingOverlay').classList.add('active');
                     setTimeout(() => {
                         window.location.href = "../dashboard/dashboard.html";
                     }, 300);
                 }, 600);
-                
+
             } catch (err) {
                 errorMessage = "Network error";
                 isSubmitting = false;
+                pendingAction = null;
                 render();
             }
         }
@@ -249,6 +316,7 @@
 
             errorMessage = "";
             successMessage = "";
+            email = email.trim();
 
             if (!email) {
                 errorMessage = "Enter your email address first, then select this option";
@@ -256,7 +324,14 @@
                 return;
             }
 
+            if (!EMAIL_RE.test(email)) {
+                errorMessage = "That is not a valid email address";
+                render();
+                return;
+            }
+
             isSubmitting = true;
+            pendingAction = "forgot";
             render();
 
             try {
@@ -272,14 +347,47 @@
             }
 
             isSubmitting = false;
+            pendingAction = null;
+            render();
+        }
+
+        // Reachable only once a login attempt has come back "not verified", so
+        // this cannot be used to spray confirmation mail at strangers.
+        async function resendVerification() {
+            if (isSubmitting || !needsVerification) return;
+
+            errorMessage = "";
+            successMessage = "";
+            isSubmitting = true;
+            pendingAction = "resend";
+            render();
+
+            try {
+                const res = await fetch(`${API_URL}/api/auth/resend-verification`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: email.trim() })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    successMessage = data?.message || "Verification email sent. Check your inbox.";
+                } else {
+                    errorMessage = data?.message || "Could not send the verification email";
+                }
+            } catch (err) {
+                errorMessage = "Network error";
+            }
+
+            isSubmitting = false;
+            pendingAction = null;
             render();
         }
 
         function continueWithGoogle() {
             if (isSubmitting) return;
-            if (currentField !== 3) return;
 
             isSubmitting = true;
+            pendingAction = "google";
             render();
 
             document.getElementById('loadingOverlay').classList.add('active');
@@ -300,35 +408,24 @@
             redraw: render
         });
 
-                // VTCADE_GLOBAL_KEYS: the two keys that mean the same thing on every
-        // screen. M toggles the shared mute flag, ESC goes back one step. They
-        // used to work only on the games, the dashboard and the admin panel,
-        // so the first screen anyone lands on honoured neither.
-        function handleGlobalKeys(e) {
-            if (e.ctrlKey || e.metaKey || e.altKey) return false;
-
-            if (e.key === "m" || e.key === "M") {
+        // This is a screen you type into, so the sound toggle is F2, not M: see
+        // shared/keys.js for why M could not stay. This screen is the root, so
+        // there is nothing for ESC to go back to and it is not advertised.
+        document.addEventListener("keydown", (e) => {
+            if (VTKeys.isSoundToggle(e)) {
                 e.preventDefault();
                 VTSound.toggleMute();
                 render();
-                return true;
+                return;
             }
 
-            // This screen is the root, so there is nothing to go back to and
-            // ESC is deliberately not advertised on it.
-
-            return false;
-        }
-
-document.addEventListener("keydown", (e) => {
-            if (handleGlobalKeys(e)) return;
             if (e.key === "Tab") {
                 e.preventDefault();
                 document.getElementById('loadingOverlay').classList.add('active');
                 setTimeout(() => {
                     window.location.href = "../signup/signup.html";
                 }, 600);
-            } 
+            }
             else if (e.key === "F1") {
                 e.preventDefault();
                 document.getElementById('loadingOverlay').classList.add('active');
@@ -344,15 +441,8 @@ document.addEventListener("keydown", (e) => {
                 navigateField('prev');
             } else if (e.key === "Enter") {
                 e.preventDefault();
-                VTSound.select();
-                if (currentField === 2) {
-                    submitForm();
-                } else if (currentField === 3) {
-                    continueWithGoogle();
-                } else if (currentField === 4) {
-                    requestPasswordReset();
-                }
-            } else if (e.key === "Backspace" || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
+                advanceOrActivate();
+            } else if (e.key === "Backspace" || VTKeys.isTypedChar(e)) {
                 e.preventDefault();
                 handleTyping(e.key);
             }

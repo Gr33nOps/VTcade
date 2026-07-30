@@ -98,3 +98,9 @@ jobs:
       # Drives the dashboard's real navigation against a stubbed DOM.
       - name: Dashboard tests
         run: node tests/dashboard.js
+
+      # Drives the login and signup screens' real key handling. These are the
+      # only screens you type into, and a key bound at the wrong level there
+      # silently eats characters out of an email address.
+      - name: Login and signup screen tests
+        run: node tests/auth-screens.js
