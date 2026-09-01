@@ -378,6 +378,25 @@ with no commits to the repository, so a repo that goes completely silent for two
 months will need one manual run to wake the schedule back up. The permanent fix
 for that is upgrading the Supabase project to a paid plan, which never pauses.
 
+**Static analysis.** Two scanners run in CI. Semgrep (`.github/workflows/security.yml`)
+needs no setup and runs on every push. SonarCloud (`.github/workflows/sonarcloud.yml`)
+is opt-in and stays dormant until you connect it:
+
+1. Sign in at [sonarcloud.io](https://sonarcloud.io) with GitHub and import the
+   `Gr33nOps/VTcade` repository.
+2. Confirm the project key and organization SonarCloud shows match the values in
+   `sonar-project.properties`; edit those two lines if they differ.
+3. Create a token under *My Account > Security* and add it to the repository:
+
+   ```bash
+   gh secret set SONAR_TOKEN --repo Gr33nOps/VTcade --body "<token>"
+   ```
+4. In the SonarCloud project, turn **off** *Automatic Analysis* so the CI-based
+   analysis is the only one running (the two conflict).
+
+Until `SONAR_TOKEN` exists the SonarCloud job skips itself and stays green, so it
+never blocks a push before setup is complete.
+
 ## Roadmap
 
 **Soon**

@@ -1,0 +1,55 @@
+name: SonarCloud
+
+# Static analysis with SonarCloud (SonarQube Cloud). Complements the Semgrep job
+# in security.yml with SonarCloud's own bug, code-smell and security rules, plus
+# a tracked quality gate over time.
+#
+# One-time setup (see README > Deployment):
+#   1. Sign in at https://sonarcloud.io with GitHub and import Gr33nOps/VTcade.
+#   2. Confirm the project key and organization match sonar-project.properties.
+#   3. Create a token (My Account > Security) and add it to the repo:
+#        gh secret set SONAR_TOKEN --repo Gr33nOps/VTcade --body "<token>"
+#   4. Turn OFF SonarCloud's "Automatic Analysis" for the project so this
+#      CI-based analysis is the single source of truth (they conflict otherwise).
+#
+# Until SONAR_TOKEN exists the job skips itself and stays green, so it never
+# blocks a push before setup is done.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  sonarcloud:
+    name: SonarCloud analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for SonarCloud token
+        id: guard
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "SONAR_TOKEN is not set - skipping SonarCloud until it is configured (see README)."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out the code
+        if: steps.guard.outputs.configured == 'true'
+        uses: actions/checkout@v4
+        with:
+          # Full history so SonarCloud attributes new vs existing code correctly.
+          fetch-depth: 0
+
+      - name: SonarCloud scan
+        if: steps.guard.outputs.configured == 'true'
+        uses: SonarSource/sonarqube-scan-action@v4.1.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
