@@ -360,6 +360,24 @@ covers that case.
 **Database on Supabase.** Enable the Google provider under Authentication if you
 want Google sign in, and add your callback page to the redirect allow list.
 
+A free-tier Supabase project pauses itself after seven days with no database
+activity, and a paused project takes the whole site down until someone restores
+it by hand. The `Supabase keep-alive` GitHub Action (`.github/workflows/keep-alive.yml`)
+makes a tiny read against the public leaderboard three times a week so the idle
+timer never runs out, even through long stretches with no visitors. It needs two
+repository secrets:
+
+```bash
+gh secret set SUPABASE_URL      --repo <owner>/<repo> --body "https://<ref>.supabase.co"
+gh secret set SUPABASE_ANON_KEY --repo <owner>/<repo> --body "<anon key>"
+```
+
+You can trigger it by hand from the repository's Actions tab (`Run workflow`) to
+confirm it works. Note that GitHub disables scheduled workflows after 60 days
+with no commits to the repository, so a repo that goes completely silent for two
+months will need one manual run to wake the schedule back up. The permanent fix
+for that is upgrading the Supabase project to a paid plan, which never pauses.
+
 ## Roadmap
 
 **Soon**
