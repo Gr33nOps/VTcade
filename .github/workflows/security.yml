@@ -1,0 +1,55 @@
+name: Security scan
+
+# Static application security testing (SAST) with Semgrep. Runs on every push
+# and pull request so a security regression in the backend or the shared
+# frontend scripts is caught in review, not in production.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    # The official Semgrep image ships the CLI and its rule engine, so there is
+    # no pip install step to break.
+    container:
+      image: semgrep/semgrep
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Two njsscan rules are excluded below as reviewed false positives, so a
+      # real finding still fails the build instead of being lost in known noise:
+      #
+      #   node_username @ BackEnd/routes/adminRoutes.js
+      #     fires on the "username" token inside the USER_COLUMNS SQL column
+      #     list. Real admin credentials come from env vars, whose strength is
+      #     validated at boot in server.js.
+      #
+      #   node_username @ FrontEnd/shared/session.js
+      #     fires on LEGACY_USER_KEY = "currentUser", a localStorage key name.
+      #
+      #   node_insecure_random_generator @ FrontEnd/shared/session.js
+      #     Math.random() builds a throwaway guest DISPLAY label ("GUEST4823"),
+      #     never a token or session id, so a weak RNG carries no security weight.
+      - name: Run Semgrep
+        run: |
+          semgrep scan \
+            --config p/javascript \
+            --config p/nodejsscan \
+            --config p/security-audit \
+            --config p/secrets \
+            --config p/owasp-top-ten \
+            --exclude node_modules \
+            --exclude-rule ajinabraham.njsscan.generic.hardcoded_secrets.node_username \
+            --exclude-rule ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator \
+            --severity ERROR --severity WARNING \
+            --error --metrics=off \
+            BackEnd FrontEnd tests
