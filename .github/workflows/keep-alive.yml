@@ -14,11 +14,11 @@ name: Supabase keep-alive
 
 on:
   schedule:
-    # Mon, Wed and Fri at 07:13 UTC. Three pings a week keeps the largest gap
-    # (Fri -> Mon, ~3 days) comfortably under Supabase's 7-day pause window, with
-    # enough margin that even a skipped run still leaves days to spare. GitHub
-    # defers scheduled jobs most at the top of the hour, so the minute is offset.
-    - cron: '13 7 * * 1,3,5'
+    # Every fourth day at 07:13 UTC (at most 96 hours between runs). GitHub
+    # Actions cron cannot represent exactly 100 hours, so this remains safely
+    # inside that limit. The minute is offset from the top of the hour because
+    # GitHub may defer scheduled jobs most heavily at :00.
+    - cron: '13 7 */4 * *'
   # Lets you run it by hand from the Actions tab to confirm it works.
   workflow_dispatch: {}
 
@@ -58,6 +58,19 @@ jobs:
             echo "Attempt $attempt: HTTP $code"
             case "$code" in
               2*) echo "Supabase is awake."; exit 0 ;;
+            esac
+
+            # Some projects intentionally deny anonymous table reads through
+            # RLS. The app's public leaderboard route performs the same small
+            # read with its server-side credentials, so it is a safe fallback
+            # that still creates real database activity without exposing any
+            # additional key to the workflow or to visitors.
+            app_code=$(curl -s -o /dev/null -w '%{http_code}' \
+              --max-time 30 \
+              https://vtcade.vercel.app/api/leaderboard) || true
+            echo "Application fallback: HTTP $app_code"
+            case "$app_code" in
+              2*) echo "Supabase is awake via the application."; exit 0 ;;
             esac
             sleep 15
           done

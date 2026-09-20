@@ -363,8 +363,10 @@ want Google sign in, and add your callback page to the redirect allow list.
 A free-tier Supabase project pauses itself after seven days with no database
 activity, and a paused project takes the whole site down until someone restores
 it by hand. The `Supabase keep-alive` GitHub Action (`.github/workflows/keep-alive.yml`)
-makes a tiny read against the public leaderboard three times a week so the idle
-timer never runs out, even through long stretches with no visitors. It needs two
+make a tiny read against the public leaderboard at most 96 hours apart, so the
+idle timer never runs out even through long stretches with no visitors. GitHub
+Actions cron cannot express exactly 100 hours, so 96 hours is used to stay within
+that limit. It needs two
 repository secrets:
 
 ```bash
