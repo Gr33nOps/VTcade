@@ -401,9 +401,7 @@
             render();
 
             document.getElementById('loadingOverlay').classList.add('active');
-            setTimeout(() => {
-                window.location.href = `${API_URL}/api/auth/google`;
-            }, 600);
+            window.location.href = `${API_URL}/api/auth/google`;
         }
 
         // Terminal style paste. Ctrl+V and Ctrl+Shift+V drop the clipboard into

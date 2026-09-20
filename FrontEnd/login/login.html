@@ -393,9 +393,7 @@
             render();
 
             document.getElementById('loadingOverlay').classList.add('active');
-            setTimeout(() => {
-                window.location.href = `${API_URL}/api/auth/google`;
-            }, 600);
+            window.location.href = `${API_URL}/api/auth/google`;
         }
 
         // No account, no server round trip: this never leaves the browser. A

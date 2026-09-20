@@ -13,7 +13,7 @@ const fs = require("fs");
 const vm = require("vm");
 const path = require("path");
 
-function loadSession() {
+function loadSession(fetchImpl) {
     const store = {};
     const ctx = {
         console,
@@ -25,7 +25,7 @@ function loadSession() {
         },
         // Only getAccessToken()'s refresh path would ever call this, and no
         // test here drives a real, non-guest session far enough to reach it.
-        fetch: async () => { throw new Error("no test in this file should reach the network"); }
+        fetch: fetchImpl || (async () => { throw new Error("no test in this file should reach the network"); })
     };
     ctx.window = ctx;
     ctx.global = ctx;
@@ -116,6 +116,39 @@ async function main() {
 
         const token = await VTSession.getAccessToken();
         check("and it does have a token to attach", token === "tok", token);
+    }
+
+    console.log("\n=== EXPIRED SESSION REFRESH IS SHARED ===");
+    {
+        let refreshCalls = 0;
+        let releaseRefresh;
+        const refreshGate = new Promise(resolve => { releaseRefresh = resolve; });
+        const { VTSession } = loadSession(async () => {
+            refreshCalls++;
+            await refreshGate;
+            return {
+                ok: true,
+                json: async () => ({
+                    username: "realplayer",
+                    session: { access_token: "fresh", refresh_token: "next", expires_in: 3600 }
+                })
+            };
+        });
+
+        VTSession.saveSession(
+            { access_token: "expired", refresh_token: "ref", expires_in: -1 },
+            "realplayer"
+        );
+
+        const first = VTSession.getAccessToken();
+        const second = VTSession.getAccessToken();
+        releaseRefresh();
+        const tokens = await Promise.all([first, second]);
+
+        check("two simultaneous callers make one refresh request", refreshCalls === 1,
+            String(refreshCalls));
+        check("both callers receive the new token", tokens.every(t => t === "fresh"),
+            JSON.stringify(tokens));
     }
 
     console.log("\n" + (failures === 0 ? "ALL CHECKS PASSED" : failures + " CHECK(S) FAILED"));

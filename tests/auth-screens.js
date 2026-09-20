@@ -324,6 +324,25 @@ async function main() {
             s.store.vtcadeSession === undefined, s.store.vtcadeSession);
     }
 
+    console.log("\n=== GOOGLE SIGN-IN STARTS WITHOUT AN ARTIFICIAL WAIT ===");
+    {
+        const login = loadScreen("login/login.html");
+        login.press("ArrowDown");
+        login.press("ArrowDown");
+        login.press("ArrowDown");
+        login.press("Enter");
+
+        check("login navigates to Google immediately",
+            /\/api\/auth\/google$/.test(login.ctx.location.href), login.ctx.location.href);
+
+        const signup = loadScreen("signup/signup.html");
+        for (let i = 0; i < 5; i++) signup.press("ArrowDown");
+        signup.press("Enter");
+
+        check("signup navigates to Google immediately",
+            /\/api\/auth\/google$/.test(signup.ctx.location.href), signup.ctx.location.href);
+    }
+
     console.log("\n=== SIGNUP: SAME KEYS, SAME RULES ===");
     {
         const s = loadScreen("signup/signup.html");

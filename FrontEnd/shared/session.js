@@ -23,6 +23,7 @@
         : "https://vtcade.onrender.com";
     const SESSION_KEY = "vtcadeSession";
     const LEGACY_USER_KEY = "currentUser";
+    let refreshInFlight = null;
     // Set only for "CONTINUE AS GUEST". A guest has a display name (so the
     // dashboard and games have someone to greet) but no Supabase session, so
     // getAccessToken() always returns null for one and every authedFetch call
@@ -101,8 +102,37 @@
         return localStorage.getItem(LEGACY_USER_KEY);
     }
 
+    async function refreshAccessToken(session) {
+        try {
+            const res = await fetch(`${API_URL}/api/auth/refresh`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ refresh_token: session.refreshToken })
+            });
+            if (!res.ok) {
+                // Do not clear a newer login that replaced this session while
+                // its refresh request was in flight.
+                const current = readSession();
+                if (current?.refreshToken === session.refreshToken) clearSession();
+                return null;
+            }
+            const data = await res.json();
+            const current = readSession();
+            if (current?.refreshToken !== session.refreshToken) {
+                return current?.accessToken || null;
+            }
+            saveSession(data.session, data.username || session.username);
+            return data.session.access_token;
+        } catch (err) {
+            // Network failure, keep the session and let the caller retry later.
+            const current = readSession();
+            return current?.refreshToken === session.refreshToken ? session.accessToken : null;
+        }
+    }
+
     // Returns a usable access token, refreshing it first if it is expired or
-    // about to be. Returns null when the user needs to sign in again.
+    // about to be. Concurrent API calls share one refresh: Supabase rotates
+    // refresh tokens, so racing the same token can otherwise log a player out.
     async function getAccessToken() {
         const session = readSession();
         if (!session) return null;
@@ -112,23 +142,12 @@
 
         if (!session.refreshToken) return null;
 
-        try {
-            const res = await fetch(`${API_URL}/api/auth/refresh`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ refresh_token: session.refreshToken })
+        if (!refreshInFlight) {
+            refreshInFlight = refreshAccessToken(session).finally(() => {
+                refreshInFlight = null;
             });
-            if (!res.ok) {
-                clearSession();
-                return null;
-            }
-            const data = await res.json();
-            saveSession(data.session, data.username || session.username);
-            return data.session.access_token;
-        } catch (err) {
-            // Network failure, keep the session and let the caller retry later.
-            return session.accessToken;
         }
+        return refreshInFlight;
     }
 
     // fetch() wrapper that attaches the bearer token.
