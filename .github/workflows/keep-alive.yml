@@ -14,11 +14,11 @@ name: Supabase keep-alive
 
 on:
   schedule:
-    # Every fourth day at 07:13 UTC (at most 96 hours between runs). GitHub
-    # Actions cron cannot represent exactly 100 hours, so this remains safely
-    # inside that limit. The minute is offset from the top of the hour because
-    # GitHub may defer scheduled jobs most heavily at :00.
-    - cron: '13 7 */4 * *'
+    # Daily at 07:13 UTC. This gives several recovery opportunities before the
+    # free-tier seven-day inactivity window, even if a runner or provider has a
+    # short-lived network incident. The minute is offset from the top of the
+    # hour because GitHub may defer scheduled jobs most heavily at :00.
+    - cron: '13 7 * * *'
   # Lets you run it by hand from the Actions tab to confirm it works.
   workflow_dispatch: {}
 
@@ -45,35 +45,41 @@ jobs:
             exit 1
           fi
 
-          # A single-row read is enough to count as database activity and reset
-          # the idle timer. Retry a few times so a transient network blip does
-          # not fail the run and leave a scary red X in the Actions history.
-          code=""
-          for attempt in 1 2 3; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' \
-              --max-time 30 \
-              -H "apikey: $SUPABASE_ANON_KEY" \
-              -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
-              "$SUPABASE_URL/rest/v1/leaderboard?select=id&limit=1") || true
-            echo "Attempt $attempt: HTTP $code"
-            case "$code" in
-              2*) echo "Supabase is awake."; exit 0 ;;
-            esac
+          # A one-row read counts as database activity. Check the application
+          # route first because it uses the same server-side path as visitors.
+          # Each route has its own curl retries and every round tries both, so
+          # a temporary DNS, network, or deployment failure does not prevent a
+          # successful database touch.
+          request_code() {
+            curl -sS -o /dev/null -w '%{http_code}' \
+              --connect-timeout 15 \
+              --max-time 45 \
+              --retry 2 \
+              --retry-delay 5 \
+              --retry-all-errors \
+              "$@" || true
+          }
 
-            # Some projects intentionally deny anonymous table reads through
-            # RLS. The app's public leaderboard route performs the same small
-            # read with its server-side credentials, so it is a safe fallback
-            # that still creates real database activity without exposing any
-            # additional key to the workflow or to visitors.
-            app_code=$(curl -s -o /dev/null -w '%{http_code}' \
-              --max-time 30 \
-              https://vtcade.vercel.app/api/leaderboard) || true
-            echo "Application fallback: HTTP $app_code"
+          app_code=""
+          database_code=""
+          for attempt in 1 2 3 4; do
+            app_code=$(request_code https://vtcade.vercel.app/api/leaderboard)
+            echo "Application attempt $attempt: HTTP ${app_code:-000}"
             case "$app_code" in
               2*) echo "Supabase is awake via the application."; exit 0 ;;
             esac
-            sleep 15
+
+            database_code=$(request_code \
+              -H "apikey: $SUPABASE_ANON_KEY" \
+              -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+              "$SUPABASE_URL/rest/v1/leaderboard?select=id&limit=1")
+            echo "Database attempt $attempt: HTTP ${database_code:-000}"
+            case "$database_code" in
+              2*) echo "Supabase is awake."; exit 0 ;;
+            esac
+
+            sleep 30
           done
 
-          echo "::error::Keep-alive failed after 3 attempts (last HTTP ${code:-none})."
+          echo "::error::Keep-alive failed after 4 rounds (app HTTP ${app_code:-000}; database HTTP ${database_code:-000})."
           exit 1
