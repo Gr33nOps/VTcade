@@ -23,6 +23,8 @@ check("retries transient network failures before declaring either route unavaila
     /request_code\(\)[\s\S]*--retry-all-errors[\s\S]*app_code=\$\(request_code[\s\S]*database_code=\$\(request_code/.test(workflow));
 check("tries both routes during every retry round",
     /Application attempt \$attempt[\s\S]*Database attempt \$attempt/.test(workflow));
+check("bounds each request so an outage is reported without a long-running job",
+    /--max-time 20[\s\S]*--retry 1/.test(workflow));
 check("fails safely when credentials are missing", /SUPABASE_URL or SUPABASE_ANON_KEY secret is not set/.test(workflow));
 
 process.exitCode = failures ? 1 : 0;

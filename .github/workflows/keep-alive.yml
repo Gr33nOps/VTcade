@@ -53,8 +53,8 @@ jobs:
           request_code() {
             curl -sS -o /dev/null -w '%{http_code}' \
               --connect-timeout 15 \
-              --max-time 45 \
-              --retry 2 \
+              --max-time 20 \
+              --retry 1 \
               --retry-delay 5 \
               --retry-all-errors \
               "$@" || true
@@ -62,7 +62,7 @@ jobs:
 
           app_code=""
           database_code=""
-          for attempt in 1 2 3 4; do
+          for attempt in 1 2 3; do
             app_code=$(request_code https://vtcade.vercel.app/api/leaderboard)
             echo "Application attempt $attempt: HTTP ${app_code:-000}"
             case "$app_code" in
@@ -78,8 +78,8 @@ jobs:
               2*) echo "Supabase is awake."; exit 0 ;;
             esac
 
-            sleep 30
+            sleep 15
           done
 
-          echo "::error::Keep-alive failed after 4 rounds (app HTTP ${app_code:-000}; database HTTP ${database_code:-000})."
+          echo "::error::Keep-alive failed after 3 rounds (app HTTP ${app_code:-000}; database HTTP ${database_code:-000})."
           exit 1
